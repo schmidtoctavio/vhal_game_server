@@ -229,6 +229,47 @@ func _on_client_authenticated(
 
 		return
 
+	var snapshot_result := (
+		game_server.send_world_snapshot(
+			peer_id,
+			session.to_snapshot()
+		)
+	)
+
+
+	if snapshot_result != OK:
+		push_error(
+			(
+				"ServerMain | No se pudo enviar el snapshot "
+				+
+				"de mundo al peer %d. Error: %d"
+			)
+			%
+			[
+				peer_id,
+				snapshot_result,
+			]
+		)
+
+
+		world_session_registry.remove_session(
+			peer_id
+		)
+
+
+		game_server.reject_authenticated_peer(
+			peer_id,
+			"No se pudo iniciar la sesión de mundo."
+		)
+
+
+		return
+
+
+	print(
+		"ServerMain | Snapshot de mundo enviado | Peer: ",
+		peer_id
+	)
 
 	print(
 		"ServerMain | Mundo autoritativo preparado | Peer: ",

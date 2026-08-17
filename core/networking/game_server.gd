@@ -45,6 +45,12 @@ const DEFAULT_MAX_CLIENTS: int = 100
 
 const AUTH_TIMEOUT_SECONDS: float = 10.0
 
+const NETWORK_PROTOCOL_VERSION: int = 1
+
+const MESSAGE_WORLD_SNAPSHOT: String = (
+	"world_snapshot"
+)
+
 
 # =========================================================
 # ESTADO
@@ -595,3 +601,56 @@ func reject_authenticated_peer(
 		scene_multiplayer.disconnect_peer(
 			peer_id
 		)
+
+# =========================================================
+# ENVIAR SNAPSHOT DE MUNDO
+# =========================================================
+
+func send_world_snapshot(
+	peer_id: int,
+	snapshot: Dictionary
+) -> Error:
+	if peer_id <= 1:
+		return ERR_INVALID_PARAMETER
+
+
+	if not authenticated_sessions.has(
+		peer_id
+	):
+		return ERR_DOES_NOT_EXIST
+
+
+	if snapshot.is_empty():
+		return ERR_INVALID_DATA
+
+
+	var scene_multiplayer := (
+		multiplayer
+		as SceneMultiplayer
+	)
+
+
+	if scene_multiplayer == null:
+		return ERR_UNAVAILABLE
+
+
+	var message := {
+		"version": NETWORK_PROTOCOL_VERSION,
+		"type": MESSAGE_WORLD_SNAPSHOT,
+		"data": snapshot,
+	}
+
+
+	var packet := (
+		JSON.stringify(
+			message
+		).to_utf8_buffer()
+	)
+
+
+	return scene_multiplayer.send_bytes(
+		packet,
+		peer_id,
+		MultiplayerPeer.TRANSFER_MODE_RELIABLE,
+		0
+	)
