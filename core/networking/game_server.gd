@@ -563,3 +563,35 @@ func get_authenticated_session(
 			true
 		)
 	)
+
+# =========================================================
+# EXPULSAR PEER AUTENTICADO
+# =========================================================
+
+func reject_authenticated_peer(
+	peer_id: int,
+	message: String
+) -> void:
+	authenticated_sessions.erase(
+		peer_id
+	)
+
+
+	print(
+		"GameServer | Peer autenticado expulsado: ",
+		peer_id,
+		" | ",
+		message
+	)
+
+
+	var scene_multiplayer := (
+		multiplayer
+		as SceneMultiplayer
+	)
+
+
+	if scene_multiplayer != null:
+		scene_multiplayer.disconnect_peer(
+			peer_id
+		)

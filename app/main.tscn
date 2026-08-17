@@ -3,6 +3,7 @@
 [ext_resource type="Script" uid="uid://se5l5dcvruny" path="res://app/main.gd" id="1_s58fy"]
 [ext_resource type="Script" uid="uid://q0q1nmqhuw7x" path="res://core/networking/game_server.gd" id="2_ysqge"]
 [ext_resource type="Script" uid="uid://duuvvu1awkibd" path="res://core/backend/backend_ticket_validator.gd" id="3_ysqge"]
+[ext_resource type="Script" uid="uid://8os8hgbelb3d" path="res://core/world/world_session_registry.gd" id="4_8bux2"]
 
 [node name="ServerMain" type="Node" unique_id=1483147024]
 script = ExtResource("1_s58fy")
@@ -12,3 +13,6 @@ script = ExtResource("2_ysqge")
 
 [node name="BackendTicketValidator" type="Node" parent="." unique_id=4572583]
 script = ExtResource("3_ysqge")
+
+[node name="WorldSessionRegistry" type="Node" parent="." unique_id=1554618836]
+script = ExtResource("4_8bux2")

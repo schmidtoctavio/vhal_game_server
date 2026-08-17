@@ -13,6 +13,10 @@ extends Node
 	$BackendTicketValidator
 )
 
+@onready var world_session_registry: WorldSessionRegistry = (
+	$WorldSessionRegistry
+)
+
 
 # =========================================================
 # START
@@ -50,6 +54,18 @@ func _ready() -> void:
 
 		get_tree().quit(
 			3
+		)
+
+		return
+
+
+	if world_session_registry == null:
+		push_error(
+			"ServerMain | No existe WorldSessionRegistry."
+		)
+
+		get_tree().quit(
+			4
 		)
 
 		return
@@ -106,6 +122,20 @@ func _bind_authentication() -> void:
 			_on_ticket_rejected
 		)
 
+	if not game_server.client_authenticated.is_connected(
+		_on_client_authenticated
+	):
+		game_server.client_authenticated.connect(
+			_on_client_authenticated
+		)
+
+
+	if not game_server.client_disconnected.is_connected(
+		_on_client_disconnected
+	):
+		game_server.client_disconnected.connect(
+			_on_client_disconnected
+		)
 
 # =========================================================
 # AUTH REQUEST
@@ -161,4 +191,62 @@ func _on_ticket_rejected(
 	game_server.reject_authentication(
 		peer_id,
 		message
+	)
+
+# =========================================================
+# PEER AUTENTICADO
+# =========================================================
+
+func _on_client_authenticated(
+	peer_id: int,
+	account_id: int,
+	character_data: Dictionary
+) -> void:
+	var session := (
+		world_session_registry.create_session(
+			peer_id,
+			account_id,
+			character_data
+		)
+	)
+
+
+	if session == null:
+		push_error(
+			(
+				"ServerMain | No se pudo crear la sesión "
+				+
+				"de mundo para el peer %d."
+			)
+			%
+			peer_id
+		)
+
+		game_server.reject_authenticated_peer(
+			peer_id,
+			"No se pudo crear la sesión de mundo."
+		)
+
+		return
+
+
+	print(
+		"ServerMain | Mundo autoritativo preparado | Peer: ",
+		peer_id,
+		" | Mapa: ",
+		session.map_id,
+		" | Posición: ",
+		session.position
+	)
+
+
+# =========================================================
+# PEER DESCONECTADO
+# =========================================================
+
+func _on_client_disconnected(
+	peer_id: int
+) -> void:
+	world_session_registry.remove_session(
+		peer_id
 	)
