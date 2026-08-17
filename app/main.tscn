@@ -1,0 +1,10 @@
+[gd_scene format=3 uid="uid://hq70ij0egr7d"]
+
+[ext_resource type="Script" uid="uid://se5l5dcvruny" path="res://app/main.gd" id="1_s58fy"]
+[ext_resource type="Script" uid="uid://q0q1nmqhuw7x" path="res://core/networking/game_server.gd" id="2_ysqge"]
+
+[node name="ServerMain" type="Node" unique_id=1483147024]
+script = ExtResource("1_s58fy")
+
+[node name="GameServer" type="Node" parent="." unique_id=914608812]
+script = ExtResource("2_ysqge")
