@@ -34,6 +34,30 @@ var position: Vector3 = Vector3.ZERO
 
 var rotation_y: float = 0.0
 
+# =========================================================
+# INTENCIÓN DE MOVIMIENTO
+# =========================================================
+
+var requested_move_target: Vector3 = Vector3.ZERO
+
+var has_requested_move_target: bool = false
+
+# =========================================================
+# REGISTRAR INTENCIÓN DE MOVIMIENTO
+# =========================================================
+
+func request_move_to(
+	target: Vector3
+) -> void:
+	requested_move_target = target
+
+	has_requested_move_target = true
+
+
+func clear_move_request() -> void:
+	requested_move_target = Vector3.ZERO
+
+	has_requested_move_target = false
 
 # =========================================================
 # CONSTRUCTOR

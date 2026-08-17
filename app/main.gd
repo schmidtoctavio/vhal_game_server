@@ -137,6 +137,12 @@ func _bind_authentication() -> void:
 			_on_client_disconnected
 		)
 
+	if not game_server.client_move_requested.is_connected(
+		_on_client_move_requested
+	):
+		game_server.client_move_requested.connect(
+			_on_client_move_requested
+		)
 # =========================================================
 # AUTH REQUEST
 # =========================================================
@@ -290,4 +296,45 @@ func _on_client_disconnected(
 ) -> void:
 	world_session_registry.remove_session(
 		peer_id
+	)
+
+# =========================================================
+# INTENCIÓN DE MOVIMIENTO
+# =========================================================
+
+func _on_client_move_requested(
+	peer_id: int,
+	target: Vector3
+) -> void:
+	var session := (
+		world_session_registry.get_session(
+			peer_id
+		)
+	)
+
+
+	if session == null:
+		game_server.reject_authenticated_peer(
+			peer_id,
+			"No existe una sesión de mundo para el peer."
+		)
+
+		return
+
+
+	session.request_move_to(
+		target
+	)
+
+
+	print(
+		"ServerMain | Intención de movimiento registrada",
+		" | Peer: ",
+		peer_id,
+		" | Personaje: ",
+		session.character_name,
+		" | Desde: ",
+		session.position,
+		" | Destino solicitado: ",
+		session.requested_move_target
 	)

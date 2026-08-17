@@ -34,6 +34,10 @@ signal client_disconnected(
 	peer_id: int
 )
 
+signal client_move_requested(
+	peer_id: int,
+	target: Vector3
+)
 
 # =========================================================
 # CONFIGURACIÓN
@@ -51,6 +55,11 @@ const MESSAGE_WORLD_SNAPSHOT: String = (
 	"world_snapshot"
 )
 
+const MESSAGE_MOVE_REQUEST: String = (
+	"move_request"
+)
+
+const MAX_CLIENT_PACKET_SIZE: int = 2048
 
 # =========================================================
 # ESTADO
@@ -174,6 +183,12 @@ func _connect_multiplayer_signals() -> void:
 	if scene_multiplayer == null:
 		return
 
+	if not scene_multiplayer.peer_packet.is_connected(
+		_on_peer_packet
+	):
+		scene_multiplayer.peer_packet.connect(
+			_on_peer_packet
+		)
 
 	if not scene_multiplayer.peer_authenticating.is_connected(
 		_on_peer_authenticating
@@ -653,4 +668,214 @@ func send_world_snapshot(
 		peer_id,
 		MultiplayerPeer.TRANSFER_MODE_RELIABLE,
 		0
+	)
+
+# =========================================================
+# PAQUETES DEL CLIENTE
+# =========================================================
+
+func _on_peer_packet(
+	peer_id: int,
+	packet: PackedByteArray
+) -> void:
+	if not authenticated_sessions.has(
+		peer_id
+	):
+		reject_authenticated_peer(
+			peer_id,
+			"Paquete recibido desde un peer no autenticado."
+		)
+
+		return
+
+
+	if packet.is_empty():
+		return
+
+
+	if packet.size() > MAX_CLIENT_PACKET_SIZE:
+		reject_authenticated_peer(
+			peer_id,
+			"Paquete de cliente demasiado grande."
+		)
+
+		return
+
+
+	var parsed: Variant = (
+		JSON.parse_string(
+			packet.get_string_from_utf8()
+		)
+	)
+
+
+	if typeof(parsed) != TYPE_DICTIONARY:
+		reject_authenticated_peer(
+			peer_id,
+			"Paquete de cliente inválido."
+		)
+
+		return
+
+
+	var message: Dictionary = (
+		parsed
+	)
+
+
+	var version := int(
+		message.get(
+			"version",
+			0
+		)
+	)
+
+
+	if version != NETWORK_PROTOCOL_VERSION:
+		reject_authenticated_peer(
+			peer_id,
+			"Versión de protocolo incompatible."
+		)
+
+		return
+
+
+	var message_type := String(
+		message.get(
+			"type",
+			""
+		)
+	)
+
+
+	if message_type == MESSAGE_MOVE_REQUEST:
+		_process_move_request(
+			peer_id,
+			message
+		)
+
+
+# =========================================================
+# MOVE REQUEST
+# =========================================================
+
+func _process_move_request(
+	peer_id: int,
+	message: Dictionary
+) -> void:
+	var data_value: Variant = (
+		message.get(
+			"data",
+			null
+		)
+	)
+
+
+	if typeof(data_value) != TYPE_DICTIONARY:
+		reject_authenticated_peer(
+			peer_id,
+			"Movimiento sin datos válidos."
+		)
+
+		return
+
+
+	var data: Dictionary = (
+		data_value
+	)
+
+
+	var target_value: Variant = (
+		data.get(
+			"target",
+			null
+		)
+	)
+
+
+	if typeof(target_value) != TYPE_DICTIONARY:
+		reject_authenticated_peer(
+			peer_id,
+			"Movimiento sin destino válido."
+		)
+
+		return
+
+
+	var target_data: Dictionary = (
+		target_value
+	)
+
+
+	if (
+		not target_data.has("x")
+		or
+		not target_data.has("y")
+		or
+		not target_data.has("z")
+	):
+		reject_authenticated_peer(
+			peer_id,
+			"Destino de movimiento incompleto."
+		)
+
+		return
+
+
+	var x_value: Variant = target_data["x"]
+
+	var y_value: Variant = target_data["y"]
+
+	var z_value: Variant = target_data["z"]
+
+
+	if (
+		typeof(x_value) != TYPE_FLOAT
+		and
+		typeof(x_value) != TYPE_INT
+	):
+		reject_authenticated_peer(
+			peer_id,
+			"Coordenada X inválida."
+		)
+
+		return
+
+
+	if (
+		typeof(y_value) != TYPE_FLOAT
+		and
+		typeof(y_value) != TYPE_INT
+	):
+		reject_authenticated_peer(
+			peer_id,
+			"Coordenada Y inválida."
+		)
+
+		return
+
+
+	if (
+		typeof(z_value) != TYPE_FLOAT
+		and
+		typeof(z_value) != TYPE_INT
+	):
+		reject_authenticated_peer(
+			peer_id,
+			"Coordenada Z inválida."
+		)
+
+		return
+
+
+	var target := Vector3(
+		float(x_value),
+		float(y_value),
+		float(z_value)
+	)
+
+
+	client_move_requested.emit(
+		peer_id,
+		target
 	)
