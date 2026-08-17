@@ -24,27 +24,21 @@ func _ready() -> void:
 			"ServerMain | No existe GameServer."
 		)
 
-
 		get_tree().quit(
 			1
 		)
 
-
 		return
 
-
-	var result := game_server.start()
 
 	if backend_ticket_validator == null:
 		push_error(
 			"ServerMain | No existe BackendTicketValidator."
 		)
 
-
 		get_tree().quit(
 			2
 		)
-
 
 		return
 
@@ -54,24 +48,24 @@ func _ready() -> void:
 			"ServerMain | BackendTicketValidator no configurado."
 		)
 
-
 		get_tree().quit(
 			3
 		)
 
-
 		return
+
+
+	var result := game_server.start()
+
 
 	if result != OK:
 		push_error(
 			"ServerMain | No se pudo iniciar el servidor."
 		)
 
-
 		get_tree().quit(
 			result
 		)
-
 
 		return
 
