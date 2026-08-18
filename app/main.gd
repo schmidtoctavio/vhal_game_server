@@ -358,19 +358,113 @@ func _on_client_move_requested(
 		return
 
 
+	# -----------------------------------------------------
+	# REGISTRAMOS PRIMERO LA INTENCIÓN RAW
+	# -----------------------------------------------------
+
 	session.request_move_to(
 		target
 	)
 
 
+	# -----------------------------------------------------
+	# EL SERVIDOR RESUELVE EL DESTINO
+	# -----------------------------------------------------
+
+	var resolution := (
+		world_navigation_registry.resolve_reachable_target(
+			session.map_id,
+			session.position,
+			target
+		)
+	)
+
+
+	if not bool(
+		resolution.get(
+			"ok",
+			false
+		)
+	):
+		var reason := String(
+			resolution.get(
+				"reason",
+				"unknown"
+			)
+		)
+
+
+		print(
+			"ServerMain | Movimiento rechazado",
+			" | Peer: ",
+			peer_id,
+			" | Personaje: ",
+			session.character_name,
+			" | Desde: ",
+			session.position,
+			" | Solicitado: ",
+			target,
+			" | Motivo: ",
+			reason
+		)
+
+
+		session.reject_move_request()
+
+
+		return
+
+
+	var resolved_value: Variant = (
+		resolution.get(
+			"resolved_target",
+			null
+		)
+	)
+
+
+	if typeof(resolved_value) != TYPE_VECTOR3:
+		session.reject_move_request()
+
+
+		print(
+			"ServerMain | Movimiento rechazado",
+			" | Peer: ",
+			peer_id,
+			" | Motivo: resolved_target inválido"
+		)
+
+
+		return
+
+
+	var resolved_target: Vector3 = (
+		resolved_value
+	)
+
+
+	session.authorize_move_to(
+		resolved_target
+	)
+
+
 	print(
-		"ServerMain | Intención de movimiento registrada",
+		"ServerMain | Movimiento autorizado",
 		" | Peer: ",
 		peer_id,
 		" | Personaje: ",
 		session.character_name,
 		" | Desde: ",
 		session.position,
-		" | Destino solicitado: ",
-		session.requested_move_target
+		" | Solicitado: ",
+		target,
+		" | Autorizado: ",
+		session.authorized_move_target,
+		" | Path points: ",
+		int(
+			resolution.get(
+				"path_points",
+				0
+			)
+		)
 	)

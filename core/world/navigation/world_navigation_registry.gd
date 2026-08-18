@@ -462,6 +462,63 @@ func find_path(
 		)
 	)
 
+# =========================================================
+# RESOLVER DESTINO ALCANZABLE
+# =========================================================
+
+func resolve_reachable_target(
+	map_id: String,
+	origin: Vector3,
+	requested_target: Vector3
+) -> Dictionary:
+	if not has_map(
+		map_id
+	):
+		return {
+			"ok": false,
+			"reason": "map_not_found",
+		}
+
+
+	if not is_map_ready(
+		map_id
+	):
+		return {
+			"ok": false,
+			"reason": "map_not_ready",
+		}
+
+
+	var path := find_path(
+		map_id,
+		origin,
+		requested_target
+	)
+
+
+	if path.is_empty():
+		return {
+			"ok": false,
+			"reason": "path_not_found",
+		}
+
+
+	var resolved_target: Vector3 = (
+		path[
+			path.size() - 1
+		]
+	)
+
+
+	return {
+		"ok": true,
+
+		"requested_target": requested_target,
+
+		"resolved_target": resolved_target,
+
+		"path_points": path.size(),
+	}
 
 # =========================================================
 # CLEANUP

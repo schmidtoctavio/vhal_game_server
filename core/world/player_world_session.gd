@@ -42,6 +42,10 @@ var requested_move_target: Vector3 = Vector3.ZERO
 
 var has_requested_move_target: bool = false
 
+var authorized_move_target: Vector3 = Vector3.ZERO
+
+var has_authorized_move_target: bool = false
+
 # =========================================================
 # REGISTRAR INTENCIÓN DE MOVIMIENTO
 # =========================================================
@@ -54,10 +58,42 @@ func request_move_to(
 	has_requested_move_target = true
 
 
+	# -----------------------------------------------------
+	# Una nueva intención invalida cualquier autorización
+	# anterior hasta que el servidor vuelva a resolverla.
+	# -----------------------------------------------------
+
+	authorized_move_target = Vector3.ZERO
+
+	has_authorized_move_target = false
+
+func authorize_move_to(
+	target: Vector3
+) -> void:
+	authorized_move_target = target
+
+	has_authorized_move_target = true
+
+	has_requested_move_target = false
+
+
+func reject_move_request() -> void:
+	requested_move_target = Vector3.ZERO
+
+	has_requested_move_target = false
+
+	authorized_move_target = Vector3.ZERO
+
+	has_authorized_move_target = false
+
 func clear_move_request() -> void:
 	requested_move_target = Vector3.ZERO
 
 	has_requested_move_target = false
+
+	authorized_move_target = Vector3.ZERO
+
+	has_authorized_move_target = false
 
 # =========================================================
 # CONSTRUCTOR
