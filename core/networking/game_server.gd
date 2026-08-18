@@ -40,6 +40,12 @@ signal client_move_requested(
 	target: Vector3
 )
 
+signal client_npc_interaction_requested(
+	peer_id: int,
+	request_id: int,
+	npc_id: String
+)
+
 # =========================================================
 # CONFIGURACIÓN
 # =========================================================
@@ -58,6 +64,10 @@ const MESSAGE_WORLD_SNAPSHOT: String = (
 
 const MESSAGE_MOVE_REQUEST: String = (
 	"move_request"
+)
+
+const MESSAGE_NPC_INTERACTION_REQUEST: String = (
+	"npc_interaction_request"
 )
 
 const MAX_CLIENT_PACKET_SIZE: int = 2048
@@ -80,6 +90,10 @@ const MESSAGE_PLAYER_PRESENCE_JOINED: String = (
 
 const MESSAGE_PLAYER_PRESENCE_LEFT: String = (
 	"player_presence_left"
+)
+
+const MESSAGE_NPC_INTERACTION_DECISION: String = (
+	"npc_interaction_decision"
 )
 
 # =========================================================
@@ -951,6 +965,104 @@ func send_movement_decision(
 	)
 
 # =========================================================
+# ENVIAR DECISIÓN DE INTERACCIÓN NPC
+# =========================================================
+
+func send_npc_interaction_decision(
+	peer_id: int,
+	request_id: int,
+	accepted: bool,
+	npc_id: String,
+	service_id: String = "",
+	reason: String = ""
+) -> Error:
+	if peer_id <= 1:
+		return ERR_INVALID_PARAMETER
+
+
+	if request_id <= 0:
+		return ERR_INVALID_PARAMETER
+
+
+	if not authenticated_sessions.has(
+		peer_id
+	):
+		return ERR_DOES_NOT_EXIST
+
+
+	var normalized_npc_id := (
+		npc_id.strip_edges()
+	)
+
+
+	if normalized_npc_id.is_empty():
+		return ERR_INVALID_PARAMETER
+
+
+	var normalized_service_id := (
+		service_id.strip_edges()
+	)
+
+
+	var normalized_reason := (
+		reason.strip_edges()
+	)
+
+
+	if (
+		accepted
+		and
+		normalized_service_id.is_empty()
+	):
+		return ERR_INVALID_PARAMETER
+
+
+	var scene_multiplayer := (
+		multiplayer
+		as SceneMultiplayer
+	)
+
+
+	if scene_multiplayer == null:
+		return ERR_UNAVAILABLE
+
+
+	var message := {
+		"version": NETWORK_PROTOCOL_VERSION,
+
+		"type": MESSAGE_NPC_INTERACTION_DECISION,
+
+		"data": {
+			"peer_id": peer_id,
+
+			"request_id": request_id,
+
+			"accepted": accepted,
+
+			"npc_id": normalized_npc_id,
+
+			"service_id": normalized_service_id,
+
+			"reason": normalized_reason,
+		},
+	}
+
+
+	var packet := (
+		JSON.stringify(
+			message
+		).to_utf8_buffer()
+	)
+
+
+	return scene_multiplayer.send_bytes(
+		packet,
+		peer_id,
+		MultiplayerPeer.TRANSFER_MODE_RELIABLE,
+		0
+	)
+
+# =========================================================
 # PAQUETES DEL CLIENTE
 # =========================================================
 
@@ -1033,6 +1145,19 @@ func _on_peer_packet(
 			peer_id,
 			message
 		)
+
+
+		return
+
+
+	if message_type == MESSAGE_NPC_INTERACTION_REQUEST:
+		_process_npc_interaction_request(
+			peer_id,
+			message
+		)
+
+
+		return
 
 
 # =========================================================
@@ -1174,6 +1299,112 @@ func _process_move_request(
 		peer_id,
 		request_id,
 		target
+	)
+
+# =========================================================
+# NPC INTERACTION REQUEST
+# =========================================================
+
+func _process_npc_interaction_request(
+	peer_id: int,
+	message: Dictionary
+) -> void:
+	var data_value: Variant = (
+		message.get(
+			"data",
+			null
+		)
+	)
+
+
+	if typeof(data_value) != TYPE_DICTIONARY:
+		reject_authenticated_peer(
+			peer_id,
+			"Interacción NPC sin datos válidos."
+		)
+
+
+		return
+
+
+	var data: Dictionary = (
+		data_value
+	)
+
+
+	# -----------------------------------------------------
+	# REQUEST ID
+	# -----------------------------------------------------
+
+	var request_id := int(
+		data.get(
+			"request_id",
+			0
+		)
+	)
+
+
+	if request_id <= 0:
+		reject_authenticated_peer(
+			peer_id,
+			"Interacción NPC sin Request ID válido."
+		)
+
+
+		return
+
+
+	# -----------------------------------------------------
+	# NPC ID
+	# -----------------------------------------------------
+
+	var npc_id_value: Variant = (
+		data.get(
+			"npc_id",
+			null
+		)
+	)
+
+
+	if typeof(npc_id_value) != TYPE_STRING:
+		reject_authenticated_peer(
+			peer_id,
+			"Interacción NPC sin NPC ID válido."
+		)
+
+
+		return
+
+
+	var npc_id := String(
+		npc_id_value
+	).strip_edges()
+
+
+	if npc_id.is_empty():
+		reject_authenticated_peer(
+			peer_id,
+			"Interacción NPC con NPC ID vacío."
+		)
+
+
+		return
+
+
+	if npc_id.length() > 64:
+		reject_authenticated_peer(
+			peer_id,
+			"Interacción NPC con NPC ID demasiado largo."
+		)
+
+
+		return
+
+
+	client_npc_interaction_requested.emit(
+		peer_id,
+		request_id,
+		npc_id
 	)
 
 # =========================================================

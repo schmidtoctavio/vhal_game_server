@@ -25,6 +25,9 @@ extends Node
 	$WorldMovementSystem
 )
 
+@onready var world_npc_registry: WorldNpcRegistry = (
+	$WorldNpcRegistry
+)
 
 # =========================================================
 # START
@@ -217,6 +220,12 @@ func _bind_authentication() -> void:
 			_on_client_move_requested
 		)
 
+	if not game_server.client_npc_interaction_requested.is_connected(
+		_on_client_npc_interaction_requested
+	):
+		game_server.client_npc_interaction_requested.connect(
+			_on_client_npc_interaction_requested
+		)
 
 	if not world_movement_system.movement_completed.is_connected(
 		_on_authoritative_movement_completed
@@ -225,7 +234,6 @@ func _bind_authentication() -> void:
 			_on_authoritative_movement_completed
 		)
 
-
 	if not world_movement_system.movement_state_sampled.is_connected(
 		_on_authoritative_movement_state_sampled
 	):
@@ -233,6 +241,39 @@ func _bind_authentication() -> void:
 			_on_authoritative_movement_state_sampled
 		)
 
+	if world_npc_registry == null:
+		push_error(
+			"ServerMain | No existe WorldNpcRegistry."
+		)
+
+		get_tree().quit(
+			7
+		)
+
+		return
+
+
+	var npc_registry_result := (
+		world_npc_registry.initialize()
+	)
+
+
+	if npc_registry_result != OK:
+		push_error(
+			(
+				"ServerMain | No se pudo inicializar "
+				+
+				"WorldNpcRegistry. Error: %d"
+			)
+			%
+			npc_registry_result
+		)
+
+		get_tree().quit(
+			7
+		)
+
+		return
 
 # =========================================================
 # AUTH REQUEST
@@ -1002,4 +1043,227 @@ func _on_authoritative_movement_state_sampled(
 		position,
 		rotation_y,
 		true
+	)
+
+# =========================================================
+# SOLICITUD DE INTERACCIÓN NPC
+# =========================================================
+
+func _on_client_npc_interaction_requested(
+	peer_id: int,
+	request_id: int,
+	npc_id: String
+) -> void:
+	var session := (
+		world_session_registry.get_session(
+			peer_id
+		)
+	)
+
+
+	if session == null:
+		game_server.reject_authenticated_peer(
+			peer_id,
+			"No existe una sesión de mundo para el peer."
+		)
+
+
+		return
+
+
+	# -----------------------------------------------------
+	# RESOLVER NPC DESDE LA FUENTE AUTORITATIVA
+	# -----------------------------------------------------
+
+	var npc_definition := (
+		world_npc_registry.get_definition(
+			npc_id
+		)
+	)
+
+
+	if npc_definition == null:
+		_reject_npc_interaction(
+			peer_id,
+			request_id,
+			session,
+			npc_id,
+			"unknown_npc"
+		)
+
+
+		return
+
+
+	# -----------------------------------------------------
+	# VALIDAR MAPA
+	# -----------------------------------------------------
+
+	if (
+		session.map_id
+		!=
+		npc_definition.map_id
+	):
+		_reject_npc_interaction(
+			peer_id,
+			request_id,
+			session,
+			npc_id,
+			"wrong_map"
+		)
+
+
+		return
+
+
+	# -----------------------------------------------------
+	# DISTANCIA AUTORITATIVA X/Z
+	# -----------------------------------------------------
+
+	var player_position := Vector2(
+		session.position.x,
+		session.position.z
+	)
+
+
+	var npc_position := Vector2(
+		npc_definition.position.x,
+		npc_definition.position.z
+	)
+
+
+	var distance := (
+		player_position.distance_to(
+			npc_position
+		)
+	)
+
+
+	if (
+		distance
+		>
+		npc_definition.interaction_range
+	):
+		_reject_npc_interaction(
+			peer_id,
+			request_id,
+			session,
+			npc_id,
+			"out_of_range",
+			distance
+		)
+
+
+		return
+
+	var decision_result := (
+		game_server.send_npc_interaction_decision(
+			peer_id,
+			request_id,
+			true,
+			npc_definition.npc_id,
+			npc_definition.service_id,
+			""
+		)
+	)
+
+
+	if decision_result != OK:
+		push_warning(
+			(
+				"ServerMain | No se pudo enviar la autorización "
+				+
+				"de interacción NPC al peer %d. Error: %d"
+			)
+			%
+			[
+				peer_id,
+				decision_result,
+			]
+		)
+
+
+		return
+
+	# -----------------------------------------------------
+	# INTERACCIÓN ACEPTADA
+	# -----------------------------------------------------
+
+	print(
+		"ServerMain | Interacción NPC autorizada",
+		" | Request: ",
+		request_id,
+		" | Peer: ",
+		peer_id,
+		" | Personaje: ",
+		session.character_name,
+		" | NPC: ",
+		npc_definition.npc_id,
+		" | Servicio: ",
+		npc_definition.service_id,
+		" | Mapa: ",
+		session.map_id,
+		" | Distancia: ",
+		distance,
+		" | Rango: ",
+		npc_definition.interaction_range
+	)
+
+# =========================================================
+# RECHAZAR INTERACCIÓN NPC
+# =========================================================
+
+func _reject_npc_interaction(
+	peer_id: int,
+	request_id: int,
+	session: PlayerWorldSession,
+	npc_id: String,
+	reason: String,
+	distance: float = -1.0
+) -> void:
+	if session == null:
+		return
+
+
+	var result := (
+		game_server.send_npc_interaction_decision(
+			peer_id,
+			request_id,
+			false,
+			npc_id,
+			"",
+			reason
+		)
+	)
+
+
+	if result != OK:
+		push_warning(
+			(
+				"ServerMain | No se pudo enviar el rechazo "
+				+
+				"de interacción NPC al peer %d. Error: %d"
+			)
+			%
+			[
+				peer_id,
+				result,
+			]
+		)
+
+
+	print(
+		"ServerMain | Interacción NPC rechazada",
+		" | Request: ",
+		request_id,
+		" | Peer: ",
+		peer_id,
+		" | Personaje: ",
+		session.character_name,
+		" | NPC: ",
+		npc_id,
+		" | Motivo: ",
+		reason,
+		" | Distancia: ",
+		distance
 	)
