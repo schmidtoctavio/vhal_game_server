@@ -274,6 +274,13 @@ func _bind_authentication() -> void:
 			_on_authoritative_movement_state_sampled
 		)
 
+	if not game_server.client_npc_service_end_requested.is_connected(
+		_on_client_npc_service_end_requested
+	):
+		game_server.client_npc_service_end_requested.connect(
+			_on_client_npc_service_end_requested
+		)
+
 # =========================================================
 # AUTH REQUEST
 # =========================================================
@@ -1298,4 +1305,57 @@ func _reject_npc_interaction(
 		reason,
 		" | Distancia: ",
 		distance
+	)
+
+# =========================================================
+# FINALIZAR SERVICIO NPC
+# =========================================================
+
+func _on_client_npc_service_end_requested(
+	peer_id: int
+) -> void:
+	var session := (
+		world_session_registry.get_session(
+			peer_id
+		)
+	)
+
+
+	if session == null:
+		game_server.reject_authenticated_peer(
+			peer_id,
+			"No existe una sesión de mundo para el peer."
+		)
+
+
+		return
+
+
+	if not session.has_active_npc_service():
+		return
+
+
+	var npc_id := (
+		session.active_npc_id
+	)
+
+
+	var service_id := (
+		session.active_service_id
+	)
+
+
+	session.end_npc_service()
+
+
+	print(
+		"ServerMain | Sesión de servicio NPC finalizada",
+		" | Peer: ",
+		peer_id,
+		" | Personaje: ",
+		session.character_name,
+		" | NPC: ",
+		npc_id,
+		" | Servicio: ",
+		service_id
 	)

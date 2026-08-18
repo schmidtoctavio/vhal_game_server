@@ -46,6 +46,10 @@ signal client_npc_interaction_requested(
 	npc_id: String
 )
 
+signal client_npc_service_end_requested(
+	peer_id: int
+)
+
 # =========================================================
 # CONFIGURACIÓN
 # =========================================================
@@ -94,6 +98,10 @@ const MESSAGE_PLAYER_PRESENCE_LEFT: String = (
 
 const MESSAGE_NPC_INTERACTION_DECISION: String = (
 	"npc_interaction_decision"
+)
+
+const MESSAGE_NPC_SERVICE_END_REQUEST: String = (
+	"npc_service_end_request"
 )
 
 # =========================================================
@@ -1159,6 +1167,13 @@ func _on_peer_packet(
 
 		return
 
+	if message_type == MESSAGE_NPC_SERVICE_END_REQUEST:
+		client_npc_service_end_requested.emit(
+			peer_id
+		)
+
+
+		return
 
 # =========================================================
 # MOVE REQUEST
