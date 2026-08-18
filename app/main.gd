@@ -142,6 +142,39 @@ func _ready() -> void:
 
 		return
 
+	if world_npc_registry == null:
+		push_error(
+			"ServerMain | No existe WorldNpcRegistry."
+		)
+
+		get_tree().quit(
+			7
+		)
+
+		return
+
+
+	var npc_registry_result := (
+		world_npc_registry.initialize()
+	)
+
+
+	if npc_registry_result != OK:
+		push_error(
+			(
+				"ServerMain | No se pudo inicializar "
+				+
+				"WorldNpcRegistry. Error: %d"
+			)
+			%
+			npc_registry_result
+		)
+
+		get_tree().quit(
+			7
+		)
+
+		return
 
 	_bind_authentication()
 
@@ -240,40 +273,6 @@ func _bind_authentication() -> void:
 		world_movement_system.movement_state_sampled.connect(
 			_on_authoritative_movement_state_sampled
 		)
-
-	if world_npc_registry == null:
-		push_error(
-			"ServerMain | No existe WorldNpcRegistry."
-		)
-
-		get_tree().quit(
-			7
-		)
-
-		return
-
-
-	var npc_registry_result := (
-		world_npc_registry.initialize()
-	)
-
-
-	if npc_registry_result != OK:
-		push_error(
-			(
-				"ServerMain | No se pudo inicializar "
-				+
-				"WorldNpcRegistry. Error: %d"
-			)
-			%
-			npc_registry_result
-		)
-
-		get_tree().quit(
-			7
-		)
-
-		return
 
 # =========================================================
 # AUTH REQUEST
