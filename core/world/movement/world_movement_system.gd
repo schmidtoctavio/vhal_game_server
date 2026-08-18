@@ -12,6 +12,11 @@ signal movement_completed(
 	rotation_y: float
 )
 
+signal movement_state_sampled(
+	peer_id: int,
+	position: Vector3,
+	rotation_y: float
+)
 
 # =========================================================
 # CONFIGURACIÓN
@@ -23,6 +28,7 @@ const WAYPOINT_REACHED_DISTANCE: float = 0.001
 
 const MIN_DIRECTION_LENGTH_SQUARED: float = 0.000001
 
+const STATE_SAMPLE_INTERVAL: float = 0.1
 
 # =========================================================
 # DEPENDENCIAS
@@ -37,6 +43,7 @@ var session_registry: WorldSessionRegistry = null
 
 var initialized: bool = false
 
+var state_sample_accumulator: float = 0.0
 
 # =========================================================
 # SETUP
@@ -102,6 +109,46 @@ func _physics_process(
 			delta
 		)
 
+
+	# -----------------------------------------------------
+	# MUESTREO DE RED
+	# -----------------------------------------------------
+	#
+	# La simulación puede correr a 60 Hz, pero no
+	# necesitamos replicar cada physics tick.
+	# -----------------------------------------------------
+
+	state_sample_accumulator += delta
+
+
+	if (
+		state_sample_accumulator
+		<
+		STATE_SAMPLE_INTERVAL
+	):
+		return
+
+
+	state_sample_accumulator = fmod(
+		state_sample_accumulator,
+		STATE_SAMPLE_INTERVAL
+	)
+
+
+	for session: PlayerWorldSession in sessions:
+		if session == null:
+			continue
+
+
+		if not session.has_authorized_move_target:
+			continue
+
+
+		movement_state_sampled.emit(
+			session.peer_id,
+			session.position,
+			session.rotation_y
+		)
 
 # =========================================================
 # AVANZAR SESIÓN

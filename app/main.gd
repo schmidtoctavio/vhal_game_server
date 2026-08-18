@@ -216,6 +216,13 @@ func _bind_authentication() -> void:
 			_on_authoritative_movement_completed
 		)
 
+	if not world_movement_system.movement_state_sampled.is_connected(
+		_on_authoritative_movement_state_sampled
+	):
+		world_movement_system.movement_state_sampled.connect(
+			_on_authoritative_movement_state_sampled
+		)
+
 # =========================================================
 # AUTH REQUEST
 # =========================================================
@@ -616,6 +623,29 @@ func _on_authoritative_movement_completed(
 	if session == null:
 		return
 
+	var replication_result := (
+		game_server.send_movement_state(
+			peer_id,
+			position,
+			rotation_y,
+			false
+		)
+	)
+
+
+	if replication_result != OK:
+		push_warning(
+			(
+				"ServerMain | No se pudo replicar "
+				+
+				"el final del movimiento al peer %d. Error: %d"
+			)
+			%
+			[
+				peer_id,
+				replication_result,
+			]
+		)
 
 	print(
 		"ServerMain | Movimiento autoritativo completado",
@@ -628,3 +658,36 @@ func _on_authoritative_movement_completed(
 		" | Rotación Y: ",
 		rotation_y
 	)
+
+# =========================================================
+# REPLICACIÓN DE MOVIMIENTO
+# =========================================================
+
+func _on_authoritative_movement_state_sampled(
+	peer_id: int,
+	position: Vector3,
+	rotation_y: float
+) -> void:
+	var result := (
+		game_server.send_movement_state(
+			peer_id,
+			position,
+			rotation_y,
+			true
+		)
+	)
+
+
+	if result != OK:
+		push_warning(
+			(
+				"ServerMain | No se pudo replicar movimiento "
+				+
+				"al peer %d. Error: %d"
+			)
+			%
+			[
+				peer_id,
+				result,
+			]
+		)

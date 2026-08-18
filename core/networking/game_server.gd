@@ -61,6 +61,10 @@ const MESSAGE_MOVE_REQUEST: String = (
 
 const MAX_CLIENT_PACKET_SIZE: int = 2048
 
+const MESSAGE_MOVEMENT_STATE: String = (
+	"movement_state"
+)
+
 # =========================================================
 # ESTADO
 # =========================================================
@@ -74,6 +78,7 @@ var authentication_pending: Dictionary = {}
 
 var authenticated_sessions: Dictionary = {}
 
+var movement_sequences: Dictionary = {}
 
 # =========================================================
 # START
@@ -552,6 +557,9 @@ func _on_peer_disconnected(
 		peer_id
 	)
 
+	movement_sequences.erase(
+		peer_id
+	)
 
 	print(
 		"GameServer | Peer desconectado: ",
@@ -667,6 +675,91 @@ func send_world_snapshot(
 		packet,
 		peer_id,
 		MultiplayerPeer.TRANSFER_MODE_RELIABLE,
+		0
+	)
+
+
+# =========================================================
+# ENVIAR ESTADO DE MOVIMIENTO
+# =========================================================
+
+func send_movement_state(
+	peer_id: int,
+	position: Vector3,
+	rotation_y: float,
+	moving: bool
+) -> Error:
+	if peer_id <= 1:
+		return ERR_INVALID_PARAMETER
+
+
+	if not authenticated_sessions.has(
+		peer_id
+	):
+		return ERR_DOES_NOT_EXIST
+
+
+	var scene_multiplayer := (
+		multiplayer
+		as SceneMultiplayer
+	)
+
+
+	if scene_multiplayer == null:
+		return ERR_UNAVAILABLE
+
+
+	var sequence := (
+		int(
+			movement_sequences.get(
+				peer_id,
+				0
+			)
+		)
+		+
+		1
+	)
+
+
+	movement_sequences[
+		peer_id
+	] = sequence
+
+
+	var message := {
+		"version": NETWORK_PROTOCOL_VERSION,
+
+		"type": MESSAGE_MOVEMENT_STATE,
+
+		"data": {
+			"peer_id": peer_id,
+
+			"sequence": sequence,
+
+			"position": {
+				"x": position.x,
+				"y": position.y,
+				"z": position.z,
+			},
+
+			"rotation_y": rotation_y,
+
+			"moving": moving,
+		},
+	}
+
+
+	var packet := (
+		JSON.stringify(
+			message
+		).to_utf8_buffer()
+	)
+
+
+	return scene_multiplayer.send_bytes(
+		packet,
+		peer_id,
+		MultiplayerPeer.TRANSFER_MODE_UNRELIABLE_ORDERED,
 		0
 	)
 
