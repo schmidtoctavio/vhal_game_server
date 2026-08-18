@@ -35,6 +35,89 @@ var position: Vector3 = Vector3.ZERO
 var rotation_y: float = 0.0
 
 # =========================================================
+# SERVICIO NPC AUTORITATIVO
+# =========================================================
+
+var active_npc_id: String = ""
+
+var active_service_id: String = ""
+
+
+# =========================================================
+# INICIAR SERVICIO NPC
+# =========================================================
+
+func begin_npc_service(
+	npc_id: String,
+	service_id: String
+) -> bool:
+	var normalized_npc_id := (
+		npc_id.strip_edges()
+	)
+
+
+	var normalized_service_id := (
+		service_id.strip_edges()
+	)
+
+
+	if normalized_npc_id.is_empty():
+		return false
+
+
+	if normalized_service_id.is_empty():
+		return false
+
+
+	active_npc_id = normalized_npc_id
+
+	active_service_id = normalized_service_id
+
+
+	return true
+
+
+# =========================================================
+# FINALIZAR SERVICIO NPC
+# =========================================================
+
+func end_npc_service() -> void:
+	active_npc_id = ""
+
+	active_service_id = ""
+
+
+# =========================================================
+# CONSULTAR SERVICIO NPC
+# =========================================================
+
+func has_active_npc_service() -> bool:
+	return (
+		not active_npc_id.is_empty()
+		and
+		not active_service_id.is_empty()
+	)
+
+
+func is_using_npc_service(
+	npc_id: String,
+	service_id: String
+) -> bool:
+	if not has_active_npc_service():
+		return false
+
+
+	return (
+		active_npc_id
+		==
+		npc_id.strip_edges()
+		and
+		active_service_id
+		==
+		service_id.strip_edges()
+	)
+
+# =========================================================
 # INTENCIÓN DE MOVIMIENTO
 # =========================================================
 

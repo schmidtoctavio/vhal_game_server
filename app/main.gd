@@ -1166,8 +1166,41 @@ func _on_client_npc_interaction_requested(
 		)
 	)
 
+	# -----------------------------------------------------
+	# INICIAR SESIÓN AUTORITATIVA DEL SERVICIO
+	# -----------------------------------------------------
+
+	if not session.begin_npc_service(
+		npc_definition.npc_id,
+		npc_definition.service_id
+	):
+		_reject_npc_interaction(
+			peer_id,
+			request_id,
+			session,
+			npc_id,
+			"service_session_failed",
+			distance
+		)
+
+
+		return
+
+
+	print(
+		"ServerMain | Sesión de servicio NPC iniciada",
+		" | Peer: ",
+		peer_id,
+		" | Personaje: ",
+		session.character_name,
+		" | NPC: ",
+		session.active_npc_id,
+		" | Servicio: ",
+		session.active_service_id
+	)
 
 	if decision_result != OK:
+		session.end_npc_service()
 		push_warning(
 			(
 				"ServerMain | No se pudo enviar la autorización "
