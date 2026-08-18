@@ -36,6 +36,7 @@ signal client_disconnected(
 
 signal client_move_requested(
 	peer_id: int,
+	request_id: int,
 	target: Vector3
 )
 
@@ -63,6 +64,10 @@ const MAX_CLIENT_PACKET_SIZE: int = 2048
 
 const MESSAGE_MOVEMENT_STATE: String = (
 	"movement_state"
+)
+
+const MESSAGE_MOVEMENT_DECISION: String = (
+	"movement_decision"
 )
 
 # =========================================================
@@ -764,6 +769,90 @@ func send_movement_state(
 	)
 
 # =========================================================
+# ENVIAR DECISIÓN DE MOVIMIENTO
+# =========================================================
+
+func send_movement_decision(
+	peer_id: int,
+	request_id: int,
+	accepted: bool,
+	authoritative_position: Vector3,
+	authoritative_rotation_y: float,
+	authorized_target: Vector3 = Vector3.ZERO,
+	reason: String = ""
+) -> Error:
+	if peer_id <= 1:
+		return ERR_INVALID_PARAMETER
+
+
+	if request_id <= 0:
+		return ERR_INVALID_PARAMETER
+
+
+	if not authenticated_sessions.has(
+		peer_id
+	):
+		return ERR_DOES_NOT_EXIST
+
+
+	var scene_multiplayer := (
+		multiplayer
+		as SceneMultiplayer
+	)
+
+
+	if scene_multiplayer == null:
+		return ERR_UNAVAILABLE
+
+
+	var message := {
+		"version": NETWORK_PROTOCOL_VERSION,
+
+		"type": MESSAGE_MOVEMENT_DECISION,
+
+		"data": {
+			"peer_id": peer_id,
+
+			"request_id": request_id,
+
+			"accepted": accepted,
+
+			"authoritative_position": {
+				"x": authoritative_position.x,
+				"y": authoritative_position.y,
+				"z": authoritative_position.z,
+			},
+
+			"authoritative_rotation_y": (
+				authoritative_rotation_y
+			),
+
+			"authorized_target": {
+				"x": authorized_target.x,
+				"y": authorized_target.y,
+				"z": authorized_target.z,
+			},
+
+			"reason": reason,
+		},
+	}
+
+
+	var packet := (
+		JSON.stringify(
+			message
+		).to_utf8_buffer()
+	)
+
+
+	return scene_multiplayer.send_bytes(
+		packet,
+		peer_id,
+		MultiplayerPeer.TRANSFER_MODE_RELIABLE,
+		0
+	)
+
+# =========================================================
 # PAQUETES DEL CLIENTE
 # =========================================================
 
@@ -877,6 +966,21 @@ func _process_move_request(
 		data_value
 	)
 
+	var request_id := int(
+		data.get(
+			"request_id",
+			0
+		)
+	)
+
+
+	if request_id <= 0:
+		reject_authenticated_peer(
+			peer_id,
+			"Movimiento sin Request ID válido."
+		)
+
+		return
 
 	var target_value: Variant = (
 		data.get(
@@ -970,5 +1074,6 @@ func _process_move_request(
 
 	client_move_requested.emit(
 		peer_id,
+		request_id,
 		target
 	)

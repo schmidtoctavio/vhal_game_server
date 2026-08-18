@@ -25,6 +25,7 @@ extends Node
 	$WorldMovementSystem
 )
 
+
 # =========================================================
 # START
 # =========================================================
@@ -77,6 +78,7 @@ func _ready() -> void:
 
 		return
 
+
 	if world_navigation_registry == null:
 		push_error(
 			"ServerMain | No existe WorldNavigationRegistry."
@@ -111,6 +113,7 @@ func _ready() -> void:
 
 		return
 
+
 	if world_movement_system == null:
 		push_error(
 			"ServerMain | No existe WorldMovementSystem."
@@ -136,10 +139,13 @@ func _ready() -> void:
 
 		return
 
+
 	_bind_authentication()
 
 
-	var result := game_server.start()
+	var result := (
+		game_server.start()
+	)
 
 
 	if result != OK:
@@ -187,6 +193,7 @@ func _bind_authentication() -> void:
 			_on_ticket_rejected
 		)
 
+
 	if not game_server.client_authenticated.is_connected(
 		_on_client_authenticated
 	):
@@ -202,12 +209,14 @@ func _bind_authentication() -> void:
 			_on_client_disconnected
 		)
 
+
 	if not game_server.client_move_requested.is_connected(
 		_on_client_move_requested
 	):
 		game_server.client_move_requested.connect(
 			_on_client_move_requested
 		)
+
 
 	if not world_movement_system.movement_completed.is_connected(
 		_on_authoritative_movement_completed
@@ -216,12 +225,14 @@ func _bind_authentication() -> void:
 			_on_authoritative_movement_completed
 		)
 
+
 	if not world_movement_system.movement_state_sampled.is_connected(
 		_on_authoritative_movement_state_sampled
 	):
 		world_movement_system.movement_state_sampled.connect(
 			_on_authoritative_movement_state_sampled
 		)
+
 
 # =========================================================
 # AUTH REQUEST
@@ -279,6 +290,7 @@ func _on_ticket_rejected(
 		message
 	)
 
+
 # =========================================================
 # PEER AUTENTICADO
 # =========================================================
@@ -308,12 +320,15 @@ func _on_client_authenticated(
 			peer_id
 		)
 
+
 		game_server.reject_authenticated_peer(
 			peer_id,
 			"No se pudo crear la sesión de mundo."
 		)
 
+
 		return
+
 
 	var snapshot_result := (
 		game_server.send_world_snapshot(
@@ -357,6 +372,7 @@ func _on_client_authenticated(
 		peer_id
 	)
 
+
 	print(
 		"ServerMain | Mundo autoritativo preparado | Peer: ",
 		peer_id,
@@ -378,12 +394,77 @@ func _on_client_disconnected(
 		peer_id
 	)
 
+
+# =========================================================
+# RECHAZAR MOVIMIENTO
+# =========================================================
+
+func _reject_client_move(
+	peer_id: int,
+	request_id: int,
+	session: PlayerWorldSession,
+	target: Vector3,
+	reason: String
+) -> void:
+	if session == null:
+		return
+
+
+	session.reject_move_request()
+
+
+	var result := (
+		game_server.send_movement_decision(
+			peer_id,
+			request_id,
+			false,
+			session.position,
+			session.rotation_y,
+			Vector3.ZERO,
+			reason
+		)
+	)
+
+
+	if result != OK:
+		push_warning(
+			(
+				"ServerMain | No se pudo informar "
+				+
+				"el rechazo al peer %d. Error: %d"
+			)
+			%
+			[
+				peer_id,
+				result,
+			]
+		)
+
+
+	print(
+		"ServerMain | Movimiento rechazado",
+		" | Request: ",
+		request_id,
+		" | Peer: ",
+		peer_id,
+		" | Personaje: ",
+		session.character_name,
+		" | Desde: ",
+		session.position,
+		" | Solicitado: ",
+		target,
+		" | Motivo: ",
+		reason
+	)
+
+
 # =========================================================
 # INTENCIÓN DE MOVIMIENTO
 # =========================================================
 
 func _on_client_move_requested(
 	peer_id: int,
+	request_id: int,
 	target: Vector3
 ) -> void:
 	var session := (
@@ -401,9 +482,8 @@ func _on_client_move_requested(
 
 		return
 
-
 	# -----------------------------------------------------
-	# REGISTRAMOS PRIMERO LA INTENCIÓN RAW
+	# REGISTRAR INTENCIÓN RAW
 	# -----------------------------------------------------
 
 	session.request_move_to(
@@ -412,7 +492,7 @@ func _on_client_move_requested(
 
 
 	# -----------------------------------------------------
-	# EL SERVIDOR RESUELVE EL DESTINO
+	# RESOLVER DESTINO CONTRA EL NAVMESH AUTORITATIVO
 	# -----------------------------------------------------
 
 	var resolution := (
@@ -423,6 +503,10 @@ func _on_client_move_requested(
 		)
 	)
 
+
+	# -----------------------------------------------------
+	# DESTINO NO RESOLVIBLE
+	# -----------------------------------------------------
 
 	if not bool(
 		resolution.get(
@@ -438,26 +522,21 @@ func _on_client_move_requested(
 		)
 
 
-		print(
-			"ServerMain | Movimiento rechazado",
-			" | Peer: ",
+		_reject_client_move(
 			peer_id,
-			" | Personaje: ",
-			session.character_name,
-			" | Desde: ",
-			session.position,
-			" | Solicitado: ",
+			request_id,
+			session,
 			target,
-			" | Motivo: ",
 			reason
 		)
 
 
-		session.reject_move_request()
-
-
 		return
 
+
+	# -----------------------------------------------------
+	# VALIDAR DESTINO RESUELTO
+	# -----------------------------------------------------
 
 	var resolved_value: Variant = (
 		resolution.get(
@@ -468,14 +547,12 @@ func _on_client_move_requested(
 
 
 	if typeof(resolved_value) != TYPE_VECTOR3:
-		session.reject_move_request()
-
-
-		print(
-			"ServerMain | Movimiento rechazado",
-			" | Peer: ",
+		_reject_client_move(
 			peer_id,
-			" | Motivo: resolved_target inválido"
+			request_id,
+			session,
+			target,
+			"resolved_target_invalid"
 		)
 
 
@@ -486,6 +563,10 @@ func _on_client_move_requested(
 		resolved_value
 	)
 
+
+	# -----------------------------------------------------
+	# VALIDAR PATH
+	# -----------------------------------------------------
 
 	var path_value: Variant = (
 		resolution.get(
@@ -500,14 +581,12 @@ func _on_client_move_requested(
 		!=
 		TYPE_PACKED_VECTOR3_ARRAY
 	):
-		session.reject_move_request()
-
-
-		print(
-			"ServerMain | Movimiento rechazado",
-			" | Peer: ",
+		_reject_client_move(
 			peer_id,
-			" | Motivo: path inválido"
+			request_id,
+			session,
+			target,
+			"path_invalid"
 		)
 
 
@@ -520,14 +599,12 @@ func _on_client_move_requested(
 
 
 	if authorized_path.is_empty():
-		session.reject_move_request()
-
-
-		print(
-			"ServerMain | Movimiento rechazado",
-			" | Peer: ",
+		_reject_client_move(
 			peer_id,
-			" | Motivo: path vacío"
+			request_id,
+			session,
+			target,
+			"path_empty"
 		)
 
 
@@ -535,7 +612,7 @@ func _on_client_move_requested(
 
 
 	# -----------------------------------------------------
-	# CONSISTENCIA DE LA RESOLUCIÓN
+	# CONSISTENCIA ENTRE PATH Y DESTINO RESUELTO
 	# -----------------------------------------------------
 
 	var path_final_target: Vector3 = (
@@ -548,14 +625,12 @@ func _on_client_move_requested(
 	if not path_final_target.is_equal_approx(
 		resolved_target
 	):
-		session.reject_move_request()
-
-
-		print(
-			"ServerMain | Movimiento rechazado",
-			" | Peer: ",
+		_reject_client_move(
 			peer_id,
-			" | Motivo: destino final inconsistente"
+			request_id,
+			session,
+			target,
+			"resolved_target_mismatch"
 		)
 
 
@@ -563,28 +638,59 @@ func _on_client_move_requested(
 
 
 	# -----------------------------------------------------
-	# AUTORIZAR LA RUTA ANTES DE INFORMARLA
+	# AUTORIZAR RUTA
 	# -----------------------------------------------------
 
 	if not session.authorize_move_path(
 		authorized_path
 	):
-		session.reject_move_request()
-
-
-		print(
-			"ServerMain | Movimiento rechazado",
-			" | Peer: ",
+		_reject_client_move(
 			peer_id,
-			" | Motivo: no se pudo autorizar la ruta"
+			request_id,
+			session,
+			target,
+			"path_authorization_failed"
 		)
 
 
 		return
 
 
+	# -----------------------------------------------------
+	# CONFIRMAR DECISIÓN AL CLIENTE
+	# -----------------------------------------------------
+
+	var decision_result := (
+		game_server.send_movement_decision(
+			peer_id,
+			request_id,
+			true,
+			session.position,
+			session.rotation_y,
+			session.authorized_move_target
+		)
+	)
+
+
+	if decision_result != OK:
+		push_warning(
+			(
+				"ServerMain | No se pudo confirmar "
+				+
+				"el movimiento al peer %d. Error: %d"
+			)
+			%
+			[
+				peer_id,
+				decision_result,
+			]
+		)
+
+
 	print(
 		"ServerMain | Movimiento autorizado",
+		" | Request: ",
+		request_id,
 		" | Peer: ",
 		peer_id,
 		" | Personaje: ",
@@ -604,6 +710,7 @@ func _on_client_move_requested(
 		)
 	)
 
+
 # =========================================================
 # MOVIMIENTO AUTORITATIVO COMPLETADO
 # =========================================================
@@ -622,6 +729,11 @@ func _on_authoritative_movement_completed(
 
 	if session == null:
 		return
+
+
+	# -----------------------------------------------------
+	# REPLICAR ESTADO FINAL
+	# -----------------------------------------------------
 
 	var replication_result := (
 		game_server.send_movement_state(
@@ -647,6 +759,7 @@ func _on_authoritative_movement_completed(
 			]
 		)
 
+
 	print(
 		"ServerMain | Movimiento autoritativo completado",
 		" | Peer: ",
@@ -658,6 +771,7 @@ func _on_authoritative_movement_completed(
 		" | Rotación Y: ",
 		rotation_y
 	)
+
 
 # =========================================================
 # REPLICACIÓN DE MOVIMIENTO
