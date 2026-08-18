@@ -874,6 +874,74 @@ func _on_client_move_requested(
 		)
 	)
 
+# =========================================================
+# REPLICAR MOVIMIENTO AL MAPA
+# =========================================================
+
+func _replicate_movement_state_to_map(
+	peer_id: int,
+	position: Vector3,
+	rotation_y: float,
+	moving: bool
+) -> void:
+	var session := (
+		world_session_registry.get_session(
+			peer_id
+		)
+	)
+
+
+	if session == null:
+		return
+
+
+	var target_peer_ids: Array[int] = [
+		peer_id
+	]
+
+
+	var remote_sessions := (
+		world_session_registry.get_sessions_in_map(
+			session.map_id,
+			peer_id
+		)
+	)
+
+
+	for remote_session: PlayerWorldSession in remote_sessions:
+		if remote_session == null:
+			continue
+
+
+		target_peer_ids.append(
+			remote_session.peer_id
+		)
+
+
+	var result := (
+		game_server.send_movement_state_to_peers(
+			peer_id,
+			target_peer_ids,
+			position,
+			rotation_y,
+			moving
+		)
+	)
+
+
+	if result != OK:
+		push_warning(
+			(
+				"ServerMain | No se pudo replicar "
+				+
+				"movimiento del peer %d al mapa. Error: %d"
+			)
+			%
+			[
+				peer_id,
+				result,
+			]
+		)
 
 # =========================================================
 # MOVIMIENTO AUTORITATIVO COMPLETADO
@@ -899,29 +967,12 @@ func _on_authoritative_movement_completed(
 	# REPLICAR ESTADO FINAL
 	# -----------------------------------------------------
 
-	var replication_result := (
-		game_server.send_movement_state(
-			peer_id,
-			position,
-			rotation_y,
-			false
-		)
+	_replicate_movement_state_to_map(
+		peer_id,
+		position,
+		rotation_y,
+		false
 	)
-
-
-	if replication_result != OK:
-		push_warning(
-			(
-				"ServerMain | No se pudo replicar "
-				+
-				"el final del movimiento al peer %d. Error: %d"
-			)
-			%
-			[
-				peer_id,
-				replication_result,
-			]
-		)
 
 
 	print(
@@ -946,26 +997,9 @@ func _on_authoritative_movement_state_sampled(
 	position: Vector3,
 	rotation_y: float
 ) -> void:
-	var result := (
-		game_server.send_movement_state(
-			peer_id,
-			position,
-			rotation_y,
-			true
-		)
+	_replicate_movement_state_to_map(
+		peer_id,
+		position,
+		rotation_y,
+		true
 	)
-
-
-	if result != OK:
-		push_warning(
-			(
-				"ServerMain | No se pudo replicar movimiento "
-				+
-				"al peer %d. Error: %d"
-			)
-			%
-			[
-				peer_id,
-				result,
-			]
-		)

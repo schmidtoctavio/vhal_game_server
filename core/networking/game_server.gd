@@ -697,7 +697,7 @@ func send_world_snapshot(
 
 
 # =========================================================
-# ENVIAR ESTADO DE MOVIMIENTO
+# ENVIAR ESTADO DE MOVIMIENTO AL DUEÑO
 # =========================================================
 
 func send_movement_state(
@@ -706,14 +706,43 @@ func send_movement_state(
 	rotation_y: float,
 	moving: bool
 ) -> Error:
-	if peer_id <= 1:
+	var target_peer_ids: Array[int] = [
+		peer_id
+	]
+
+
+	return send_movement_state_to_peers(
+		peer_id,
+		target_peer_ids,
+		position,
+		rotation_y,
+		moving
+	)
+
+
+# =========================================================
+# ENVIAR ESTADO DE MOVIMIENTO A VARIOS PEERS
+# =========================================================
+
+func send_movement_state_to_peers(
+	source_peer_id: int,
+	target_peer_ids: Array[int],
+	position: Vector3,
+	rotation_y: float,
+	moving: bool
+) -> Error:
+	if source_peer_id <= 1:
 		return ERR_INVALID_PARAMETER
 
 
 	if not authenticated_sessions.has(
-		peer_id
+		source_peer_id
 	):
 		return ERR_DOES_NOT_EXIST
+
+
+	if target_peer_ids.is_empty():
+		return ERR_INVALID_PARAMETER
 
 
 	var scene_multiplayer := (
@@ -726,10 +755,18 @@ func send_movement_state(
 		return ERR_UNAVAILABLE
 
 
+	# -----------------------------------------------------
+	# SEQUENCE DEL ACTOR QUE SE ESTÁ MOVIENDO
+	# -----------------------------------------------------
+	#
+	# Se incrementa UNA SOLA VEZ aunque el mismo estado se
+	# replique a varios clientes.
+	# -----------------------------------------------------
+
 	var sequence := (
 		int(
 			movement_sequences.get(
-				peer_id,
+				source_peer_id,
 				0
 			)
 		)
@@ -739,7 +776,7 @@ func send_movement_state(
 
 
 	movement_sequences[
-		peer_id
+		source_peer_id
 	] = sequence
 
 
@@ -749,7 +786,7 @@ func send_movement_state(
 		"type": MESSAGE_MOVEMENT_STATE,
 
 		"data": {
-			"peer_id": peer_id,
+			"peer_id": source_peer_id,
 
 			"sequence": sequence,
 
@@ -773,12 +810,61 @@ func send_movement_state(
 	)
 
 
-	return scene_multiplayer.send_bytes(
-		packet,
-		peer_id,
-		MultiplayerPeer.TRANSFER_MODE_UNRELIABLE_ORDERED,
-		0
-	)
+	var first_error: Error = OK
+
+	var sent_peers: Dictionary = {}
+
+
+	for target_peer_id: int in target_peer_ids:
+		if target_peer_id <= 1:
+			continue
+
+
+		# -------------------------------------------------
+		# EVITAR DESTINATARIOS DUPLICADOS
+		# -------------------------------------------------
+
+		if sent_peers.has(
+			target_peer_id
+		):
+			continue
+
+
+		sent_peers[
+			target_peer_id
+		] = true
+
+
+		# -------------------------------------------------
+		# EL PEER PUDO DESCONECTARSE ENTRE EL REGISTRY
+		# Y ESTA REPLICACIÓN.
+		# -------------------------------------------------
+
+		if not authenticated_sessions.has(
+			target_peer_id
+		):
+			continue
+
+
+		var result := (
+			scene_multiplayer.send_bytes(
+				packet,
+				target_peer_id,
+				MultiplayerPeer.TRANSFER_MODE_UNRELIABLE_ORDERED,
+				0
+			)
+		)
+
+
+		if (
+			result != OK
+			and
+			first_error == OK
+		):
+			first_error = result
+
+
+	return first_error
 
 # =========================================================
 # ENVIAR DECISIÓN DE MOVIMIENTO
