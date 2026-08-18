@@ -104,6 +104,10 @@ const MESSAGE_NPC_SERVICE_END_REQUEST: String = (
 	"npc_service_end_request"
 )
 
+const MESSAGE_NPC_SERVICE_ENDED: String = (
+	"npc_service_ended"
+)
+
 # =========================================================
 # ESTADO
 # =========================================================
@@ -1585,6 +1589,92 @@ func send_player_presence_left(
 	return scene_multiplayer.send_bytes(
 		packet,
 		target_peer_id,
+		MultiplayerPeer.TRANSFER_MODE_RELIABLE,
+		0
+	)
+
+# =========================================================
+# INFORMAR FINALIZACIÓN DE SERVICIO NPC
+# =========================================================
+
+func send_npc_service_ended(
+	peer_id: int,
+	npc_id: String,
+	service_id: String,
+	reason: String
+) -> Error:
+	if peer_id <= 1:
+		return ERR_INVALID_PARAMETER
+
+
+	if not authenticated_sessions.has(
+		peer_id
+	):
+		return ERR_DOES_NOT_EXIST
+
+
+	var normalized_npc_id := (
+		npc_id.strip_edges()
+	)
+
+
+	var normalized_service_id := (
+		service_id.strip_edges()
+	)
+
+
+	var normalized_reason := (
+		reason.strip_edges()
+	)
+
+
+	if normalized_npc_id.is_empty():
+		return ERR_INVALID_PARAMETER
+
+
+	if normalized_service_id.is_empty():
+		return ERR_INVALID_PARAMETER
+
+
+	if normalized_reason.is_empty():
+		return ERR_INVALID_PARAMETER
+
+
+	var scene_multiplayer := (
+		multiplayer
+		as SceneMultiplayer
+	)
+
+
+	if scene_multiplayer == null:
+		return ERR_UNAVAILABLE
+
+
+	var message := {
+		"version": NETWORK_PROTOCOL_VERSION,
+
+		"type": MESSAGE_NPC_SERVICE_ENDED,
+
+		"data": {
+			"npc_id": normalized_npc_id,
+
+			"service_id": normalized_service_id,
+
+			"reason": normalized_reason,
+		},
+	}
+
+
+	var packet := (
+		JSON.stringify(
+			message
+		).to_utf8_buffer()
+	)
+
+
+	return scene_multiplayer.send_bytes(
+		packet,
+		peer_id,
 		MultiplayerPeer.TRANSFER_MODE_RELIABLE,
 		0
 	)

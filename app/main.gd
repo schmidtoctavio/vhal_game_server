@@ -1009,6 +1009,9 @@ func _on_authoritative_movement_completed(
 	if session == null:
 		return
 
+	_validate_active_npc_service_range(
+		peer_id
+	)
 
 	# -----------------------------------------------------
 	# REPLICAR ESTADO FINAL
@@ -1044,6 +1047,11 @@ func _on_authoritative_movement_state_sampled(
 	position: Vector3,
 	rotation_y: float
 ) -> void:
+	_validate_active_npc_service_range(
+		peer_id
+	)
+
+
 	_replicate_movement_state_to_map(
 		peer_id,
 		position,
@@ -1358,4 +1366,164 @@ func _on_client_npc_service_end_requested(
 		npc_id,
 		" | Servicio: ",
 		service_id
+	)
+
+# =========================================================
+# VALIDAR SESIÓN NPC ACTIVA
+# =========================================================
+
+func _validate_active_npc_service_range(
+	peer_id: int
+) -> void:
+	var session := (
+		world_session_registry.get_session(
+			peer_id
+		)
+	)
+
+
+	if session == null:
+		return
+
+
+	if not session.has_active_npc_service():
+		return
+
+
+	var npc_definition := (
+		world_npc_registry.get_definition(
+			session.active_npc_id
+		)
+	)
+
+
+	if npc_definition == null:
+		_invalidate_active_npc_service(
+			session,
+			"npc_unavailable"
+		)
+
+
+		return
+
+
+	if (
+		session.map_id
+		!=
+		npc_definition.map_id
+	):
+		_invalidate_active_npc_service(
+			session,
+			"wrong_map"
+		)
+
+
+		return
+
+
+	var player_position := Vector2(
+		session.position.x,
+		session.position.z
+	)
+
+
+	var npc_position := Vector2(
+		npc_definition.position.x,
+		npc_definition.position.z
+	)
+
+
+	var distance := (
+		player_position.distance_to(
+			npc_position
+		)
+	)
+
+
+	if (
+		distance
+		<=
+		npc_definition.interaction_range
+	):
+		return
+
+
+	_invalidate_active_npc_service(
+		session,
+		"out_of_range",
+		distance
+	)
+
+
+# =========================================================
+# INVALIDAR SESIÓN NPC ACTIVA
+# =========================================================
+
+func _invalidate_active_npc_service(
+	session: PlayerWorldSession,
+	reason: String,
+	distance: float = -1.0
+) -> void:
+	if session == null:
+		return
+
+
+	if not session.has_active_npc_service():
+		return
+
+
+	var npc_id := (
+		session.active_npc_id
+	)
+
+
+	var service_id := (
+		session.active_service_id
+	)
+
+
+	session.end_npc_service()
+
+
+	var result := (
+		game_server.send_npc_service_ended(
+			session.peer_id,
+			npc_id,
+			service_id,
+			reason
+		)
+	)
+
+
+	if result != OK:
+		push_warning(
+			(
+				"ServerMain | No se pudo informar "
+				+
+				"la finalización del servicio NPC "
+				+
+				"al peer %d. Error: %d"
+			)
+			%
+			[
+				session.peer_id,
+				result,
+			]
+		)
+
+
+	print(
+		"ServerMain | Sesión de servicio NPC invalidada",
+		" | Peer: ",
+		session.peer_id,
+		" | Personaje: ",
+		session.character_name,
+		" | NPC: ",
+		npc_id,
+		" | Servicio: ",
+		service_id,
+		" | Motivo: ",
+		reason,
+		" | Distancia: ",
+		distance
 	)
