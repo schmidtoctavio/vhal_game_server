@@ -13,6 +13,10 @@ extends Node
 	$BackendTicketValidator
 )
 
+@onready var backend_vault_repository: BackendVaultRepository = (
+	$BackendVaultRepository
+)
+
 @onready var world_session_registry: WorldSessionRegistry = (
 	$WorldSessionRegistry
 )
@@ -66,6 +70,33 @@ func _ready() -> void:
 		get_tree().quit(
 			3
 		)
+
+		return
+
+	if backend_vault_repository == null:
+		push_error(
+			"ServerMain | No existe BackendVaultRepository."
+		)
+
+
+		get_tree().quit(
+			8
+		)
+
+
+		return
+
+
+	if not backend_vault_repository.is_configured():
+		push_error(
+			"ServerMain | BackendVaultRepository no configurado."
+		)
+
+
+		get_tree().quit(
+			8
+		)
+
 
 		return
 
@@ -229,6 +260,20 @@ func _bind_authentication() -> void:
 			_on_ticket_rejected
 		)
 
+	if not backend_vault_repository.vault_loaded.is_connected(
+		_on_backend_vault_loaded
+	):
+		backend_vault_repository.vault_loaded.connect(
+			_on_backend_vault_loaded
+		)
+
+
+	if not backend_vault_repository.vault_load_failed.is_connected(
+		_on_backend_vault_load_failed
+	):
+		backend_vault_repository.vault_load_failed.connect(
+			_on_backend_vault_load_failed
+		)
 
 	if not game_server.client_authenticated.is_connected(
 		_on_client_authenticated
@@ -1307,6 +1352,24 @@ func _on_client_npc_interaction_requested(
 
 		return
 
+	if npc_definition.service_id == "warehouse":
+		var vault_result := (
+			backend_vault_repository.load_vault(
+				peer_id,
+				session.account_id
+			)
+		)
+
+
+		if vault_result != OK:
+			print(
+				"ServerMain | No se pudo iniciar carga de Vault",
+				" | Peer: ",
+				peer_id,
+				" | Error: ",
+				vault_result
+			)
+
 	# -----------------------------------------------------
 	# INTERACCIÓN ACEPTADA
 	# -----------------------------------------------------
@@ -1601,4 +1664,75 @@ func _invalidate_active_npc_service(
 		reason,
 		" | Distancia: ",
 		distance
+	)
+
+# =========================================================
+# VAULT CARGADA DESDE BACKEND
+# =========================================================
+
+func _on_backend_vault_loaded(
+	peer_id: int,
+	account_id: int,
+	snapshot: Dictionary
+) -> void:
+	var session := (
+		world_session_registry.get_session(
+			peer_id
+		)
+	)
+
+
+	if session == null:
+		return
+
+
+	if session.account_id != account_id:
+		return
+
+
+	if not session.is_using_npc_service(
+		"warehouse_keeper",
+		"warehouse"
+	):
+		return
+
+
+	var items: Array = (
+		snapshot.get(
+			"items",
+			[]
+		)
+	)
+
+
+	print(
+		"ServerMain | Vault persistente cargada",
+		" | Peer: ",
+		peer_id,
+		" | Cuenta: ",
+		account_id,
+		" | Personaje: ",
+		session.character_name,
+		" | Items: ",
+		items.size()
+	)
+
+
+# =========================================================
+# ERROR AL CARGAR VAULT
+# =========================================================
+
+func _on_backend_vault_load_failed(
+	peer_id: int,
+	account_id: int,
+	message: String
+) -> void:
+	print(
+		"ServerMain | No se pudo cargar Vault persistente",
+		" | Peer: ",
+		peer_id,
+		" | Cuenta: ",
+		account_id,
+		" | Motivo: ",
+		message
 	)
