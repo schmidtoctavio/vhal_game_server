@@ -70,6 +70,18 @@ const MESSAGE_MOVEMENT_DECISION: String = (
 	"movement_decision"
 )
 
+const MESSAGE_WORLD_PRESENCE_SNAPSHOT: String = (
+	"world_presence_snapshot"
+)
+
+const MESSAGE_PLAYER_PRESENCE_JOINED: String = (
+	"player_presence_joined"
+)
+
+const MESSAGE_PLAYER_PRESENCE_LEFT: String = (
+	"player_presence_left"
+)
+
 # =========================================================
 # ESTADO
 # =========================================================
@@ -1076,4 +1088,171 @@ func _process_move_request(
 		peer_id,
 		request_id,
 		target
+	)
+
+# =========================================================
+# ENVIAR ROSTER DEL MUNDO
+# =========================================================
+
+func send_world_presence_snapshot(
+	peer_id: int,
+	players: Array
+) -> Error:
+	if peer_id <= 1:
+		return ERR_INVALID_PARAMETER
+
+
+	if not authenticated_sessions.has(
+		peer_id
+	):
+		return ERR_DOES_NOT_EXIST
+
+
+	var scene_multiplayer := (
+		multiplayer
+		as SceneMultiplayer
+	)
+
+
+	if scene_multiplayer == null:
+		return ERR_UNAVAILABLE
+
+
+	var message := {
+		"version": NETWORK_PROTOCOL_VERSION,
+
+		"type": MESSAGE_WORLD_PRESENCE_SNAPSHOT,
+
+		"data": {
+			"players": players,
+		},
+	}
+
+
+	var packet := (
+		JSON.stringify(
+			message
+		).to_utf8_buffer()
+	)
+
+
+	return scene_multiplayer.send_bytes(
+		packet,
+		peer_id,
+		MultiplayerPeer.TRANSFER_MODE_RELIABLE,
+		0
+	)
+
+# =========================================================
+# AVISAR ENTRADA DE PLAYER
+# =========================================================
+
+func send_player_presence_joined(
+	target_peer_id: int,
+	player: Dictionary
+) -> Error:
+	if target_peer_id <= 1:
+		return ERR_INVALID_PARAMETER
+
+
+	if player.is_empty():
+		return ERR_INVALID_DATA
+
+
+	if not authenticated_sessions.has(
+		target_peer_id
+	):
+		return ERR_DOES_NOT_EXIST
+
+
+	var scene_multiplayer := (
+		multiplayer
+		as SceneMultiplayer
+	)
+
+
+	if scene_multiplayer == null:
+		return ERR_UNAVAILABLE
+
+
+	var message := {
+		"version": NETWORK_PROTOCOL_VERSION,
+
+		"type": MESSAGE_PLAYER_PRESENCE_JOINED,
+
+		"data": {
+			"player": player,
+		},
+	}
+
+
+	var packet := (
+		JSON.stringify(
+			message
+		).to_utf8_buffer()
+	)
+
+
+	return scene_multiplayer.send_bytes(
+		packet,
+		target_peer_id,
+		MultiplayerPeer.TRANSFER_MODE_RELIABLE,
+		0
+	)
+
+# =========================================================
+# AVISAR SALIDA DE PLAYER
+# =========================================================
+
+func send_player_presence_left(
+	target_peer_id: int,
+	departed_peer_id: int
+) -> Error:
+	if target_peer_id <= 1:
+		return ERR_INVALID_PARAMETER
+
+
+	if departed_peer_id <= 1:
+		return ERR_INVALID_PARAMETER
+
+
+	if not authenticated_sessions.has(
+		target_peer_id
+	):
+		return ERR_DOES_NOT_EXIST
+
+
+	var scene_multiplayer := (
+		multiplayer
+		as SceneMultiplayer
+	)
+
+
+	if scene_multiplayer == null:
+		return ERR_UNAVAILABLE
+
+
+	var message := {
+		"version": NETWORK_PROTOCOL_VERSION,
+
+		"type": MESSAGE_PLAYER_PRESENCE_LEFT,
+
+		"data": {
+			"peer_id": departed_peer_id,
+		},
+	}
+
+
+	var packet := (
+		JSON.stringify(
+			message
+		).to_utf8_buffer()
+	)
+
+
+	return scene_multiplayer.send_bytes(
+		packet,
+		target_peer_id,
+		MultiplayerPeer.TRANSFER_MODE_RELIABLE,
+		0
 	)

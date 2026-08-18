@@ -255,3 +255,31 @@ func to_snapshot() -> Dictionary:
 			"rotation_y": rotation_y,
 		},
 	}
+
+# =========================================================
+# SNAPSHOT PÚBLICO DE PRESENCIA
+# =========================================================
+
+func to_presence_snapshot() -> Dictionary:
+	return {
+		"peer_id": peer_id,
+
+		"character": {
+			"id": character_id,
+			"name": character_name,
+			"class_id": class_id,
+			"level": level,
+		},
+
+		"world": {
+			"map_id": map_id,
+
+			"position": {
+				"x": position.x,
+				"y": position.y,
+				"z": position.z,
+			},
+
+			"rotation_y": rotation_y,
+		},
+	}

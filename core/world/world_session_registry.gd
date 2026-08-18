@@ -185,3 +185,43 @@ func get_all_sessions() -> Array[PlayerWorldSession]:
 
 
 	return result
+
+# =========================================================
+# SESIONES DE UN MAPA
+# =========================================================
+
+func get_sessions_in_map(
+	map_id: String,
+	excluded_peer_id: int = -1
+) -> Array[PlayerWorldSession]:
+	var result: Array[PlayerWorldSession] = []
+
+
+	var normalized_map_id := (
+		map_id.strip_edges()
+	)
+
+
+	if normalized_map_id.is_empty():
+		return result
+
+
+	for session: PlayerWorldSession in get_all_sessions():
+		if session == null:
+			continue
+
+
+		if session.peer_id == excluded_peer_id:
+			continue
+
+
+		if session.map_id != normalized_map_id:
+			continue
+
+
+		result.append(
+			session
+		)
+
+
+	return result
