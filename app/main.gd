@@ -17,6 +17,9 @@ extends Node
 	$WorldSessionRegistry
 )
 
+@onready var world_navigation_registry: WorldNavigationRegistry = (
+	$WorldNavigationRegistry
+)
 
 # =========================================================
 # START
@@ -70,6 +73,39 @@ func _ready() -> void:
 
 		return
 
+	if world_navigation_registry == null:
+		push_error(
+			"ServerMain | No existe WorldNavigationRegistry."
+		)
+
+		get_tree().quit(
+			5
+		)
+
+		return
+
+
+	var navigation_result: Error = (
+		await world_navigation_registry.initialize()
+	)
+
+
+	if navigation_result != OK:
+		push_error(
+			(
+				"ServerMain | No se pudo inicializar "
+				+
+				"la navegación. Error: %d"
+			)
+			%
+			navigation_result
+		)
+
+		get_tree().quit(
+			5
+		)
+
+		return
 
 	_bind_authentication()
 
