@@ -46,6 +46,12 @@ var authorized_move_target: Vector3 = Vector3.ZERO
 
 var has_authorized_move_target: bool = false
 
+var authorized_path: PackedVector3Array = (
+	PackedVector3Array()
+)
+
+var authorized_path_index: int = 0
+
 # =========================================================
 # REGISTRAR INTENCIÓN DE MOVIMIENTO
 # =========================================================
@@ -67,14 +73,41 @@ func request_move_to(
 
 	has_authorized_move_target = false
 
-func authorize_move_to(
-	target: Vector3
-) -> void:
-	authorized_move_target = target
+	authorized_path = PackedVector3Array()
+
+	authorized_path_index = 0
+
+func authorize_move_path(
+	path: PackedVector3Array
+) -> bool:
+	if path.is_empty():
+		return false
+
+
+	authorized_path = path
+
+	authorized_path_index = (
+		1
+		if
+		path.size() > 1
+		else
+		0
+	)
+
+
+	authorized_move_target = (
+		path[
+			path.size() - 1
+		]
+	)
+
 
 	has_authorized_move_target = true
 
 	has_requested_move_target = false
+
+
+	return true
 
 
 func reject_move_request() -> void:
@@ -86,6 +119,10 @@ func reject_move_request() -> void:
 
 	has_authorized_move_target = false
 
+	authorized_path = PackedVector3Array()
+
+	authorized_path_index = 0
+
 func clear_move_request() -> void:
 	requested_move_target = Vector3.ZERO
 
@@ -94,6 +131,10 @@ func clear_move_request() -> void:
 	authorized_move_target = Vector3.ZERO
 
 	has_authorized_move_target = false
+
+	authorized_path = PackedVector3Array()
+
+	authorized_path_index = 0
 
 # =========================================================
 # CONSTRUCTOR

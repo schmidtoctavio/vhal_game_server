@@ -159,3 +159,29 @@ func has_session(
 	return sessions.has(
 		peer_id
 	)
+
+# =========================================================
+# TODAS LAS SESIONES
+# =========================================================
+
+func get_all_sessions() -> Array[PlayerWorldSession]:
+	var result: Array[PlayerWorldSession] = []
+
+
+	for session_value: Variant in sessions.values():
+		var session := (
+			session_value
+			as PlayerWorldSession
+		)
+
+
+		if session == null:
+			continue
+
+
+		result.append(
+			session
+		)
+
+
+	return result

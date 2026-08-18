@@ -21,6 +21,10 @@ extends Node
 	$WorldNavigationRegistry
 )
 
+@onready var world_movement_system: WorldMovementSystem = (
+	$WorldMovementSystem
+)
+
 # =========================================================
 # START
 # =========================================================
@@ -107,6 +111,31 @@ func _ready() -> void:
 
 		return
 
+	if world_movement_system == null:
+		push_error(
+			"ServerMain | No existe WorldMovementSystem."
+		)
+
+		get_tree().quit(
+			6
+		)
+
+		return
+
+
+	if not world_movement_system.setup(
+		world_session_registry
+	):
+		push_error(
+			"ServerMain | No se pudo inicializar WorldMovementSystem."
+		)
+
+		get_tree().quit(
+			6
+		)
+
+		return
+
 	_bind_authentication()
 
 
@@ -179,6 +208,14 @@ func _bind_authentication() -> void:
 		game_server.client_move_requested.connect(
 			_on_client_move_requested
 		)
+
+	if not world_movement_system.movement_completed.is_connected(
+		_on_authoritative_movement_completed
+	):
+		world_movement_system.movement_completed.connect(
+			_on_authoritative_movement_completed
+		)
+
 # =========================================================
 # AUTH REQUEST
 # =========================================================
@@ -443,9 +480,100 @@ func _on_client_move_requested(
 	)
 
 
-	session.authorize_move_to(
-		resolved_target
+	var path_value: Variant = (
+		resolution.get(
+			"path",
+			null
+		)
 	)
+
+
+	if (
+		typeof(path_value)
+		!=
+		TYPE_PACKED_VECTOR3_ARRAY
+	):
+		session.reject_move_request()
+
+
+		print(
+			"ServerMain | Movimiento rechazado",
+			" | Peer: ",
+			peer_id,
+			" | Motivo: path inválido"
+		)
+
+
+		return
+
+
+	var authorized_path: PackedVector3Array = (
+		path_value
+	)
+
+
+	if authorized_path.is_empty():
+		session.reject_move_request()
+
+
+		print(
+			"ServerMain | Movimiento rechazado",
+			" | Peer: ",
+			peer_id,
+			" | Motivo: path vacío"
+		)
+
+
+		return
+
+
+	# -----------------------------------------------------
+	# CONSISTENCIA DE LA RESOLUCIÓN
+	# -----------------------------------------------------
+
+	var path_final_target: Vector3 = (
+		authorized_path[
+			authorized_path.size() - 1
+		]
+	)
+
+
+	if not path_final_target.is_equal_approx(
+		resolved_target
+	):
+		session.reject_move_request()
+
+
+		print(
+			"ServerMain | Movimiento rechazado",
+			" | Peer: ",
+			peer_id,
+			" | Motivo: destino final inconsistente"
+		)
+
+
+		return
+
+
+	# -----------------------------------------------------
+	# AUTORIZAR LA RUTA ANTES DE INFORMARLA
+	# -----------------------------------------------------
+
+	if not session.authorize_move_path(
+		authorized_path
+	):
+		session.reject_move_request()
+
+
+		print(
+			"ServerMain | Movimiento rechazado",
+			" | Peer: ",
+			peer_id,
+			" | Motivo: no se pudo autorizar la ruta"
+		)
+
+
+		return
 
 
 	print(
@@ -467,4 +595,36 @@ func _on_client_move_requested(
 				0
 			)
 		)
+	)
+
+# =========================================================
+# MOVIMIENTO AUTORITATIVO COMPLETADO
+# =========================================================
+
+func _on_authoritative_movement_completed(
+	peer_id: int,
+	position: Vector3,
+	rotation_y: float
+) -> void:
+	var session := (
+		world_session_registry.get_session(
+			peer_id
+		)
+	)
+
+
+	if session == null:
+		return
+
+
+	print(
+		"ServerMain | Movimiento autoritativo completado",
+		" | Peer: ",
+		peer_id,
+		" | Personaje: ",
+		session.character_name,
+		" | Posición: ",
+		position,
+		" | Rotación Y: ",
+		rotation_y
 	)

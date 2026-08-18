@@ -518,6 +518,8 @@ func resolve_reachable_target(
 		"resolved_target": resolved_target,
 
 		"path_points": path.size(),
+
+		"path": path,
 	}
 
 # =========================================================

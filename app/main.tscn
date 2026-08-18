@@ -5,6 +5,7 @@
 [ext_resource type="Script" uid="uid://duuvvu1awkibd" path="res://core/backend/backend_ticket_validator.gd" id="3_ysqge"]
 [ext_resource type="Script" uid="uid://8os8hgbelb3d" path="res://core/world/world_session_registry.gd" id="4_8bux2"]
 [ext_resource type="Script" uid="uid://rrda6dd7dhtg" path="res://core/world/navigation/world_navigation_registry.gd" id="5_vw08i"]
+[ext_resource type="Script" uid="uid://b4l0mcb2inpp" path="res://core/world/movement/world_movement_system.gd" id="6_tnehs"]
 
 [node name="ServerMain" type="Node" unique_id=1483147024]
 script = ExtResource("1_s58fy")
@@ -20,3 +21,7 @@ script = ExtResource("4_8bux2")
 
 [node name="WorldNavigationRegistry" type="Node" parent="." unique_id=1485785104]
 script = ExtResource("5_vw08i")
+
+[node name="WorldMovementSystem" type="Node" parent="." unique_id=603357000]
+script = ExtResource("6_tnehs")
+metadata/_custom_type_script = "uid://b4l0mcb2inpp"
