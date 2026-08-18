@@ -1170,6 +1170,102 @@ func _on_client_npc_interaction_requested(
 
 		return
 
+	# -----------------------------------------------------
+	# SESIÓN DE SERVICIO NPC
+	# -----------------------------------------------------
+
+	var started_new_service := false
+
+
+	if session.has_active_npc_service():
+		# -------------------------------------------------
+		# MISMO SERVICIO YA ACTIVO
+		#
+		# La operación es idempotente:
+		# no recreamos la sesión.
+		# -------------------------------------------------
+
+		if session.is_using_npc_service(
+			npc_definition.npc_id,
+			npc_definition.service_id
+		):
+			print(
+				"ServerMain | Sesión de servicio NPC ya activa",
+				" | Peer: ",
+				peer_id,
+				" | Personaje: ",
+				session.character_name,
+				" | NPC: ",
+				session.active_npc_id,
+				" | Servicio: ",
+				session.active_service_id
+			)
+
+		else:
+			# ---------------------------------------------
+			# Existe OTRO servicio activo.
+			#
+			# No permitimos reemplazarlo silenciosamente.
+			# ---------------------------------------------
+
+			_reject_npc_interaction(
+				peer_id,
+				request_id,
+				session,
+				npc_id,
+				"service_already_active",
+				distance
+			)
+
+
+			return
+
+	else:
+		# -------------------------------------------------
+		# CREAR NUEVA SESIÓN
+		# -------------------------------------------------
+
+		if not session.begin_npc_service(
+			npc_definition.npc_id,
+			npc_definition.service_id
+		):
+			_reject_npc_interaction(
+				peer_id,
+				request_id,
+				session,
+				npc_id,
+				"service_session_failed",
+				distance
+			)
+
+
+			return
+
+
+		started_new_service = true
+
+
+		print(
+			"ServerMain | Sesión de servicio NPC iniciada",
+			" | Peer: ",
+			peer_id,
+			" | Personaje: ",
+			session.character_name,
+			" | NPC: ",
+			session.active_npc_id,
+			" | Servicio: ",
+			session.active_service_id
+		)
+
+
+	# -----------------------------------------------------
+	# INFORMAR AUTORIZACIÓN AL CLIENTE
+	#
+	# Sólo llegamos acá si:
+	# - la sesión fue creada correctamente, o
+	# - ya existía exactamente la misma sesión.
+	# -----------------------------------------------------
+
 	var decision_result := (
 		game_server.send_npc_interaction_decision(
 			peer_id,
@@ -1181,41 +1277,20 @@ func _on_client_npc_interaction_requested(
 		)
 	)
 
-	# -----------------------------------------------------
-	# INICIAR SESIÓN AUTORITATIVA DEL SERVICIO
-	# -----------------------------------------------------
-
-	if not session.begin_npc_service(
-		npc_definition.npc_id,
-		npc_definition.service_id
-	):
-		_reject_npc_interaction(
-			peer_id,
-			request_id,
-			session,
-			npc_id,
-			"service_session_failed",
-			distance
-		)
-
-
-		return
-
-
-	print(
-		"ServerMain | Sesión de servicio NPC iniciada",
-		" | Peer: ",
-		peer_id,
-		" | Personaje: ",
-		session.character_name,
-		" | NPC: ",
-		session.active_npc_id,
-		" | Servicio: ",
-		session.active_service_id
-	)
 
 	if decision_result != OK:
-		session.end_npc_service()
+		# -------------------------------------------------
+		# Sólo deshacemos una sesión NUEVA.
+		#
+		# Si era una sesión que ya existía previamente,
+		# no debemos destruirla por fallar este segundo
+		# envío.
+		# -------------------------------------------------
+
+		if started_new_service:
+			session.end_npc_service()
+
+
 		push_warning(
 			(
 				"ServerMain | No se pudo enviar la autorización "
