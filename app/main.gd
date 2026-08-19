@@ -1717,6 +1717,41 @@ func _on_backend_vault_loaded(
 		items.size()
 	)
 
+	var send_result := (
+		game_server.send_vault_snapshot(
+			peer_id,
+			snapshot
+		)
+	)
+
+
+	if send_result != OK:
+		push_warning(
+			(
+				"ServerMain | No se pudo enviar "
+				+
+				"el snapshot de Vault al peer %d. Error: %d"
+			)
+			%
+			[
+				peer_id,
+				send_result,
+			]
+		)
+
+
+		return
+
+
+	print(
+		"ServerMain | Snapshot de Vault enviado",
+		" | Peer: ",
+		peer_id,
+		" | Cuenta: ",
+		account_id,
+		" | Items: ",
+		items.size()
+	)
 
 # =========================================================
 # ERROR AL CARGAR VAULT

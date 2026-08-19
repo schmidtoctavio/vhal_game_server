@@ -108,6 +108,10 @@ const MESSAGE_NPC_SERVICE_ENDED: String = (
 	"npc_service_ended"
 )
 
+const MESSAGE_VAULT_SNAPSHOT: String = (
+	"vault_snapshot"
+)
+
 # =========================================================
 # ESTADO
 # =========================================================
@@ -1662,6 +1666,97 @@ func send_npc_service_ended(
 
 			"reason": normalized_reason,
 		},
+	}
+
+
+	var packet := (
+		JSON.stringify(
+			message
+		).to_utf8_buffer()
+	)
+
+
+	return scene_multiplayer.send_bytes(
+		packet,
+		peer_id,
+		MultiplayerPeer.TRANSFER_MODE_RELIABLE,
+		0
+	)
+
+# =========================================================
+# ENVIAR SNAPSHOT DE VAULT
+# =========================================================
+
+func send_vault_snapshot(
+	peer_id: int,
+	snapshot: Dictionary
+) -> Error:
+	if peer_id <= 1:
+		return ERR_INVALID_PARAMETER
+
+
+	if not authenticated_sessions.has(
+		peer_id
+	):
+		return ERR_DOES_NOT_EXIST
+
+
+	if snapshot.is_empty():
+		return ERR_INVALID_DATA
+
+
+	var account_id := int(
+		snapshot.get(
+			"account_id",
+			0
+		)
+	)
+
+
+	var container := String(
+		snapshot.get(
+			"container",
+			""
+		)
+	).strip_edges()
+
+
+	var items_value: Variant = (
+		snapshot.get(
+			"items",
+			null
+		)
+	)
+
+
+	if account_id <= 0:
+		return ERR_INVALID_DATA
+
+
+	if container != "vault":
+		return ERR_INVALID_DATA
+
+
+	if typeof(items_value) != TYPE_ARRAY:
+		return ERR_INVALID_DATA
+
+
+	var scene_multiplayer := (
+		multiplayer
+		as SceneMultiplayer
+	)
+
+
+	if scene_multiplayer == null:
+		return ERR_UNAVAILABLE
+
+
+	var message := {
+		"version": NETWORK_PROTOCOL_VERSION,
+
+		"type": MESSAGE_VAULT_SNAPSHOT,
+
+		"data": snapshot,
 	}
 
 
