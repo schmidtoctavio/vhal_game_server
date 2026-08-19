@@ -1696,6 +1696,32 @@ func _on_backend_vault_loaded(
 	):
 		return
 
+	var validation_error := (
+		ServerVaultSnapshotValidator.validate(
+			snapshot
+		)
+	)
+
+
+	if not validation_error.is_empty():
+		print(
+			"ServerMain | Snapshot de Vault rechazado",
+			" | Peer: ",
+			peer_id,
+			" | Cuenta: ",
+			account_id,
+			" | Motivo: ",
+			validation_error
+		)
+
+
+		_invalidate_active_npc_service(
+			session,
+			"invalid_vault_snapshot"
+		)
+
+
+		return
 
 	var items: Array = (
 		snapshot.get(
@@ -1762,6 +1788,21 @@ func _on_backend_vault_load_failed(
 	account_id: int,
 	message: String
 ) -> void:
+	var session := (
+		world_session_registry.get_session(
+			peer_id
+		)
+	)
+
+
+	if session == null:
+		return
+
+
+	if session.account_id != account_id:
+		return
+
+
 	print(
 		"ServerMain | No se pudo cargar Vault persistente",
 		" | Peer: ",
@@ -1771,3 +1812,13 @@ func _on_backend_vault_load_failed(
 		" | Motivo: ",
 		message
 	)
+
+
+	if session.is_using_npc_service(
+		"warehouse_keeper",
+		"warehouse"
+	):
+		_invalidate_active_npc_service(
+			session,
+			"vault_backend_unavailable"
+		)
