@@ -318,3 +318,142 @@ static func validate(
 
 
 	return ""
+
+# =========================================================
+# VALIDAR REPOSICIÓN
+# =========================================================
+
+static func validate_move(
+	snapshot: Dictionary,
+	uid: String,
+	current_position: Vector2i,
+	new_position: Vector2i
+) -> String:
+	var snapshot_error := validate(
+		snapshot
+	)
+
+
+	if not snapshot_error.is_empty():
+		return snapshot_error
+
+
+	var normalized_uid := uid.strip_edges()
+
+
+	if normalized_uid.is_empty():
+		return "uid vacío"
+
+
+	var candidate := snapshot.duplicate(
+		true
+	)
+
+
+	var items: Array = (
+		candidate.get(
+			"items",
+			[]
+		)
+	)
+
+
+	var found := false
+
+
+	for index in range(
+		items.size()
+	):
+		var item_value: Variant = items[
+			index
+		]
+
+
+		if typeof(item_value) != TYPE_DICTIONARY:
+			return "item inválido"
+
+
+		var item: Dictionary = (
+			item_value
+		)
+
+
+		if String(
+			item.get(
+				"uid",
+				""
+			)
+		).strip_edges() != normalized_uid:
+			continue
+
+
+		var position_value: Variant = item.get(
+			"grid_position",
+			null
+		)
+
+
+		if typeof(position_value) != TYPE_DICTIONARY:
+			return "grid_position inválida"
+
+
+		var position: Dictionary = (
+			position_value
+		)
+
+
+		var actual_position := Vector2i(
+			int(
+				position.get(
+					"x",
+					-1
+				)
+			),
+			int(
+				position.get(
+					"y",
+					-1
+				)
+			)
+		)
+
+
+		if actual_position != current_position:
+			return "posición actual del item no coincide"
+
+
+		item[
+			"grid_position"
+		] = {
+			"x": new_position.x,
+			"y": new_position.y,
+		}
+
+
+		items[
+			index
+		] = item
+
+
+		found = true
+
+
+		break
+
+
+	if not found:
+		return (
+			"uid no encontrado en Vault: "
+			+
+			normalized_uid
+		)
+
+
+	candidate[
+		"items"
+	] = items
+
+
+	return validate(
+		candidate
+	)

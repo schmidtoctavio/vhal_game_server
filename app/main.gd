@@ -275,6 +275,21 @@ func _bind_authentication() -> void:
 			_on_backend_vault_load_failed
 		)
 
+	if not backend_vault_repository.vault_item_moved.is_connected(
+		_on_backend_vault_item_moved
+	):
+		backend_vault_repository.vault_item_moved.connect(
+			_on_backend_vault_item_moved
+		)
+
+
+	if not backend_vault_repository.vault_item_move_failed.is_connected(
+		_on_backend_vault_item_move_failed
+	):
+		backend_vault_repository.vault_item_move_failed.connect(
+			_on_backend_vault_item_move_failed
+		)
+
 	if not game_server.client_authenticated.is_connected(
 		_on_client_authenticated
 	):
@@ -1822,3 +1837,179 @@ func _on_backend_vault_load_failed(
 			session,
 			"vault_backend_unavailable"
 		)
+
+# =========================================================
+# ITEM DE VAULT MOVIDO EN BACKEND
+# =========================================================
+
+func _on_backend_vault_item_moved(
+	peer_id: int,
+	account_id: int,
+	uid: String,
+	item: Dictionary
+) -> void:
+	var session := world_session_registry.get_session(
+		peer_id
+	)
+
+
+	if session == null:
+		return
+
+
+	if session.account_id != account_id:
+		return
+
+
+	print(
+		"ServerMain | Posición de item Vault persistida",
+		" | Peer: ",
+		peer_id,
+		" | UID: ",
+		uid,
+		" | Posición: ",
+		item.get(
+			"grid_position",
+			{}
+		)
+	)
+
+
+	if not session.is_using_npc_service(
+		"warehouse_keeper",
+		"warehouse"
+	):
+		return
+
+
+	# -----------------------------------------------------
+	# No modificamos un snapshot local.
+	#
+	# Volvemos a leer Laravel y usamos nuevamente el
+	# estado persistente como fuente.
+	# -----------------------------------------------------
+
+	var reload_result := backend_vault_repository.load_vault(
+		peer_id,
+		account_id
+	)
+
+
+	if reload_result != OK:
+		_invalidate_active_npc_service(
+			session,
+			"vault_reload_failed"
+		)
+
+
+# =========================================================
+# MOVIMIENTO DE VAULT RECHAZADO
+# =========================================================
+
+func _on_backend_vault_item_move_failed(
+	peer_id: int,
+	account_id: int,
+	uid: String,
+	response_code: int,
+	message: String
+) -> void:
+	var session := world_session_registry.get_session(
+		peer_id
+	)
+
+
+	if session == null:
+		return
+
+
+	if session.account_id != account_id:
+		return
+
+
+	print(
+		"ServerMain | Movimiento persistente de Vault rechazado",
+		" | Peer: ",
+		peer_id,
+		" | UID: ",
+		uid,
+		" | HTTP: ",
+		response_code,
+		" | Motivo: ",
+		message
+	)
+
+
+	if not session.is_using_npc_service(
+		"warehouse_keeper",
+		"warehouse"
+	):
+		return
+
+
+	var reload_result := backend_vault_repository.load_vault(
+		peer_id,
+		account_id
+	)
+
+
+	if reload_result != OK:
+		_invalidate_active_npc_service(
+			session,
+			"vault_reload_failed"
+		)
+
+func _request_vault_item_move(
+	peer_id: int,
+	snapshot: Dictionary,
+	uid: String,
+	current_position: Vector2i,
+	new_position: Vector2i
+) -> Error:
+	var session := world_session_registry.get_session(
+		peer_id
+	)
+
+
+	if session == null:
+		return ERR_DOES_NOT_EXIST
+
+
+	if not session.is_using_npc_service(
+		"warehouse_keeper",
+		"warehouse"
+	):
+		return ERR_UNAVAILABLE
+
+
+	var validation_error := (
+		ServerVaultSnapshotValidator.validate_move(
+			snapshot,
+			uid,
+			current_position,
+			new_position
+		)
+	)
+
+
+	if not validation_error.is_empty():
+		print(
+			"ServerMain | Movimiento de Vault rechazado antes del backend",
+			" | Peer: ",
+			peer_id,
+			" | UID: ",
+			uid,
+			" | Motivo: ",
+			validation_error
+		)
+
+
+		return ERR_INVALID_DATA
+
+
+	return backend_vault_repository.move_vault_item(
+		peer_id,
+		session.account_id,
+		uid,
+		current_position,
+		new_position
+	)
