@@ -50,6 +50,14 @@ signal client_npc_service_end_requested(
 	peer_id: int
 )
 
+signal client_vault_item_move_requested(
+	peer_id: int,
+	request_id: int,
+	uid: String,
+	current_position: Vector2i,
+	new_position: Vector2i
+)
+
 # =========================================================
 # CONFIGURACIÓN
 # =========================================================
@@ -110,6 +118,10 @@ const MESSAGE_NPC_SERVICE_ENDED: String = (
 
 const MESSAGE_VAULT_SNAPSHOT: String = (
 	"vault_snapshot"
+)
+
+const MESSAGE_VAULT_ITEM_MOVE_REQUEST: String = (
+	"vault_item_move_request"
 )
 
 # =========================================================
@@ -1183,6 +1195,15 @@ func _on_peer_packet(
 
 		return
 
+	if message_type == MESSAGE_VAULT_ITEM_MOVE_REQUEST:
+		_process_vault_item_move_request(
+			peer_id,
+			message
+		)
+
+
+		return
+
 # =========================================================
 # MOVE REQUEST
 # =========================================================
@@ -1773,3 +1794,236 @@ func send_vault_snapshot(
 		MultiplayerPeer.TRANSFER_MODE_RELIABLE,
 		0
 	)
+
+# =========================================================
+# VAULT ITEM MOVE REQUEST
+# =========================================================
+
+func _process_vault_item_move_request(
+	peer_id: int,
+	message: Dictionary
+) -> void:
+	var data_value: Variant = message.get(
+		"data",
+		null
+	)
+
+
+	if typeof(data_value) != TYPE_DICTIONARY:
+		reject_authenticated_peer(
+			peer_id,
+			"Movimiento de Vault sin datos válidos."
+		)
+
+
+		return
+
+
+	var data: Dictionary = (
+		data_value
+	)
+
+
+	var request_id := int(
+		data.get(
+			"request_id",
+			0
+		)
+	)
+
+
+	if request_id <= 0:
+		reject_authenticated_peer(
+			peer_id,
+			"Movimiento de Vault sin Request ID válido."
+		)
+
+
+		return
+
+
+	var uid_value: Variant = data.get(
+		"uid",
+		null
+	)
+
+
+	if typeof(uid_value) != TYPE_STRING:
+		reject_authenticated_peer(
+			peer_id,
+			"Movimiento de Vault sin UID válido."
+		)
+
+
+		return
+
+
+	var uid := String(
+		uid_value
+	).strip_edges()
+
+
+	if (
+		uid.is_empty()
+		or
+		uid.length() > 64
+	):
+		reject_authenticated_peer(
+			peer_id,
+			"UID de Vault inválido."
+		)
+
+
+		return
+
+
+	var current_position := (
+		_parse_vault_grid_position(
+			data.get(
+				"current_grid_position",
+				null
+			)
+		)
+	)
+
+
+	if current_position.x < 0:
+		reject_authenticated_peer(
+			peer_id,
+			"Posición actual de Vault inválida."
+		)
+
+
+		return
+
+
+	var new_position := (
+		_parse_vault_grid_position(
+			data.get(
+				"new_grid_position",
+				null
+			)
+		)
+	)
+
+
+	if new_position.x < 0:
+		reject_authenticated_peer(
+			peer_id,
+			"Nueva posición de Vault inválida."
+		)
+
+
+		return
+
+
+	client_vault_item_move_requested.emit(
+		peer_id,
+		request_id,
+		uid,
+		current_position,
+		new_position
+	)
+
+
+func _parse_vault_grid_position(
+	value: Variant
+) -> Vector2i:
+	if typeof(value) != TYPE_DICTIONARY:
+		return Vector2i(
+			-1,
+			-1
+		)
+
+
+	var data: Dictionary = (
+		value
+	)
+
+
+	if (
+		not data.has("x")
+		or
+		not data.has("y")
+	):
+		return Vector2i(
+			-1,
+			-1
+		)
+
+
+	var x_value: Variant = data["x"]
+	var y_value: Variant = data["y"]
+
+
+	if (
+		typeof(x_value) != TYPE_INT
+		and
+		typeof(x_value) != TYPE_FLOAT
+	):
+		return Vector2i(
+			-1,
+			-1
+		)
+
+
+	if (
+		typeof(y_value) != TYPE_INT
+		and
+		typeof(y_value) != TYPE_FLOAT
+	):
+		return Vector2i(
+			-1,
+			-1
+		)
+
+
+	var x_float := float(
+		x_value
+	)
+
+	var y_float := float(
+		y_value
+	)
+
+
+	if x_float != floor(
+		x_float
+	):
+		return Vector2i(
+			-1,
+			-1
+		)
+
+
+	if y_float != floor(
+		y_float
+	):
+		return Vector2i(
+			-1,
+			-1
+		)
+
+
+	var position := Vector2i(
+		int(x_float),
+		int(y_float)
+	)
+
+
+	if (
+		position.x < 0
+		or
+		position.x >= 8
+		or
+		position.y < 0
+		or
+		position.y >= 16
+	):
+		return Vector2i(
+			-1,
+			-1
+		)
+
+
+	return position

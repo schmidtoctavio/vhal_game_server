@@ -44,6 +44,12 @@ var active_service_id: String = ""
 
 
 # =========================================================
+# ESTADO AUTORITATIVO DE VAULT
+# =========================================================
+
+var active_vault_snapshot: Dictionary = {}
+
+# =========================================================
 # INICIAR SERVICIO NPC
 # =========================================================
 
@@ -86,6 +92,8 @@ func end_npc_service() -> void:
 
 	active_service_id = ""
 
+	active_vault_snapshot = {}
+
 
 # =========================================================
 # CONSULTAR SERVICIO NPC
@@ -116,6 +124,61 @@ func is_using_npc_service(
 		==
 		service_id.strip_edges()
 	)
+
+# =========================================================
+# SNAPSHOT AUTORITATIVO DE VAULT
+# =========================================================
+
+func set_active_vault_snapshot(
+	snapshot: Dictionary
+) -> bool:
+	if snapshot.is_empty():
+		return false
+
+
+	if int(
+		snapshot.get(
+			"account_id",
+			0
+		)
+	) != account_id:
+		return false
+
+
+	if String(
+		snapshot.get(
+			"container",
+			""
+		)
+	).strip_edges() != "vault":
+		return false
+
+
+	if typeof(
+		snapshot.get(
+			"items",
+			null
+		)
+	) != TYPE_ARRAY:
+		return false
+
+
+	active_vault_snapshot = snapshot.duplicate(
+		true
+	)
+
+
+	return true
+
+
+func get_active_vault_snapshot() -> Dictionary:
+	return active_vault_snapshot.duplicate(
+		true
+	)
+
+
+func clear_active_vault_snapshot() -> void:
+	active_vault_snapshot = {}
 
 # =========================================================
 # INTENCIÓN DE MOVIMIENTO

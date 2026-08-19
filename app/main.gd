@@ -341,6 +341,13 @@ func _bind_authentication() -> void:
 			_on_client_npc_service_end_requested
 		)
 
+	if not game_server.client_vault_item_move_requested.is_connected(
+		_on_client_vault_item_move_requested
+	):
+		game_server.client_vault_item_move_requested.connect(
+			_on_client_vault_item_move_requested
+		)
+
 # =========================================================
 # AUTH REQUEST
 # =========================================================
@@ -1738,6 +1745,17 @@ func _on_backend_vault_loaded(
 
 		return
 
+	if not session.set_active_vault_snapshot(
+		snapshot
+	):
+		_invalidate_active_npc_service(
+			session,
+			"invalid_vault_session_snapshot"
+		)
+
+
+		return
+
 	var items: Array = (
 		snapshot.get(
 			"items",
@@ -2013,3 +2031,144 @@ func _request_vault_item_move(
 		current_position,
 		new_position
 	)
+
+# =========================================================
+# SOLICITUD CLIENTE — MOVER ITEM EN VAULT
+# =========================================================
+
+func _on_client_vault_item_move_requested(
+	peer_id: int,
+	request_id: int,
+	uid: String,
+	current_position: Vector2i,
+	new_position: Vector2i
+) -> void:
+	var session := (
+		world_session_registry.get_session(
+			peer_id
+		)
+	)
+
+
+	if session == null:
+		return
+
+
+	if not session.is_using_npc_service(
+		"warehouse_keeper",
+		"warehouse"
+	):
+		print(
+			"ServerMain | Movimiento Vault rechazado",
+			" | Request: ",
+			request_id,
+			" | Peer: ",
+			peer_id,
+			" | Motivo: servicio Warehouse no activo"
+		)
+
+
+		return
+
+
+	var snapshot := (
+		session.get_active_vault_snapshot()
+	)
+
+
+	if snapshot.is_empty():
+		print(
+			"ServerMain | Movimiento Vault rechazado",
+			" | Request: ",
+			request_id,
+			" | Peer: ",
+			peer_id,
+			" | Motivo: no existe snapshot autoritativo"
+		)
+
+
+		var reload_result := (
+			backend_vault_repository.load_vault(
+				peer_id,
+				session.account_id
+			)
+		)
+
+
+		if reload_result != OK:
+			_invalidate_active_npc_service(
+				session,
+				"vault_reload_failed"
+			)
+
+
+		return
+
+
+	print(
+		"ServerMain | Solicitud de movimiento Vault recibida",
+		" | Request: ",
+		request_id,
+		" | Peer: ",
+		peer_id,
+		" | UID: ",
+		uid,
+		" | Desde: ",
+		current_position,
+		" | Hacia: ",
+		new_position
+	)
+
+
+	var move_result := (
+		_request_vault_item_move(
+			peer_id,
+			snapshot,
+			uid,
+			current_position,
+			new_position
+		)
+	)
+
+
+	if move_result == OK:
+		return
+
+
+	print(
+		"ServerMain | Movimiento Vault no iniciado",
+		" | Request: ",
+		request_id,
+		" | Peer: ",
+		peer_id,
+		" | Error: ",
+		move_result
+	)
+
+
+	# -----------------------------------------------------
+	# Si la operación era inválida, reenviamos nuestro
+	# último estado autoritativo.
+	#
+	# Así el cliente converge nuevamente sin mutar nada.
+	# -----------------------------------------------------
+
+	if move_result != ERR_BUSY:
+		var resend_result := (
+			game_server.send_vault_snapshot(
+				peer_id,
+				snapshot
+			)
+		)
+
+
+		if resend_result != OK:
+			push_warning(
+				(
+					"ServerMain | No se pudo reenviar "
+					+
+					"snapshot de Vault. Error: %d"
+				)
+				%
+				resend_result
+			)
