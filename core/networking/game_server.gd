@@ -66,6 +66,17 @@ signal client_inventory_item_move_requested(
 	new_position: Vector2i
 )
 
+signal client_item_container_transfer_requested(
+	peer_id: int,
+	request_id: int,
+	uid: String,
+	source_container: String,
+	target_container: String,
+	current_position: Vector2i,
+	new_position: Vector2i
+)
+
+
 # =========================================================
 # CONFIGURACIÓN
 # =========================================================
@@ -138,6 +149,10 @@ const MESSAGE_VAULT_ITEM_MOVE_REQUEST: String = (
 
 const MESSAGE_INVENTORY_ITEM_MOVE_REQUEST: String = (
 	"inventory_item_move_request"
+)
+
+const MESSAGE_ITEM_CONTAINER_TRANSFER_REQUEST: String = (
+	"item_container_transfer_request"
 )
 
 # =========================================================
@@ -1228,6 +1243,16 @@ func _on_peer_packet(
 
 
 		return
+
+	if message_type == MESSAGE_ITEM_CONTAINER_TRANSFER_REQUEST:
+		_process_item_container_transfer_request(
+			peer_id,
+			message
+		)
+
+
+		return
+
 # =========================================================
 # MOVE REQUEST
 # =========================================================
@@ -2454,3 +2479,299 @@ func _parse_inventory_grid_position(
 
 
 	return position
+
+# =========================================================
+# ITEM CONTAINER TRANSFER REQUEST
+# =========================================================
+
+func _process_item_container_transfer_request(
+	peer_id: int,
+	message: Dictionary
+) -> void:
+	var data_value: Variant = (
+		message.get(
+			"data",
+			null
+		)
+	)
+
+
+	if typeof(data_value) != TYPE_DICTIONARY:
+		reject_authenticated_peer(
+			peer_id,
+			"Transferencia de item sin datos válidos."
+		)
+
+
+		return
+
+
+	var data: Dictionary = (
+		data_value
+	)
+
+
+	# -----------------------------------------------------
+	# REQUEST ID
+	# -----------------------------------------------------
+
+	var request_id := int(
+		data.get(
+			"request_id",
+			0
+		)
+	)
+
+
+	if request_id <= 0:
+		reject_authenticated_peer(
+			peer_id,
+			"Transferencia de item sin Request ID válido."
+		)
+
+
+		return
+
+
+	# -----------------------------------------------------
+	# UID
+	# -----------------------------------------------------
+
+	var uid_value: Variant = (
+		data.get(
+			"uid",
+			null
+		)
+	)
+
+
+	if typeof(uid_value) != TYPE_STRING:
+		reject_authenticated_peer(
+			peer_id,
+			"Transferencia de item sin UID válido."
+		)
+
+
+		return
+
+
+	var uid := String(
+		uid_value
+	).strip_edges()
+
+
+	if (
+		uid.is_empty()
+		or
+		uid.length() > 64
+	):
+		reject_authenticated_peer(
+			peer_id,
+			"UID de transferencia inválido."
+		)
+
+
+		return
+
+
+	# -----------------------------------------------------
+	# CONTENEDOR ORIGEN
+	# -----------------------------------------------------
+
+	var source_value: Variant = (
+		data.get(
+			"source_container",
+			null
+		)
+	)
+
+
+	if typeof(source_value) != TYPE_STRING:
+		reject_authenticated_peer(
+			peer_id,
+			"Contenedor de origen inválido."
+		)
+
+
+		return
+
+
+	var source_container := String(
+		source_value
+	).strip_edges().to_lower()
+
+
+	if not _is_transfer_container(
+		source_container
+	):
+		reject_authenticated_peer(
+			peer_id,
+			"Contenedor de origen no soportado."
+		)
+
+
+		return
+
+
+	# -----------------------------------------------------
+	# CONTENEDOR DESTINO
+	# -----------------------------------------------------
+
+	var target_value: Variant = (
+		data.get(
+			"target_container",
+			null
+		)
+	)
+
+
+	if typeof(target_value) != TYPE_STRING:
+		reject_authenticated_peer(
+			peer_id,
+			"Contenedor de destino inválido."
+		)
+
+
+		return
+
+
+	var target_container := String(
+		target_value
+	).strip_edges().to_lower()
+
+
+	if not _is_transfer_container(
+		target_container
+	):
+		reject_authenticated_peer(
+			peer_id,
+			"Contenedor de destino no soportado."
+		)
+
+
+		return
+
+
+	if source_container == target_container:
+		reject_authenticated_peer(
+			peer_id,
+			(
+				"Transferencia con origen "
+				+
+				"y destino iguales."
+			)
+		)
+
+
+		return
+
+
+	# -----------------------------------------------------
+	# POSICIÓN ACTUAL
+	# -----------------------------------------------------
+
+	var current_position := (
+		_parse_transfer_grid_position(
+			data.get(
+				"current_grid_position",
+				null
+			),
+			source_container
+		)
+	)
+
+
+	if current_position == Vector2i(
+		-1,
+		-1
+	):
+		reject_authenticated_peer(
+			peer_id,
+			"Posición actual de transferencia inválida."
+		)
+
+
+		return
+
+
+	# -----------------------------------------------------
+	# POSICIÓN DESTINO
+	# -----------------------------------------------------
+
+	var new_position := (
+		_parse_transfer_grid_position(
+			data.get(
+				"new_grid_position",
+				null
+			),
+			target_container
+		)
+	)
+
+
+	if new_position == Vector2i(
+		-1,
+		-1
+	):
+		reject_authenticated_peer(
+			peer_id,
+			"Posición destino de transferencia inválida."
+		)
+
+
+		return
+
+
+	# -----------------------------------------------------
+	# ENTREGAR INTENCIÓN A SERVER MAIN
+	# -----------------------------------------------------
+
+	client_item_container_transfer_requested.emit(
+		peer_id,
+		request_id,
+		uid,
+		source_container,
+		target_container,
+		current_position,
+		new_position
+	)
+
+
+# =========================================================
+# CONTENEDOR DE TRANSFERENCIA SOPORTADO
+# =========================================================
+
+func _is_transfer_container(
+	container: String
+) -> bool:
+	return (
+		container == "inventory"
+		or
+		container == "vault"
+	)
+
+
+# =========================================================
+# PARSEAR POSICIÓN SEGÚN CONTENEDOR
+# =========================================================
+
+func _parse_transfer_grid_position(
+	value: Variant,
+	container: String
+) -> Vector2i:
+	match container:
+		"inventory":
+			return _parse_inventory_grid_position(
+				value
+			)
+
+		"vault":
+			return _parse_vault_grid_position(
+				value
+			)
+
+
+	return Vector2i(
+		-1,
+		-1
+	)
