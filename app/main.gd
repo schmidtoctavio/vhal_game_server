@@ -17,6 +17,10 @@ extends Node
 	$BackendVaultRepository
 )
 
+@onready var backend_character_inventory_repository: BackendCharacterInventoryRepository = (
+	$BackendCharacterInventoryRepository
+)
+
 @onready var world_session_registry: WorldSessionRegistry = (
 	$WorldSessionRegistry
 )
@@ -100,6 +104,42 @@ func _ready() -> void:
 
 		return
 
+	if backend_character_inventory_repository == null:
+		push_error(
+			(
+				"ServerMain | No existe "
+				+
+				"BackendCharacterInventoryRepository."
+			)
+		)
+
+
+		get_tree().quit(
+			9
+		)
+
+
+		return
+
+
+	if not backend_character_inventory_repository.is_configured():
+		push_error(
+			(
+				"ServerMain | "
+				+
+				"BackendCharacterInventoryRepository "
+				+
+				"no configurado."
+			)
+		)
+
+
+		get_tree().quit(
+			9
+		)
+
+
+		return
 
 	if world_session_registry == null:
 		push_error(
@@ -288,6 +328,21 @@ func _bind_authentication() -> void:
 	):
 		backend_vault_repository.vault_item_move_failed.connect(
 			_on_backend_vault_item_move_failed
+		)
+
+	if not backend_character_inventory_repository.inventory_loaded.is_connected(
+		_on_backend_character_inventory_loaded
+	):
+		backend_character_inventory_repository.inventory_loaded.connect(
+			_on_backend_character_inventory_loaded
+		)
+
+
+	if not backend_character_inventory_repository.inventory_load_failed.is_connected(
+		_on_backend_character_inventory_load_failed
+	):
+		backend_character_inventory_repository.inventory_load_failed.connect(
+			_on_backend_character_inventory_load_failed
 		)
 
 	if not game_server.client_authenticated.is_connected(
@@ -605,6 +660,37 @@ func _on_client_authenticated(
 		session.position
 	)
 
+	var inventory_load_result := (
+		backend_character_inventory_repository.load_inventory(
+			peer_id,
+			session.account_id,
+			session.character_id
+		)
+	)
+
+
+	if inventory_load_result != OK:
+		push_error(
+			(
+				"ServerMain | No se pudo iniciar "
+				+
+				"la carga del Inventory persistente."
+				+
+				" Error: %d"
+			)
+			%
+			inventory_load_result
+		)
+
+
+		game_server.reject_authenticated_peer(
+			peer_id,
+			(
+				"No se pudo cargar el inventario "
+				+
+				"persistente."
+			)
+		)
 
 # =========================================================
 # PEER DESCONECTADO
@@ -2172,3 +2258,149 @@ func _on_client_vault_item_move_requested(
 				%
 				resend_result
 			)
+
+# =========================================================
+# INVENTORY PERSISTENTE CARGADO
+# =========================================================
+
+func _on_backend_character_inventory_loaded(
+	peer_id: int,
+	account_id: int,
+	character_id: int,
+	snapshot: Dictionary
+) -> void:
+	var session := (
+		world_session_registry.get_session(
+			peer_id
+		)
+	)
+
+
+	if session == null:
+		return
+
+
+	if session.account_id != account_id:
+		return
+
+
+	if session.character_id != character_id:
+		return
+
+
+	var validation_error := (
+		ServerCharacterInventorySnapshotValidator.validate(
+			snapshot
+		)
+	)
+
+
+	if not validation_error.is_empty():
+		print(
+			"ServerMain | Inventory persistente rechazado",
+			" | Peer: ",
+			peer_id,
+			" | Cuenta: ",
+			account_id,
+			" | Personaje: ",
+			character_id,
+			" | Motivo: ",
+			validation_error
+		)
+
+
+		game_server.reject_authenticated_peer(
+			peer_id,
+			"Inventory persistente inválido."
+		)
+
+
+		return
+
+
+	if not session.set_inventory_snapshot(
+		snapshot
+	):
+		game_server.reject_authenticated_peer(
+			peer_id,
+			(
+				"No se pudo registrar el "
+				+
+				"Inventory persistente."
+			)
+		)
+
+
+		return
+
+
+	print(
+		"ServerMain | Inventory persistente cargado",
+		" | Peer: ",
+		peer_id,
+		" | Cuenta: ",
+		account_id,
+		" | Personaje: ",
+		session.character_name,
+		" | Character ID: ",
+		character_id,
+		" | Items: ",
+		(
+			snapshot.get(
+				"items",
+				[]
+			)
+			as Array
+		).size()
+	)
+
+# =========================================================
+# INVENTORY PERSISTENTE — ERROR
+# =========================================================
+
+func _on_backend_character_inventory_load_failed(
+	peer_id: int,
+	account_id: int,
+	character_id: int,
+	message: String
+) -> void:
+	var session := (
+		world_session_registry.get_session(
+			peer_id
+		)
+	)
+
+
+	if session == null:
+		return
+
+
+	if session.account_id != account_id:
+		return
+
+
+	if session.character_id != character_id:
+		return
+
+
+	print(
+		"ServerMain | Error cargando Inventory persistente",
+		" | Peer: ",
+		peer_id,
+		" | Cuenta: ",
+		account_id,
+		" | Character ID: ",
+		character_id,
+		" | Motivo: ",
+		message
+	)
+
+
+	game_server.reject_authenticated_peer(
+		peer_id,
+		(
+			"No se pudo cargar el inventario "
+			+
+			"persistente."
+		)
+	)

@@ -50,6 +50,12 @@ var active_service_id: String = ""
 var active_vault_snapshot: Dictionary = {}
 
 # =========================================================
+# INVENTARIO AUTORITATIVO DEL PERSONAJE
+# =========================================================
+
+var inventory_snapshot: Dictionary = {}
+
+# =========================================================
 # INICIAR SERVICIO NPC
 # =========================================================
 
@@ -179,6 +185,70 @@ func get_active_vault_snapshot() -> Dictionary:
 
 func clear_active_vault_snapshot() -> void:
 	active_vault_snapshot = {}
+
+# =========================================================
+# SNAPSHOT AUTORITATIVO DE INVENTORY
+# =========================================================
+
+func set_inventory_snapshot(
+	snapshot: Dictionary
+) -> bool:
+	if snapshot.is_empty():
+		return false
+
+
+	if int(
+		snapshot.get(
+			"account_id",
+			0
+		)
+	) != account_id:
+		return false
+
+
+	if int(
+		snapshot.get(
+			"character_id",
+			0
+		)
+	) != character_id:
+		return false
+
+
+	if String(
+		snapshot.get(
+			"container",
+			""
+		)
+	).strip_edges() != "inventory":
+		return false
+
+
+	if typeof(
+		snapshot.get(
+			"items",
+			null
+		)
+	) != TYPE_ARRAY:
+		return false
+
+
+	inventory_snapshot = snapshot.duplicate(
+		true
+	)
+
+
+	return true
+
+
+func get_inventory_snapshot() -> Dictionary:
+	return inventory_snapshot.duplicate(
+		true
+	)
+
+
+func clear_inventory_snapshot() -> void:
+	inventory_snapshot = {}
 
 # =========================================================
 # INTENCIÓN DE MOVIMIENTO
