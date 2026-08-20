@@ -21,6 +21,10 @@ extends Node
 	$BackendCharacterInventoryRepository
 )
 
+@onready var backend_item_transfer_repository: BackendItemTransferRepository = (
+	$BackendItemTransferRepository
+)
+
 @onready var world_session_registry: WorldSessionRegistry = (
 	$WorldSessionRegistry
 )
@@ -136,6 +140,43 @@ func _ready() -> void:
 
 		get_tree().quit(
 			9
+		)
+
+
+		return
+
+	if backend_item_transfer_repository == null:
+		push_error(
+			(
+				"ServerMain | No existe "
+				+
+				"BackendItemTransferRepository."
+			)
+		)
+
+
+		get_tree().quit(
+			10
+		)
+
+
+		return
+
+
+	if not backend_item_transfer_repository.is_configured():
+		push_error(
+			(
+				"ServerMain | "
+				+
+				"BackendItemTransferRepository "
+				+
+				"no configurado."
+			)
+		)
+
+
+		get_tree().quit(
+			10
 		)
 
 
