@@ -120,6 +120,10 @@ const MESSAGE_VAULT_SNAPSHOT: String = (
 	"vault_snapshot"
 )
 
+const MESSAGE_CHARACTER_INVENTORY_SNAPSHOT: String = (
+	"character_inventory_snapshot"
+)
+
 const MESSAGE_VAULT_ITEM_MOVE_REQUEST: String = (
 	"vault_item_move_request"
 )
@@ -1687,6 +1691,157 @@ func send_npc_service_ended(
 
 			"reason": normalized_reason,
 		},
+	}
+
+
+	var packet := (
+		JSON.stringify(
+			message
+		).to_utf8_buffer()
+	)
+
+
+	return scene_multiplayer.send_bytes(
+		packet,
+		peer_id,
+		MultiplayerPeer.TRANSFER_MODE_RELIABLE,
+		0
+	)
+
+
+# =========================================================
+# ENVIAR SNAPSHOT DE INVENTORY DEL PERSONAJE
+# =========================================================
+
+func send_character_inventory_snapshot(
+	peer_id: int,
+	snapshot: Dictionary
+) -> Error:
+	if peer_id <= 1:
+		return ERR_INVALID_PARAMETER
+
+
+	if not authenticated_sessions.has(
+		peer_id
+	):
+		return ERR_DOES_NOT_EXIST
+
+
+	if snapshot.is_empty():
+		return ERR_INVALID_DATA
+
+
+	var account_id := int(
+		snapshot.get(
+			"account_id",
+			0
+		)
+	)
+
+
+	var character_id := int(
+		snapshot.get(
+			"character_id",
+			0
+		)
+	)
+
+
+	var container := String(
+		snapshot.get(
+			"container",
+			""
+		)
+	).strip_edges()
+
+
+	var items_value: Variant = (
+		snapshot.get(
+			"items",
+			null
+		)
+	)
+
+
+	if account_id <= 0:
+		return ERR_INVALID_DATA
+
+
+	if character_id <= 0:
+		return ERR_INVALID_DATA
+
+
+	if container != "inventory":
+		return ERR_INVALID_DATA
+
+
+	if typeof(items_value) != TYPE_ARRAY:
+		return ERR_INVALID_DATA
+
+
+	# -----------------------------------------------------
+	# El snapshot también debe corresponder a la identidad
+	# autenticada que GameServer ya posee para ese peer.
+	# -----------------------------------------------------
+
+	var authenticated_session: Dictionary = (
+		authenticated_sessions[
+			peer_id
+		]
+	)
+
+
+	if int(
+		authenticated_session.get(
+			"account_id",
+			0
+		)
+	) != account_id:
+		return ERR_INVALID_DATA
+
+
+	var character_value: Variant = (
+		authenticated_session.get(
+			"character",
+			null
+		)
+	)
+
+
+	if typeof(character_value) != TYPE_DICTIONARY:
+		return ERR_INVALID_DATA
+
+
+	var character: Dictionary = (
+		character_value
+	)
+
+
+	if int(
+		character.get(
+			"id",
+			0
+		)
+	) != character_id:
+		return ERR_INVALID_DATA
+
+
+	var scene_multiplayer := (
+		multiplayer
+		as SceneMultiplayer
+	)
+
+
+	if scene_multiplayer == null:
+		return ERR_UNAVAILABLE
+
+
+	var message := {
+		"version": NETWORK_PROTOCOL_VERSION,
+
+		"type": MESSAGE_CHARACTER_INVENTORY_SNAPSHOT,
+
+		"data": snapshot,
 	}
 
 

@@ -2333,6 +2333,57 @@ func _on_backend_character_inventory_loaded(
 
 		return
 
+	var send_result := (
+		game_server.send_character_inventory_snapshot(
+			peer_id,
+			snapshot
+		)
+	)
+
+
+	if send_result != OK:
+		push_error(
+			(
+				"ServerMain | No se pudo enviar "
+				+
+				"Inventory persistente al cliente."
+				+
+				" Error: %d"
+			)
+			%
+			send_result
+		)
+
+
+		game_server.reject_authenticated_peer(
+			peer_id,
+			(
+				"No se pudo sincronizar el "
+				+
+				"Inventory persistente."
+			)
+		)
+
+
+		return
+
+	print(
+		"ServerMain | Snapshot de Inventory enviado",
+		" | Peer: ",
+		peer_id,
+		" | Cuenta: ",
+		account_id,
+		" | Character ID: ",
+		character_id,
+		" | Items: ",
+		(
+			snapshot.get(
+				"items",
+				[]
+			)
+			as Array
+		).size()
+	)
 
 	print(
 		"ServerMain | Inventory persistente cargado",
