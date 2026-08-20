@@ -345,6 +345,21 @@ func _bind_authentication() -> void:
 			_on_backend_character_inventory_load_failed
 		)
 
+	if not backend_character_inventory_repository.inventory_item_moved.is_connected(
+		_on_backend_character_inventory_item_moved
+	):
+		backend_character_inventory_repository.inventory_item_moved.connect(
+			_on_backend_character_inventory_item_moved
+		)
+
+
+	if not backend_character_inventory_repository.inventory_item_move_failed.is_connected(
+		_on_backend_character_inventory_item_move_failed
+	):
+		backend_character_inventory_repository.inventory_item_move_failed.connect(
+			_on_backend_character_inventory_item_move_failed
+		)
+
 	if not game_server.client_authenticated.is_connected(
 		_on_client_authenticated
 	):
@@ -401,6 +416,13 @@ func _bind_authentication() -> void:
 	):
 		game_server.client_vault_item_move_requested.connect(
 			_on_client_vault_item_move_requested
+		)
+
+	if not game_server.client_inventory_item_move_requested.is_connected(
+		_on_client_inventory_item_move_requested
+	):
+		game_server.client_inventory_item_move_requested.connect(
+			_on_client_inventory_item_move_requested
 		)
 
 # =========================================================
@@ -2455,3 +2477,302 @@ func _on_backend_character_inventory_load_failed(
 			"persistente."
 		)
 	)
+
+# =========================================================
+# REQUEST AUTORITATIVO DE MOVIMIENTO DE INVENTORY
+# =========================================================
+
+func _request_inventory_item_move(
+	peer_id: int,
+	snapshot: Dictionary,
+	uid: String,
+	current_position: Vector2i,
+	new_position: Vector2i
+) -> Error:
+	var session := (
+		world_session_registry.get_session(
+			peer_id
+		)
+	)
+
+
+	if session == null:
+		return ERR_DOES_NOT_EXIST
+
+
+	var validation_error := (
+		ServerCharacterInventorySnapshotValidator.validate_move(
+			snapshot,
+			uid,
+			current_position,
+			new_position
+		)
+	)
+
+
+	if not validation_error.is_empty():
+		print(
+			"ServerMain | Movimiento de Inventory rechazado antes del backend",
+			" | Peer: ",
+			peer_id,
+			" | UID: ",
+			uid,
+			" | Motivo: ",
+			validation_error
+		)
+
+
+		return ERR_INVALID_DATA
+
+
+	return backend_character_inventory_repository.move_inventory_item(
+		peer_id,
+		session.account_id,
+		session.character_id,
+		uid,
+		current_position,
+		new_position
+	)
+
+# =========================================================
+# SOLICITUD CLIENTE — MOVER ITEM EN INVENTORY
+# =========================================================
+
+func _on_client_inventory_item_move_requested(
+	peer_id: int,
+	request_id: int,
+	uid: String,
+	current_position: Vector2i,
+	new_position: Vector2i
+) -> void:
+	var session := (
+		world_session_registry.get_session(
+			peer_id
+		)
+	)
+
+
+	if session == null:
+		return
+
+
+	var snapshot := (
+		session.get_inventory_snapshot()
+	)
+
+
+	if snapshot.is_empty():
+		print(
+			"ServerMain | Movimiento Inventory rechazado",
+			" | Request: ",
+			request_id,
+			" | Peer: ",
+			peer_id,
+			" | Motivo: no existe snapshot autoritativo"
+		)
+
+
+		var reload_result := (
+			backend_character_inventory_repository.load_inventory(
+				peer_id,
+				session.account_id,
+				session.character_id
+			)
+		)
+
+
+		if reload_result != OK:
+			game_server.reject_authenticated_peer(
+				peer_id,
+				"No se pudo recuperar el Inventory persistente."
+			)
+
+
+		return
+
+
+	print(
+		"ServerMain | Solicitud de movimiento Inventory recibida",
+		" | Request: ",
+		request_id,
+		" | Peer: ",
+		peer_id,
+		" | UID: ",
+		uid,
+		" | Desde: ",
+		current_position,
+		" | Hacia: ",
+		new_position
+	)
+
+
+	var move_result := (
+		_request_inventory_item_move(
+			peer_id,
+			snapshot,
+			uid,
+			current_position,
+			new_position
+		)
+	)
+
+
+	if move_result == OK:
+		return
+
+
+	print(
+		"ServerMain | Movimiento Inventory no iniciado",
+		" | Request: ",
+		request_id,
+		" | Peer: ",
+		peer_id,
+		" | Error: ",
+		move_result
+	)
+
+
+	if move_result != ERR_BUSY:
+		var resend_result := (
+			game_server.send_character_inventory_snapshot(
+				peer_id,
+				snapshot
+			)
+		)
+
+
+		if resend_result != OK:
+			push_warning(
+				(
+					"ServerMain | No se pudo reenviar "
+					+
+					"snapshot de Inventory. Error: %d"
+				)
+				%
+				resend_result
+			)
+
+# =========================================================
+# MOVIMIENTO DE INVENTORY RECHAZADO
+# =========================================================
+
+func _on_backend_character_inventory_item_move_failed(
+	peer_id: int,
+	account_id: int,
+	character_id: int,
+	uid: String,
+	response_code: int,
+	message: String
+) -> void:
+	var session := (
+		world_session_registry.get_session(
+			peer_id
+		)
+	)
+
+
+	if session == null:
+		return
+
+
+	if session.account_id != account_id:
+		return
+
+
+	if session.character_id != character_id:
+		return
+
+
+	print(
+		"ServerMain | Movimiento persistente de Inventory rechazado",
+		" | Peer: ",
+		peer_id,
+		" | UID: ",
+		uid,
+		" | HTTP: ",
+		response_code,
+		" | Motivo: ",
+		message
+	)
+
+
+	var reload_result := (
+		backend_character_inventory_repository.load_inventory(
+			peer_id,
+			account_id,
+			character_id
+		)
+	)
+
+
+	if reload_result != OK:
+		game_server.reject_authenticated_peer(
+			peer_id,
+			"No se pudo recuperar el Inventory persistente."
+		)
+
+# =========================================================
+# ITEM DE INVENTORY MOVIDO EN BACKEND
+# =========================================================
+
+func _on_backend_character_inventory_item_moved(
+	peer_id: int,
+	account_id: int,
+	character_id: int,
+	uid: String,
+	item: Dictionary
+) -> void:
+	var session := (
+		world_session_registry.get_session(
+			peer_id
+		)
+	)
+
+
+	if session == null:
+		return
+
+
+	if session.account_id != account_id:
+		return
+
+
+	if session.character_id != character_id:
+		return
+
+
+	print(
+		"ServerMain | Posición de item Inventory persistida",
+		" | Peer: ",
+		peer_id,
+		" | UID: ",
+		uid,
+		" | Posición: ",
+		item.get(
+			"grid_position",
+			{}
+		)
+	)
+
+
+	# -----------------------------------------------------
+	# Igual que Vault:
+	#
+	# NO parcheamos manualmente el snapshot de sesión.
+	# Volvemos a leer Laravel.
+	# -----------------------------------------------------
+
+	var reload_result := (
+		backend_character_inventory_repository.load_inventory(
+			peer_id,
+			account_id,
+			character_id
+		)
+	)
+
+
+	if reload_result != OK:
+		game_server.reject_authenticated_peer(
+			peer_id,
+			"No se pudo recargar el Inventory persistente."
+		)
