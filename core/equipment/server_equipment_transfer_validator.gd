@@ -821,6 +821,10 @@ static func _validate_snapshot_context(
 # =========================================================
 
 static func validate_contract() -> String:
+	# =====================================================
+	# SNAPSHOTS BASE VÁLIDOS
+	# =====================================================
+
 	var inventory := {
 		"account_id": 1,
 		"character_id": 1,
@@ -877,9 +881,9 @@ static func validate_contract() -> String:
 	}
 
 
-	# -----------------------------------------------------
-	# SWORD -> MAIN HAND
-	# -----------------------------------------------------
+	# =====================================================
+	# 1. SWORD -> MAIN_HAND DEBE FUNCIONAR
+	# =====================================================
 
 	var sword_result := (
 		validate_equip(
@@ -913,9 +917,38 @@ static func validate_contract() -> String:
 		)
 
 
-	# -----------------------------------------------------
-	# POTION -> MAIN HAND DEBE FALLAR
-	# -----------------------------------------------------
+	var equipped_sword: Dictionary = (
+		sword_result.get(
+			"item",
+			{}
+		)
+	)
+
+
+	if equipped_sword.has(
+		"grid_position"
+	):
+		return (
+			"self-test Equip conservó grid_position"
+		)
+
+
+	if String(
+		equipped_sword.get(
+			"equipment_slot",
+			""
+		)
+	) != String(
+		ServerEquipmentSlotCatalog.MAIN_HAND
+	):
+		return (
+			"self-test Equip no asignó main_hand"
+		)
+
+
+	# =====================================================
+	# 2. POTION -> MAIN_HAND DEBE FALLAR
+	# =====================================================
 
 	var potion_result := (
 		validate_equip(
@@ -938,15 +971,13 @@ static func validate_contract() -> String:
 		)
 	):
 		return (
-			"self-test permitió equipar "
-			+
-			"health_potion"
+			"self-test permitió equipar health_potion"
 		)
 
 
-	# -----------------------------------------------------
-	# HELMET -> HEAD
-	# -----------------------------------------------------
+	# =====================================================
+	# 3. HELMET -> HEAD DEBE FUNCIONAR
+	# =====================================================
 
 	var helmet_result := (
 		validate_equip(
@@ -980,9 +1011,9 @@ static func validate_contract() -> String:
 		)
 
 
-	# -----------------------------------------------------
-	# SWORD -> HEAD DEBE FALLAR
-	# -----------------------------------------------------
+	# =====================================================
+	# 4. SWORD -> HEAD DEBE FALLAR
+	# =====================================================
 
 	var wrong_slot_result := (
 		validate_equip(
@@ -1009,9 +1040,212 @@ static func validate_contract() -> String:
 		)
 
 
-	# -----------------------------------------------------
-	# UNEQUIP RESULTANTE
-	# -----------------------------------------------------
+	# =====================================================
+	# 5. POSICIÓN STALE AL EQUIPAR
+	# =====================================================
+
+	var stale_position_result := (
+		validate_equip(
+			inventory,
+			equipment,
+			"test-sword",
+			Vector2i(
+				1,
+				0
+			),
+			ServerEquipmentSlotCatalog.MAIN_HAND
+		)
+	)
+
+
+	if bool(
+		stale_position_result.get(
+			"ok",
+			false
+		)
+	):
+		return (
+			"self-test permitió Equip con posición stale"
+		)
+
+
+	# =====================================================
+	# 6. SLOT YA OCUPADO
+	# =====================================================
+
+	var occupied_equipment := {
+		"account_id": 1,
+		"character_id": 1,
+		"container": "equipment",
+
+		"items": [
+			{
+				"uid": "occupied-sword",
+				"item_id": "bronze_sword",
+				"quantity": 1,
+				"equipment_slot": "main_hand",
+				"state": {},
+			},
+		],
+	}
+
+
+	var occupied_slot_result := (
+		validate_equip(
+			inventory,
+			occupied_equipment,
+			"test-sword",
+			Vector2i(
+				0,
+				0
+			),
+			ServerEquipmentSlotCatalog.MAIN_HAND
+		)
+	)
+
+
+	if bool(
+		occupied_slot_result.get(
+			"ok",
+			false
+		)
+	):
+		return (
+			"self-test permitió ocupar main_hand dos veces"
+		)
+
+
+	# =====================================================
+	# 7. INVENTORY / EQUIPMENT DE CUENTAS DIFERENTES
+	# =====================================================
+
+	var foreign_account_equipment := (
+		equipment.duplicate(
+			true
+		)
+	)
+
+
+	foreign_account_equipment[
+		"account_id"
+	] = 2
+
+
+	var foreign_account_result := (
+		validate_equip(
+			inventory,
+			foreign_account_equipment,
+			"test-sword",
+			Vector2i(
+				0,
+				0
+			),
+			ServerEquipmentSlotCatalog.MAIN_HAND
+		)
+	)
+
+
+	if bool(
+		foreign_account_result.get(
+			"ok",
+			false
+		)
+	):
+		return (
+			"self-test mezcló Equipment de otra cuenta"
+		)
+
+
+	# =====================================================
+	# 8. INVENTORY / EQUIPMENT DE PERSONAJES DIFERENTES
+	# =====================================================
+
+	var foreign_character_equipment := (
+		equipment.duplicate(
+			true
+		)
+	)
+
+
+	foreign_character_equipment[
+		"character_id"
+	] = 2
+
+
+	var foreign_character_result := (
+		validate_equip(
+			inventory,
+			foreign_character_equipment,
+			"test-sword",
+			Vector2i(
+				0,
+				0
+			),
+			ServerEquipmentSlotCatalog.MAIN_HAND
+		)
+	)
+
+
+	if bool(
+		foreign_character_result.get(
+			"ok",
+			false
+		)
+	):
+		return (
+			"self-test mezcló Equipment de otro personaje"
+		)
+
+
+	# =====================================================
+	# 9. MISMO UID EN INVENTORY Y EQUIPMENT
+	# =====================================================
+
+	var duplicated_uid_equipment := {
+		"account_id": 1,
+		"character_id": 1,
+		"container": "equipment",
+
+		"items": [
+			{
+				"uid": "test-sword",
+				"item_id": "bronze_sword",
+				"quantity": 1,
+				"equipment_slot": "main_hand",
+				"state": {},
+			},
+		],
+	}
+
+
+	var duplicated_uid_result := (
+		validate_equip(
+			inventory,
+			duplicated_uid_equipment,
+			"test-sword",
+			Vector2i(
+				0,
+				0
+			),
+			ServerEquipmentSlotCatalog.MAIN_HAND
+		)
+	)
+
+
+	if bool(
+		duplicated_uid_result.get(
+			"ok",
+			false
+		)
+	):
+		return (
+			"self-test permitió UID duplicado entre containers"
+		)
+
+
+	# =====================================================
+	# ESTADO DESPUÉS DEL EQUIP VÁLIDO
+	# =====================================================
 
 	var equipped_inventory: Dictionary = (
 		sword_result.get(
@@ -1028,6 +1262,10 @@ static func validate_contract() -> String:
 		)
 	)
 
+
+	# =====================================================
+	# 10. UNEQUIP VÁLIDO
+	# =====================================================
 
 	var unequip_result := (
 		validate_unequip(
@@ -1050,7 +1288,7 @@ static func validate_contract() -> String:
 		)
 	):
 		return (
-			"self-test unequip falló: "
+			"self-test Unequip válido falló: "
 			+
 			String(
 				unequip_result.get(
@@ -1058,6 +1296,160 @@ static func validate_contract() -> String:
 					""
 				)
 			)
+		)
+
+
+	var unequipped_sword: Dictionary = (
+		unequip_result.get(
+			"item",
+			{}
+		)
+	)
+
+
+	if unequipped_sword.has(
+		"equipment_slot"
+	):
+		return (
+			"self-test Unequip conservó equipment_slot"
+		)
+
+
+	var unequipped_position_value: Variant = (
+		unequipped_sword.get(
+			"grid_position",
+			null
+		)
+	)
+
+
+	if (
+		typeof(
+			unequipped_position_value
+		)
+		!=
+		TYPE_DICTIONARY
+	):
+		return (
+			"self-test Unequip no restauró grid_position"
+		)
+
+
+	var unequipped_position: Dictionary = (
+		unequipped_position_value
+	)
+
+
+	if (
+		int(
+			unequipped_position.get(
+				"x",
+				-1
+			)
+		) != 5
+		or
+		int(
+			unequipped_position.get(
+				"y",
+				-1
+			)
+		) != 5
+	):
+		return (
+			"self-test Unequip restauró posición incorrecta"
+		)
+
+
+	# =====================================================
+	# 11. STALE EQUIPMENT SLOT
+	# =====================================================
+
+	var stale_slot_result := (
+		validate_unequip(
+			equipped_inventory,
+			equipped_equipment,
+			"test-sword",
+			ServerEquipmentSlotCatalog.OFF_HAND,
+			Vector2i(
+				5,
+				5
+			)
+		)
+	)
+
+
+	if bool(
+		stale_slot_result.get(
+			"ok",
+			false
+		)
+	):
+		return (
+			"self-test permitió Unequip con slot stale"
+		)
+
+
+	# =====================================================
+	# 12. UNEQUIP SOBRE POSICIÓN OCUPADA
+	#
+	# Health Potion se encuentra en (2, 0).
+	# Bronze Sword ocupa 1 x 3.
+	# =====================================================
+
+	var occupied_inventory_result := (
+		validate_unequip(
+			equipped_inventory,
+			equipped_equipment,
+			"test-sword",
+			ServerEquipmentSlotCatalog.MAIN_HAND,
+			Vector2i(
+				2,
+				0
+			)
+		)
+	)
+
+
+	if bool(
+		occupied_inventory_result.get(
+			"ok",
+			false
+		)
+	):
+		return (
+			"self-test permitió Unequip sobre Inventory ocupado"
+		)
+
+
+	# =====================================================
+	# 13. UNEQUIP MULTICELDA FUERA DE LÍMITES
+	#
+	# Bronze Sword mide 1 x 3.
+	# Desde (7, 7) excedería el grid 8 x 8.
+	# =====================================================
+
+	var out_of_bounds_result := (
+		validate_unequip(
+			equipped_inventory,
+			equipped_equipment,
+			"test-sword",
+			ServerEquipmentSlotCatalog.MAIN_HAND,
+			Vector2i(
+				7,
+				7
+			)
+		)
+	)
+
+
+	if bool(
+		out_of_bounds_result.get(
+			"ok",
+			false
+		)
+	):
+		return (
+			"self-test permitió Unequip fuera del Inventory"
 		)
 
 
