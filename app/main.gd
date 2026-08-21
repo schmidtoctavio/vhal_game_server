@@ -205,6 +205,29 @@ func _ready() -> void:
 		)
 		return
 
+	var equipment_snapshot_contract_error := (
+		ServerEquipmentSnapshotValidator.validate_contract()
+	)
+
+
+	if not equipment_snapshot_contract_error.is_empty():
+		push_error(
+			(
+				"ServerMain | Equipment Snapshot Contract inválido: "
+				+
+				equipment_snapshot_contract_error
+			)
+		)
+
+
+		get_tree().quit(
+			13
+		)
+
+
+		return
+
+
 	var equipment_transfer_contract_error := (
 		ServerEquipmentTransferValidator.validate_contract()
 	)
@@ -221,7 +244,7 @@ func _ready() -> void:
 
 
 		get_tree().quit(
-			13
+			14
 		)
 
 
@@ -229,11 +252,17 @@ func _ready() -> void:
 
 
 	print(
-		"ServerMain | Equipment Transfer Contract validado."
+		"ServerMain | Equipment Domain Contract validado."
 	)
 
+
 	print(
-		"ServerMain | Equipment Domain Contract validado."
+		"ServerMain | Equipment Snapshot Contract validado."
+	)
+
+
+	print(
+		"ServerMain | Equipment Transfer Contract validado."
 	)
 
 	if backend_item_transfer_repository == null:

@@ -315,3 +315,454 @@ static func validate(
 
 
 	return ""
+
+# =========================================================
+# SELF TEST
+# =========================================================
+
+static func validate_contract() -> String:
+	# =====================================================
+	# SNAPSHOT VACÍO VÁLIDO
+	# =====================================================
+
+	var empty_snapshot := {
+		"account_id": 1,
+		"character_id": 1,
+		"container": "equipment",
+		"items": [],
+	}
+
+
+	var empty_error := validate(
+		empty_snapshot
+	)
+
+
+	if not empty_error.is_empty():
+		return (
+			"snapshot vacío válido rechazado: "
+			+
+			empty_error
+		)
+
+
+	# =====================================================
+	# SWORD -> MAIN_HAND VÁLIDO
+	# =====================================================
+
+	var sword_snapshot := {
+		"account_id": 1,
+		"character_id": 1,
+		"container": "equipment",
+
+		"items": [
+			{
+				"uid": "snapshot-sword",
+				"item_id": "bronze_sword",
+				"quantity": 1,
+				"equipment_slot": "main_hand",
+				"state": {},
+			},
+		],
+	}
+
+
+	var sword_error := validate(
+		sword_snapshot
+	)
+
+
+	if not sword_error.is_empty():
+		return (
+			"snapshot sword/main_hand válido rechazado: "
+			+
+			sword_error
+		)
+
+
+	# =====================================================
+	# HELMET -> HEAD VÁLIDO
+	# =====================================================
+
+	var helmet_snapshot := {
+		"account_id": 1,
+		"character_id": 1,
+		"container": "equipment",
+
+		"items": [
+			{
+				"uid": "snapshot-helmet",
+				"item_id": "leather_helmet",
+				"quantity": 1,
+				"equipment_slot": "head",
+				"state": {},
+			},
+		],
+	}
+
+
+	var helmet_error := validate(
+		helmet_snapshot
+	)
+
+
+	if not helmet_error.is_empty():
+		return (
+			"snapshot helmet/head válido rechazado: "
+			+
+			helmet_error
+		)
+
+
+	# =====================================================
+	# HEALTH POTION NO PUEDE EXISTIR EN EQUIPMENT
+	# =====================================================
+
+	var potion_snapshot := {
+		"account_id": 1,
+		"character_id": 1,
+		"container": "equipment",
+
+		"items": [
+			{
+				"uid": "snapshot-potion",
+				"item_id": "health_potion",
+				"quantity": 1,
+				"equipment_slot": "main_hand",
+				"state": {},
+			},
+		],
+	}
+
+
+	if validate(
+		potion_snapshot
+	).is_empty():
+		return (
+			"snapshot permitió health_potion en Equipment"
+		)
+
+
+	# =====================================================
+	# ITEM ID DESCONOCIDO
+	# =====================================================
+
+	var unknown_item_snapshot := {
+		"account_id": 1,
+		"character_id": 1,
+		"container": "equipment",
+
+		"items": [
+			{
+				"uid": "snapshot-unknown-item",
+				"item_id": "item_that_does_not_exist",
+				"quantity": 1,
+				"equipment_slot": "main_hand",
+				"state": {},
+			},
+		],
+	}
+
+
+	if validate(
+		unknown_item_snapshot
+	).is_empty():
+		return (
+			"snapshot permitió item_id desconocido"
+		)
+
+
+	# =====================================================
+	# EQUIPMENT SIEMPRE QUANTITY = 1
+	# =====================================================
+
+	var invalid_quantity_snapshot := {
+		"account_id": 1,
+		"character_id": 1,
+		"container": "equipment",
+
+		"items": [
+			{
+				"uid": "snapshot-stacked-sword",
+				"item_id": "bronze_sword",
+				"quantity": 2,
+				"equipment_slot": "main_hand",
+				"state": {},
+			},
+		],
+	}
+
+
+	if validate(
+		invalid_quantity_snapshot
+	).is_empty():
+		return (
+			"snapshot permitió Equipment con quantity != 1"
+		)
+
+
+	# =====================================================
+	# SLOT INEXISTENTE
+	# =====================================================
+
+	var invalid_slot_snapshot := {
+		"account_id": 1,
+		"character_id": 1,
+		"container": "equipment",
+
+		"items": [
+			{
+				"uid": "snapshot-invalid-slot",
+				"item_id": "bronze_sword",
+				"quantity": 1,
+				"equipment_slot": "third_hand",
+				"state": {},
+			},
+		],
+	}
+
+
+	if validate(
+		invalid_slot_snapshot
+	).is_empty():
+		return (
+			"snapshot permitió equipment_slot inexistente"
+		)
+
+
+	# =====================================================
+	# SLOT DEBE USAR SU ID CANÓNICO
+	#
+	# normalize_slot_id() acepta MAIN_HAND como equivalente
+	# lógico, pero persistencia/networking debe conservar
+	# exactamente "main_hand".
+	# =====================================================
+
+	var non_canonical_slot_snapshot := {
+		"account_id": 1,
+		"character_id": 1,
+		"container": "equipment",
+
+		"items": [
+			{
+				"uid": "snapshot-non-canonical-slot",
+				"item_id": "bronze_sword",
+				"quantity": 1,
+				"equipment_slot": "MAIN_HAND",
+				"state": {},
+			},
+		],
+	}
+
+
+	if validate(
+		non_canonical_slot_snapshot
+	).is_empty():
+		return (
+			"snapshot permitió equipment_slot no canónico"
+		)
+
+
+	# =====================================================
+	# UID DUPLICADO DENTRO DE EQUIPMENT
+	# =====================================================
+
+	var duplicated_uid_snapshot := {
+		"account_id": 1,
+		"character_id": 1,
+		"container": "equipment",
+
+		"items": [
+			{
+				"uid": "snapshot-duplicate",
+				"item_id": "bronze_sword",
+				"quantity": 1,
+				"equipment_slot": "main_hand",
+				"state": {},
+			},
+
+			{
+				"uid": "snapshot-duplicate",
+				"item_id": "leather_helmet",
+				"quantity": 1,
+				"equipment_slot": "head",
+				"state": {},
+			},
+		],
+	}
+
+
+	if validate(
+		duplicated_uid_snapshot
+	).is_empty():
+		return (
+			"snapshot permitió UID duplicado"
+		)
+
+
+	# =====================================================
+	# DOS ITEMS NO PUEDEN OCUPAR EL MISMO SLOT
+	# =====================================================
+
+	var duplicated_slot_snapshot := {
+		"account_id": 1,
+		"character_id": 1,
+		"container": "equipment",
+
+		"items": [
+			{
+				"uid": "snapshot-main-hand-a",
+				"item_id": "bronze_sword",
+				"quantity": 1,
+				"equipment_slot": "main_hand",
+				"state": {},
+			},
+
+			{
+				"uid": "snapshot-main-hand-b",
+				"item_id": "bronze_sword",
+				"quantity": 1,
+				"equipment_slot": "main_hand",
+				"state": {},
+			},
+		],
+	}
+
+
+	if validate(
+		duplicated_slot_snapshot
+	).is_empty():
+		return (
+			"snapshot permitió slot duplicado"
+		)
+
+
+	# =====================================================
+	# ITEM / SLOT INCOMPATIBLE
+	# =====================================================
+
+	var incompatible_slot_snapshot := {
+		"account_id": 1,
+		"character_id": 1,
+		"container": "equipment",
+
+		"items": [
+			{
+				"uid": "snapshot-sword-on-head",
+				"item_id": "bronze_sword",
+				"quantity": 1,
+				"equipment_slot": "head",
+				"state": {},
+			},
+		],
+	}
+
+
+	if validate(
+		incompatible_slot_snapshot
+	).is_empty():
+		return (
+			"snapshot permitió sword -> head"
+		)
+
+
+	# =====================================================
+	# EQUIPMENT NO PUEDE CONSERVAR GRID_POSITION
+	# =====================================================
+
+	var grid_position_snapshot := {
+		"account_id": 1,
+		"character_id": 1,
+		"container": "equipment",
+
+		"items": [
+			{
+				"uid": "snapshot-grid-position",
+				"item_id": "bronze_sword",
+				"quantity": 1,
+				"equipment_slot": "main_hand",
+
+				"grid_position": {
+					"x": 0,
+					"y": 0,
+				},
+
+				"state": {},
+			},
+		],
+	}
+
+
+	if validate(
+		grid_position_snapshot
+	).is_empty():
+		return (
+			"snapshot permitió grid_position en Equipment"
+		)
+
+
+	# =====================================================
+	# CONTEXTO ESTRUCTURAL
+	# =====================================================
+
+	var invalid_account_snapshot := (
+		empty_snapshot.duplicate(
+			true
+		)
+	)
+
+
+	invalid_account_snapshot[
+		"account_id"
+	] = 0
+
+
+	if validate(
+		invalid_account_snapshot
+	).is_empty():
+		return (
+			"snapshot permitió account_id inválido"
+		)
+
+
+	var invalid_character_snapshot := (
+		empty_snapshot.duplicate(
+			true
+		)
+	)
+
+
+	invalid_character_snapshot[
+		"character_id"
+	] = 0
+
+
+	if validate(
+		invalid_character_snapshot
+	).is_empty():
+		return (
+			"snapshot permitió character_id inválido"
+		)
+
+
+	var invalid_container_snapshot := (
+		empty_snapshot.duplicate(
+			true
+		)
+	)
+
+
+	invalid_container_snapshot[
+		"container"
+	] = "inventory"
+
+
+	if validate(
+		invalid_container_snapshot
+	).is_empty():
+		return (
+			"snapshot permitió container incorrecto"
+		)
+
+
+	return ""
