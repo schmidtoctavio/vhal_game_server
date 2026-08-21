@@ -13,6 +13,7 @@
 [ext_resource type="Script" uid="uid://cmhauam2nd5yb" path="res://core/backend/backend_character_equipment_repository.gd" id="9_equipment"]
 [ext_resource type="Script" uid="uid://dd3y0681dsjyn" path="res://app/coordinators/character_item_state_coordinator.gd" id="10_item_state"]
 [ext_resource type="Script" uid="uid://bcf8hxcjbtj3j" path="res://app/coordinators/equipment_coordinator.gd" id="11_equipment_coordinator"]
+[ext_resource type="Script" uid="uid://cy00q2lnokf0q" path="res://app/coordinators/inventory_coordinator.gd" id="12_inventory_coordinator"]
 
 [node name="ServerMain" type="Node" unique_id=1483147024]
 script = ExtResource("1_s58fy")
@@ -40,6 +41,9 @@ script = ExtResource("10_item_state")
 
 [node name="EquipmentCoordinator" type="Node" parent="." unique_id=157098489]
 script = ExtResource("11_equipment_coordinator")
+
+[node name="InventoryCoordinator" type="Node" parent="." unique_id=1018750183]
+script = ExtResource("12_inventory_coordinator")
 
 [node name="WorldSessionRegistry" type="Node" parent="." unique_id=1554618836]
 script = ExtResource("4_8bux2")
