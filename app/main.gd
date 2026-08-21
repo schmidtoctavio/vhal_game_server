@@ -200,15 +200,37 @@ func _ready() -> void:
 				equipment_contract_error
 			)
 		)
+		get_tree().quit(
+			12
+		)
+		return
+
+	var equipment_transfer_contract_error := (
+		ServerEquipmentTransferValidator.validate_contract()
+	)
+
+
+	if not equipment_transfer_contract_error.is_empty():
+		push_error(
+			(
+				"ServerMain | Equipment Transfer Contract inválido: "
+				+
+				equipment_transfer_contract_error
+			)
+		)
 
 
 		get_tree().quit(
-			12
+			13
 		)
 
 
 		return
 
+
+	print(
+		"ServerMain | Equipment Transfer Contract validado."
+	)
 
 	print(
 		"ServerMain | Equipment Domain Contract validado."
