@@ -41,6 +41,10 @@ extends Node
 	$InventoryCoordinator
 )
 
+@onready var vault_coordinator: VaultCoordinator = (
+	$VaultCoordinator
+)
+
 @onready var world_session_registry: WorldSessionRegistry = (
 	$WorldSessionRegistry
 )
@@ -424,6 +428,45 @@ func _ready() -> void:
 
 		return
 
+	if vault_coordinator == null:
+		push_error(
+			"ServerMain | No existe VaultCoordinator."
+		)
+
+
+		get_tree().quit(
+			18
+		)
+
+
+		return
+
+
+	if not vault_coordinator.setup(
+		game_server,
+		world_session_registry,
+		backend_vault_repository
+	):
+		push_error(
+			"ServerMain | No se pudo inicializar VaultCoordinator."
+		)
+
+
+		get_tree().quit(
+			18
+		)
+
+
+		return
+
+
+	if not vault_coordinator.npc_service_invalidation_requested.is_connected(
+		_invalidate_active_npc_service
+	):
+		vault_coordinator.npc_service_invalidation_requested.connect(
+			_invalidate_active_npc_service
+		)
+
 	if world_navigation_registry == null:
 		push_error(
 			"ServerMain | No existe WorldNavigationRegistry."
@@ -571,36 +614,6 @@ func _bind_authentication() -> void:
 			_on_ticket_rejected
 		)
 
-	if not backend_vault_repository.vault_loaded.is_connected(
-		_on_backend_vault_loaded
-	):
-		backend_vault_repository.vault_loaded.connect(
-			_on_backend_vault_loaded
-		)
-
-
-	if not backend_vault_repository.vault_load_failed.is_connected(
-		_on_backend_vault_load_failed
-	):
-		backend_vault_repository.vault_load_failed.connect(
-			_on_backend_vault_load_failed
-		)
-
-	if not backend_vault_repository.vault_item_moved.is_connected(
-		_on_backend_vault_item_moved
-	):
-		backend_vault_repository.vault_item_moved.connect(
-			_on_backend_vault_item_moved
-		)
-
-
-	if not backend_vault_repository.vault_item_move_failed.is_connected(
-		_on_backend_vault_item_move_failed
-	):
-		backend_vault_repository.vault_item_move_failed.connect(
-			_on_backend_vault_item_move_failed
-		)
-
 	if not backend_item_transfer_repository.item_transferred.is_connected(
 		_on_backend_item_transferred
 	):
@@ -667,12 +680,6 @@ func _bind_authentication() -> void:
 			_on_client_npc_service_end_requested
 		)
 
-	if not game_server.client_vault_item_move_requested.is_connected(
-		_on_client_vault_item_move_requested
-	):
-		game_server.client_vault_item_move_requested.connect(
-			_on_client_vault_item_move_requested
-		)
 
 	if not game_server.client_item_container_transfer_requested.is_connected(
 		_on_client_item_container_transfer_requested
@@ -1719,9 +1726,8 @@ func _on_client_npc_interaction_requested(
 
 	if npc_definition.service_id == "warehouse":
 		var vault_result := (
-			backend_vault_repository.load_vault(
-				peer_id,
-				session.account_id
+			vault_coordinator.load_active_vault(
+				peer_id
 			)
 		)
 
@@ -2030,491 +2036,6 @@ func _invalidate_active_npc_service(
 		" | Distancia: ",
 		distance
 	)
-
-# =========================================================
-# VAULT CARGADA DESDE BACKEND
-# =========================================================
-
-func _on_backend_vault_loaded(
-	peer_id: int,
-	account_id: int,
-	snapshot: Dictionary
-) -> void:
-	var session := (
-		world_session_registry.get_session(
-			peer_id
-		)
-	)
-
-
-	if session == null:
-		return
-
-
-	if session.account_id != account_id:
-		return
-
-
-	if not session.is_using_npc_service(
-		"warehouse_keeper",
-		"warehouse"
-	):
-		return
-
-	var validation_error := (
-		ServerVaultSnapshotValidator.validate(
-			snapshot
-		)
-	)
-
-
-	if not validation_error.is_empty():
-		print(
-			"ServerMain | Snapshot de Vault rechazado",
-			" | Peer: ",
-			peer_id,
-			" | Cuenta: ",
-			account_id,
-			" | Motivo: ",
-			validation_error
-		)
-
-
-		_invalidate_active_npc_service(
-			session,
-			"invalid_vault_snapshot"
-		)
-
-
-		return
-
-	if not session.set_active_vault_snapshot(
-		snapshot
-	):
-		_invalidate_active_npc_service(
-			session,
-			"invalid_vault_session_snapshot"
-		)
-
-
-		return
-
-	var items: Array = (
-		snapshot.get(
-			"items",
-			[]
-		)
-	)
-
-
-	print(
-		"ServerMain | Vault persistente cargada",
-		" | Peer: ",
-		peer_id,
-		" | Cuenta: ",
-		account_id,
-		" | Personaje: ",
-		session.character_name,
-		" | Items: ",
-		items.size()
-	)
-
-	var send_result := (
-		game_server.send_vault_snapshot(
-			peer_id,
-			snapshot
-		)
-	)
-
-
-	if send_result != OK:
-		push_warning(
-			(
-				"ServerMain | No se pudo enviar "
-				+
-				"el snapshot de Vault al peer %d. Error: %d"
-			)
-			%
-			[
-				peer_id,
-				send_result,
-			]
-		)
-
-
-		return
-
-
-	print(
-		"ServerMain | Snapshot de Vault enviado",
-		" | Peer: ",
-		peer_id,
-		" | Cuenta: ",
-		account_id,
-		" | Items: ",
-		items.size()
-	)
-
-# =========================================================
-# ERROR AL CARGAR VAULT
-# =========================================================
-
-func _on_backend_vault_load_failed(
-	peer_id: int,
-	account_id: int,
-	message: String
-) -> void:
-	var session := (
-		world_session_registry.get_session(
-			peer_id
-		)
-	)
-
-
-	if session == null:
-		return
-
-
-	if session.account_id != account_id:
-		return
-
-
-	print(
-		"ServerMain | No se pudo cargar Vault persistente",
-		" | Peer: ",
-		peer_id,
-		" | Cuenta: ",
-		account_id,
-		" | Motivo: ",
-		message
-	)
-
-
-	if session.is_using_npc_service(
-		"warehouse_keeper",
-		"warehouse"
-	):
-		_invalidate_active_npc_service(
-			session,
-			"vault_backend_unavailable"
-		)
-
-# =========================================================
-# ITEM DE VAULT MOVIDO EN BACKEND
-# =========================================================
-
-func _on_backend_vault_item_moved(
-	peer_id: int,
-	account_id: int,
-	uid: String,
-	item: Dictionary
-) -> void:
-	var session := world_session_registry.get_session(
-		peer_id
-	)
-
-
-	if session == null:
-		return
-
-
-	if session.account_id != account_id:
-		return
-
-
-	print(
-		"ServerMain | Posición de item Vault persistida",
-		" | Peer: ",
-		peer_id,
-		" | UID: ",
-		uid,
-		" | Posición: ",
-		item.get(
-			"grid_position",
-			{}
-		)
-	)
-
-
-	if not session.is_using_npc_service(
-		"warehouse_keeper",
-		"warehouse"
-	):
-		return
-
-
-	# -----------------------------------------------------
-	# No modificamos un snapshot local.
-	#
-	# Volvemos a leer Laravel y usamos nuevamente el
-	# estado persistente como fuente.
-	# -----------------------------------------------------
-
-	var reload_result := backend_vault_repository.load_vault(
-		peer_id,
-		account_id
-	)
-
-
-	if reload_result != OK:
-		_invalidate_active_npc_service(
-			session,
-			"vault_reload_failed"
-		)
-
-
-# =========================================================
-# MOVIMIENTO DE VAULT RECHAZADO
-# =========================================================
-
-func _on_backend_vault_item_move_failed(
-	peer_id: int,
-	account_id: int,
-	uid: String,
-	response_code: int,
-	message: String
-) -> void:
-	var session := world_session_registry.get_session(
-		peer_id
-	)
-
-
-	if session == null:
-		return
-
-
-	if session.account_id != account_id:
-		return
-
-
-	print(
-		"ServerMain | Movimiento persistente de Vault rechazado",
-		" | Peer: ",
-		peer_id,
-		" | UID: ",
-		uid,
-		" | HTTP: ",
-		response_code,
-		" | Motivo: ",
-		message
-	)
-
-
-	if not session.is_using_npc_service(
-		"warehouse_keeper",
-		"warehouse"
-	):
-		return
-
-
-	var reload_result := backend_vault_repository.load_vault(
-		peer_id,
-		account_id
-	)
-
-
-	if reload_result != OK:
-		_invalidate_active_npc_service(
-			session,
-			"vault_reload_failed"
-		)
-
-func _request_vault_item_move(
-	peer_id: int,
-	snapshot: Dictionary,
-	uid: String,
-	current_position: Vector2i,
-	new_position: Vector2i
-) -> Error:
-	var session := world_session_registry.get_session(
-		peer_id
-	)
-
-
-	if session == null:
-		return ERR_DOES_NOT_EXIST
-
-
-	if not session.is_using_npc_service(
-		"warehouse_keeper",
-		"warehouse"
-	):
-		return ERR_UNAVAILABLE
-
-
-	var validation_error := (
-		ServerVaultSnapshotValidator.validate_move(
-			snapshot,
-			uid,
-			current_position,
-			new_position
-		)
-	)
-
-
-	if not validation_error.is_empty():
-		print(
-			"ServerMain | Movimiento de Vault rechazado antes del backend",
-			" | Peer: ",
-			peer_id,
-			" | UID: ",
-			uid,
-			" | Motivo: ",
-			validation_error
-		)
-
-
-		return ERR_INVALID_DATA
-
-
-	return backend_vault_repository.move_vault_item(
-		peer_id,
-		session.account_id,
-		uid,
-		current_position,
-		new_position
-	)
-
-# =========================================================
-# SOLICITUD CLIENTE — MOVER ITEM EN VAULT
-# =========================================================
-
-func _on_client_vault_item_move_requested(
-	peer_id: int,
-	request_id: int,
-	uid: String,
-	current_position: Vector2i,
-	new_position: Vector2i
-) -> void:
-	var session := (
-		world_session_registry.get_session(
-			peer_id
-		)
-	)
-
-
-	if session == null:
-		return
-
-
-	if not session.is_using_npc_service(
-		"warehouse_keeper",
-		"warehouse"
-	):
-		print(
-			"ServerMain | Movimiento Vault rechazado",
-			" | Request: ",
-			request_id,
-			" | Peer: ",
-			peer_id,
-			" | Motivo: servicio Warehouse no activo"
-		)
-
-
-		return
-
-
-	var snapshot := (
-		session.get_active_vault_snapshot()
-	)
-
-
-	if snapshot.is_empty():
-		print(
-			"ServerMain | Movimiento Vault rechazado",
-			" | Request: ",
-			request_id,
-			" | Peer: ",
-			peer_id,
-			" | Motivo: no existe snapshot autoritativo"
-		)
-
-
-		var reload_result := (
-			backend_vault_repository.load_vault(
-				peer_id,
-				session.account_id
-			)
-		)
-
-
-		if reload_result != OK:
-			_invalidate_active_npc_service(
-				session,
-				"vault_reload_failed"
-			)
-
-
-		return
-
-
-	print(
-		"ServerMain | Solicitud de movimiento Vault recibida",
-		" | Request: ",
-		request_id,
-		" | Peer: ",
-		peer_id,
-		" | UID: ",
-		uid,
-		" | Desde: ",
-		current_position,
-		" | Hacia: ",
-		new_position
-	)
-
-
-	var move_result := (
-		_request_vault_item_move(
-			peer_id,
-			snapshot,
-			uid,
-			current_position,
-			new_position
-		)
-	)
-
-
-	if move_result == OK:
-		return
-
-
-	print(
-		"ServerMain | Movimiento Vault no iniciado",
-		" | Request: ",
-		request_id,
-		" | Peer: ",
-		peer_id,
-		" | Error: ",
-		move_result
-	)
-
-
-	# -----------------------------------------------------
-	# Si la operación era inválida, reenviamos nuestro
-	# último estado autoritativo.
-	#
-	# Así el cliente converge nuevamente sin mutar nada.
-	# -----------------------------------------------------
-
-	if move_result != ERR_BUSY:
-		var resend_result := (
-			game_server.send_vault_snapshot(
-				peer_id,
-				snapshot
-			)
-		)
-
-
-		if resend_result != OK:
-			push_warning(
-				(
-					"ServerMain | No se pudo reenviar "
-					+
-					"snapshot de Vault. Error: %d"
-				)
-				%
-				resend_result
-			)
 
 # =========================================================
 # SOLICITUD CLIENTE — TRANSFERENCIA INVENTORY / VAULT
