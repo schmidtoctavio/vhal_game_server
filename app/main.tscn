@@ -10,6 +10,7 @@
 [ext_resource type="Script" uid="uid://b4l0mcb2inpp" path="res://core/world/movement/world_movement_system.gd" id="6_tnehs"]
 [ext_resource type="Script" uid="uid://dk0j3fhb7xwpg" path="res://core/world/npcs/world_npc_registry.gd" id="7_tppe5"]
 [ext_resource type="Script" uid="uid://bedirh2722dus" path="res://core/backend/backend_vault_repository.gd" id="8_o47ap"]
+[ext_resource type="Script" uid="uid://cmhauam2nd5yb" path="res://core/backend/backend_character_equipment_repository.gd" id="9_equipment"]
 
 [node name="ServerMain" type="Node" unique_id=1483147024]
 script = ExtResource("1_s58fy")
@@ -25,6 +26,9 @@ script = ExtResource("8_o47ap")
 
 [node name="BackendCharacterInventoryRepository" type="Node" parent="." unique_id=1107639659]
 script = ExtResource("5_d28lo")
+
+[node name="BackendCharacterEquipmentRepository" type="Node" parent="." unique_id=2013737836]
+script = ExtResource("9_equipment")
 
 [node name="BackendItemTransferRepository" type="Node" parent="." unique_id=1114315393]
 script = ExtResource("6_i37im")

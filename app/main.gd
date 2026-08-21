@@ -21,6 +21,10 @@ extends Node
 	$BackendCharacterInventoryRepository
 )
 
+@onready var backend_character_equipment_repository: BackendCharacterEquipmentRepository = (
+	$BackendCharacterEquipmentRepository
+)
+
 @onready var backend_item_transfer_repository: BackendItemTransferRepository = (
 	$BackendItemTransferRepository
 )
@@ -144,6 +148,71 @@ func _ready() -> void:
 
 
 		return
+
+	if backend_character_equipment_repository == null:
+		push_error(
+			(
+				"ServerMain | No existe "
+				+
+				"BackendCharacterEquipmentRepository."
+			)
+		)
+
+
+		get_tree().quit(
+			11
+		)
+
+
+		return
+
+
+	if not backend_character_equipment_repository.is_configured():
+		push_error(
+			(
+				"ServerMain | "
+				+
+				"BackendCharacterEquipmentRepository "
+				+
+				"no configurado."
+			)
+		)
+
+
+		get_tree().quit(
+			11
+		)
+
+
+		return
+
+
+	var equipment_contract_error := (
+		ServerEquipmentRules.validate_contract()
+	)
+
+
+	if not equipment_contract_error.is_empty():
+		push_error(
+			(
+				"ServerMain | Equipment Domain Contract inválido: "
+				+
+				equipment_contract_error
+			)
+		)
+
+
+		get_tree().quit(
+			12
+		)
+
+
+		return
+
+
+	print(
+		"ServerMain | Equipment Domain Contract validado."
+	)
 
 	if backend_item_transfer_repository == null:
 		push_error(
@@ -399,6 +468,21 @@ func _bind_authentication() -> void:
 	):
 		backend_character_inventory_repository.inventory_item_move_failed.connect(
 			_on_backend_character_inventory_item_move_failed
+		)
+
+	if not backend_character_equipment_repository.equipment_loaded.is_connected(
+		_on_backend_character_equipment_loaded
+	):
+		backend_character_equipment_repository.equipment_loaded.connect(
+			_on_backend_character_equipment_loaded
+		)
+
+
+	if not backend_character_equipment_repository.equipment_load_failed.is_connected(
+		_on_backend_character_equipment_load_failed
+	):
+		backend_character_equipment_repository.equipment_load_failed.connect(
+			_on_backend_character_equipment_load_failed
 		)
 
 	if not backend_item_transfer_repository.item_transferred.is_connected(
@@ -776,6 +860,45 @@ func _on_client_authenticated(
 				"persistente."
 			)
 		)
+
+
+		return
+
+
+	var equipment_load_result := (
+		backend_character_equipment_repository.load_equipment(
+			peer_id,
+			session.account_id,
+			session.character_id
+		)
+	)
+
+
+	if equipment_load_result != OK:
+		push_error(
+			(
+				"ServerMain | No se pudo iniciar "
+				+
+				"la carga del Equipment persistente."
+				+
+				" Error: %d"
+			)
+			%
+			equipment_load_result
+		)
+
+
+		game_server.reject_authenticated_peer(
+			peer_id,
+			(
+				"No se pudo cargar el Equipment "
+				+
+				"persistente."
+			)
+		)
+
+
+		return
 
 # =========================================================
 # PEER DESCONECTADO
@@ -2343,6 +2466,155 @@ func _on_client_vault_item_move_requested(
 				%
 				resend_result
 			)
+
+# =========================================================
+# EQUIPMENT PERSISTENTE CARGADO
+# =========================================================
+
+func _on_backend_character_equipment_loaded(
+	peer_id: int,
+	account_id: int,
+	character_id: int,
+	snapshot: Dictionary
+) -> void:
+	var session := (
+		world_session_registry.get_session(
+			peer_id
+		)
+	)
+
+
+	if session == null:
+		return
+
+
+	if session.account_id != account_id:
+		return
+
+
+	if session.character_id != character_id:
+		return
+
+
+	var validation_error := (
+		ServerEquipmentSnapshotValidator.validate(
+			snapshot
+		)
+	)
+
+
+	if not validation_error.is_empty():
+		print(
+			"ServerMain | Equipment persistente rechazado",
+			" | Peer: ",
+			peer_id,
+			" | Cuenta: ",
+			account_id,
+			" | Personaje: ",
+			character_id,
+			" | Motivo: ",
+			validation_error
+		)
+
+
+		game_server.reject_authenticated_peer(
+			peer_id,
+			"Equipment persistente inválido."
+		)
+
+
+		return
+
+
+	if not session.set_equipment_snapshot(
+		snapshot
+	):
+		game_server.reject_authenticated_peer(
+			peer_id,
+			(
+				"No se pudo registrar el "
+				+
+				"Equipment persistente."
+			)
+		)
+
+
+		return
+
+
+	var items: Array = (
+		snapshot.get(
+			"items",
+			[]
+		)
+	)
+
+
+	print(
+		"ServerMain | Equipment persistente cargado",
+		" | Peer: ",
+		peer_id,
+		" | Cuenta: ",
+		account_id,
+		" | Personaje: ",
+		session.character_name,
+		" | Character ID: ",
+		character_id,
+		" | Items: ",
+		items.size()
+	)
+
+
+# =========================================================
+# EQUIPMENT PERSISTENTE — ERROR
+# =========================================================
+
+func _on_backend_character_equipment_load_failed(
+	peer_id: int,
+	account_id: int,
+	character_id: int,
+	message: String
+) -> void:
+	var session := (
+		world_session_registry.get_session(
+			peer_id
+		)
+	)
+
+
+	if session == null:
+		return
+
+
+	if session.account_id != account_id:
+		return
+
+
+	if session.character_id != character_id:
+		return
+
+
+	print(
+		"ServerMain | Error cargando Equipment persistente",
+		" | Peer: ",
+		peer_id,
+		" | Cuenta: ",
+		account_id,
+		" | Character ID: ",
+		character_id,
+		" | Motivo: ",
+		message
+	)
+
+
+	game_server.reject_authenticated_peer(
+		peer_id,
+		(
+			"No se pudo cargar el Equipment "
+			+
+			"persistente."
+		)
+	)
 
 # =========================================================
 # INVENTORY PERSISTENTE CARGADO

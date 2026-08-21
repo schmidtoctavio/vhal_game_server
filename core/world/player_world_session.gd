@@ -56,6 +56,12 @@ var active_vault_snapshot: Dictionary = {}
 var inventory_snapshot: Dictionary = {}
 
 # =========================================================
+# EQUIPMENT AUTORITATIVO DEL PERSONAJE
+# =========================================================
+
+var equipment_snapshot: Dictionary = {}
+
+# =========================================================
 # INICIAR SERVICIO NPC
 # =========================================================
 
@@ -249,6 +255,70 @@ func get_inventory_snapshot() -> Dictionary:
 
 func clear_inventory_snapshot() -> void:
 	inventory_snapshot = {}
+
+# =========================================================
+# SNAPSHOT AUTORITATIVO DE EQUIPMENT
+# =========================================================
+
+func set_equipment_snapshot(
+	snapshot: Dictionary
+) -> bool:
+	if snapshot.is_empty():
+		return false
+
+
+	if int(
+		snapshot.get(
+			"account_id",
+			0
+		)
+	) != account_id:
+		return false
+
+
+	if int(
+		snapshot.get(
+			"character_id",
+			0
+		)
+	) != character_id:
+		return false
+
+
+	if String(
+		snapshot.get(
+			"container",
+			""
+		)
+	).strip_edges() != "equipment":
+		return false
+
+
+	if typeof(
+		snapshot.get(
+			"items",
+			null
+		)
+	) != TYPE_ARRAY:
+		return false
+
+
+	equipment_snapshot = snapshot.duplicate(
+		true
+	)
+
+
+	return true
+
+
+func get_equipment_snapshot() -> Dictionary:
+	return equipment_snapshot.duplicate(
+		true
+	)
+
+
+func clear_equipment_snapshot() -> void:
+	equipment_snapshot = {}
 
 # =========================================================
 # INTENCIÓN DE MOVIMIENTO

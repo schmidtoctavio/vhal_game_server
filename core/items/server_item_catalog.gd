@@ -6,10 +6,19 @@ extends RefCounted
 # DEFINICIONES AUTORITATIVAS
 # =========================================================
 #
-# El cliente puede tener iconos, nombres, tooltips, etc.
+# Sólo almacenamos metadata que afecta reglas del servidor.
 #
-# El Game Server sólo necesita, por ahora, propiedades que
-# afectan reglas autoritativas.
+# No:
+# - iconos
+# - textos
+# - tooltips
+# - presentación
+#
+# Sí:
+# - tamaño
+# - stack
+# - clasificación de Equipment
+# - modo de mano
 # =========================================================
 
 const DEFINITIONS: Dictionary = {
@@ -17,18 +26,27 @@ const DEFINITIONS: Dictionary = {
 		"grid_width": 1,
 		"grid_height": 3,
 		"max_stack": 1,
+
+		"equipment_category_id": "weapon",
+		"hand_equip_mode_id": "one_hand",
 	},
 
 	"health_potion": {
 		"grid_width": 1,
 		"grid_height": 1,
 		"max_stack": 50,
+
+		"equipment_category_id": "none",
+		"hand_equip_mode_id": "none",
 	},
 
 	"leather_helmet": {
 		"grid_width": 2,
 		"grid_height": 2,
 		"max_stack": 1,
+
+		"equipment_category_id": "head",
+		"hand_equip_mode_id": "none",
 	},
 }
 
