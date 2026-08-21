@@ -29,6 +29,10 @@ extends Node
 	$BackendItemTransferRepository
 )
 
+@onready var character_item_state_coordinator: CharacterItemStateCoordinator = (
+	$CharacterItemStateCoordinator
+)
+
 @onready var world_session_registry: WorldSessionRegistry = (
 	$WorldSessionRegistry
 )
@@ -313,6 +317,41 @@ func _ready() -> void:
 
 		return
 
+	if character_item_state_coordinator == null:
+		push_error(
+			"ServerMain | No existe CharacterItemStateCoordinator."
+		)
+
+
+		get_tree().quit(
+			15
+		)
+
+
+		return
+
+
+	if not character_item_state_coordinator.setup(
+		game_server,
+		world_session_registry,
+		backend_character_inventory_repository,
+		backend_character_equipment_repository
+	):
+		push_error(
+			(
+				"ServerMain | No se pudo inicializar "
+				+
+				"CharacterItemStateCoordinator."
+			)
+		)
+
+
+		get_tree().quit(
+			15
+		)
+
+
+		return
 
 	if world_navigation_registry == null:
 		push_error(
@@ -491,21 +530,6 @@ func _bind_authentication() -> void:
 			_on_backend_vault_item_move_failed
 		)
 
-	if not backend_character_inventory_repository.inventory_loaded.is_connected(
-		_on_backend_character_inventory_loaded
-	):
-		backend_character_inventory_repository.inventory_loaded.connect(
-			_on_backend_character_inventory_loaded
-		)
-
-
-	if not backend_character_inventory_repository.inventory_load_failed.is_connected(
-		_on_backend_character_inventory_load_failed
-	):
-		backend_character_inventory_repository.inventory_load_failed.connect(
-			_on_backend_character_inventory_load_failed
-		)
-
 	if not backend_character_inventory_repository.inventory_item_moved.is_connected(
 		_on_backend_character_inventory_item_moved
 	):
@@ -519,21 +543,6 @@ func _bind_authentication() -> void:
 	):
 		backend_character_inventory_repository.inventory_item_move_failed.connect(
 			_on_backend_character_inventory_item_move_failed
-		)
-
-	if not backend_character_equipment_repository.equipment_loaded.is_connected(
-		_on_backend_character_equipment_loaded
-	):
-		backend_character_equipment_repository.equipment_loaded.connect(
-			_on_backend_character_equipment_loaded
-		)
-
-
-	if not backend_character_equipment_repository.equipment_load_failed.is_connected(
-		_on_backend_character_equipment_load_failed
-	):
-		backend_character_equipment_repository.equipment_load_failed.connect(
-			_on_backend_character_equipment_load_failed
 		)
 
 	if not backend_character_equipment_repository.equipment_item_equipped.is_connected(
@@ -926,75 +935,14 @@ func _on_client_authenticated(
 		session.position
 	)
 
-	var inventory_load_result := (
-		backend_character_inventory_repository.load_inventory(
-			peer_id,
-			session.account_id,
-			session.character_id
+	var item_state_load_result := (
+		character_item_state_coordinator.load_initial_snapshots(
+			peer_id
 		)
 	)
 
 
-	if inventory_load_result != OK:
-		push_error(
-			(
-				"ServerMain | No se pudo iniciar "
-				+
-				"la carga del Inventory persistente."
-				+
-				" Error: %d"
-			)
-			%
-			inventory_load_result
-		)
-
-
-		game_server.reject_authenticated_peer(
-			peer_id,
-			(
-				"No se pudo cargar el inventario "
-				+
-				"persistente."
-			)
-		)
-
-
-		return
-
-
-	var equipment_load_result := (
-		backend_character_equipment_repository.load_equipment(
-			peer_id,
-			session.account_id,
-			session.character_id
-		)
-	)
-
-
-	if equipment_load_result != OK:
-		push_error(
-			(
-				"ServerMain | No se pudo iniciar "
-				+
-				"la carga del Equipment persistente."
-				+
-				" Error: %d"
-			)
-			%
-			equipment_load_result
-		)
-
-
-		game_server.reject_authenticated_peer(
-			peer_id,
-			(
-				"No se pudo cargar el Equipment "
-				+
-				"persistente."
-			)
-		)
-
-
+	if item_state_load_result != OK:
 		return
 
 # =========================================================
@@ -2565,402 +2513,6 @@ func _on_client_vault_item_move_requested(
 			)
 
 # =========================================================
-# EQUIPMENT PERSISTENTE CARGADO
-# =========================================================
-
-func _on_backend_character_equipment_loaded(
-	peer_id: int,
-	account_id: int,
-	character_id: int,
-	snapshot: Dictionary
-) -> void:
-	var session := (
-		world_session_registry.get_session(
-			peer_id
-		)
-	)
-
-
-	if session == null:
-		return
-
-
-	if session.account_id != account_id:
-		return
-
-
-	if session.character_id != character_id:
-		return
-
-
-	var validation_error := (
-		ServerEquipmentSnapshotValidator.validate(
-			snapshot
-		)
-	)
-
-
-	if not validation_error.is_empty():
-		print(
-			"ServerMain | Equipment persistente rechazado",
-			" | Peer: ",
-			peer_id,
-			" | Cuenta: ",
-			account_id,
-			" | Personaje: ",
-			character_id,
-			" | Motivo: ",
-			validation_error
-		)
-
-
-		game_server.reject_authenticated_peer(
-			peer_id,
-			"Equipment persistente inválido."
-		)
-
-
-		return
-
-
-	if not session.set_equipment_snapshot(
-		snapshot
-	):
-		game_server.reject_authenticated_peer(
-			peer_id,
-			(
-				"No se pudo registrar el "
-				+
-				"Equipment persistente."
-			)
-		)
-
-
-		return
-
-	var send_result := (
-		game_server.send_character_equipment_snapshot(
-			peer_id,
-			snapshot
-		)
-	)
-
-
-	if send_result != OK:
-		push_error(
-			(
-				"ServerMain | No se pudo enviar "
-				+
-				"Equipment persistente al cliente."
-				+
-				" Error: %d"
-			)
-			%
-			send_result
-		)
-
-
-		game_server.reject_authenticated_peer(
-			peer_id,
-			(
-				"No se pudo sincronizar el "
-				+
-				"Equipment persistente."
-			)
-		)
-
-
-		return
-
-	var items: Array = (
-		snapshot.get(
-			"items",
-			[]
-		)
-	)
-
-	print(
-		"ServerMain | Snapshot de Equipment enviado",
-		" | Peer: ",
-		peer_id,
-		" | Cuenta: ",
-		account_id,
-		" | Character ID: ",
-		character_id,
-		" | Items: ",
-		(
-			snapshot.get(
-				"items",
-				[]
-			)
-			as Array
-		).size()
-	)
-
-	print(
-		"ServerMain | Equipment persistente cargado",
-		" | Peer: ",
-		peer_id,
-		" | Cuenta: ",
-		account_id,
-		" | Personaje: ",
-		session.character_name,
-		" | Character ID: ",
-		character_id,
-		" | Items: ",
-		items.size()
-	)
-
-
-# =========================================================
-# EQUIPMENT PERSISTENTE — ERROR
-# =========================================================
-
-func _on_backend_character_equipment_load_failed(
-	peer_id: int,
-	account_id: int,
-	character_id: int,
-	message: String
-) -> void:
-	var session := (
-		world_session_registry.get_session(
-			peer_id
-		)
-	)
-
-
-	if session == null:
-		return
-
-
-	if session.account_id != account_id:
-		return
-
-
-	if session.character_id != character_id:
-		return
-
-
-	print(
-		"ServerMain | Error cargando Equipment persistente",
-		" | Peer: ",
-		peer_id,
-		" | Cuenta: ",
-		account_id,
-		" | Character ID: ",
-		character_id,
-		" | Motivo: ",
-		message
-	)
-
-
-	game_server.reject_authenticated_peer(
-		peer_id,
-		(
-			"No se pudo cargar el Equipment "
-			+
-			"persistente."
-		)
-	)
-
-# =========================================================
-# INVENTORY PERSISTENTE CARGADO
-# =========================================================
-
-func _on_backend_character_inventory_loaded(
-	peer_id: int,
-	account_id: int,
-	character_id: int,
-	snapshot: Dictionary
-) -> void:
-	var session := (
-		world_session_registry.get_session(
-			peer_id
-		)
-	)
-
-
-	if session == null:
-		return
-
-
-	if session.account_id != account_id:
-		return
-
-
-	if session.character_id != character_id:
-		return
-
-
-	var validation_error := (
-		ServerCharacterInventorySnapshotValidator.validate(
-			snapshot
-		)
-	)
-
-
-	if not validation_error.is_empty():
-		print(
-			"ServerMain | Inventory persistente rechazado",
-			" | Peer: ",
-			peer_id,
-			" | Cuenta: ",
-			account_id,
-			" | Personaje: ",
-			character_id,
-			" | Motivo: ",
-			validation_error
-		)
-
-
-		game_server.reject_authenticated_peer(
-			peer_id,
-			"Inventory persistente inválido."
-		)
-
-
-		return
-
-
-	if not session.set_inventory_snapshot(
-		snapshot
-	):
-		game_server.reject_authenticated_peer(
-			peer_id,
-			(
-				"No se pudo registrar el "
-				+
-				"Inventory persistente."
-			)
-		)
-
-
-		return
-
-	var send_result := (
-		game_server.send_character_inventory_snapshot(
-			peer_id,
-			snapshot
-		)
-	)
-
-
-	if send_result != OK:
-		push_error(
-			(
-				"ServerMain | No se pudo enviar "
-				+
-				"Inventory persistente al cliente."
-				+
-				" Error: %d"
-			)
-			%
-			send_result
-		)
-
-
-		game_server.reject_authenticated_peer(
-			peer_id,
-			(
-				"No se pudo sincronizar el "
-				+
-				"Inventory persistente."
-			)
-		)
-
-
-		return
-
-	print(
-		"ServerMain | Snapshot de Inventory enviado",
-		" | Peer: ",
-		peer_id,
-		" | Cuenta: ",
-		account_id,
-		" | Character ID: ",
-		character_id,
-		" | Items: ",
-		(
-			snapshot.get(
-				"items",
-				[]
-			)
-			as Array
-		).size()
-	)
-
-	print(
-		"ServerMain | Inventory persistente cargado",
-		" | Peer: ",
-		peer_id,
-		" | Cuenta: ",
-		account_id,
-		" | Personaje: ",
-		session.character_name,
-		" | Character ID: ",
-		character_id,
-		" | Items: ",
-		(
-			snapshot.get(
-				"items",
-				[]
-			)
-			as Array
-		).size()
-	)
-
-# =========================================================
-# INVENTORY PERSISTENTE — ERROR
-# =========================================================
-
-func _on_backend_character_inventory_load_failed(
-	peer_id: int,
-	account_id: int,
-	character_id: int,
-	message: String
-) -> void:
-	var session := (
-		world_session_registry.get_session(
-			peer_id
-		)
-	)
-
-
-	if session == null:
-		return
-
-
-	if session.account_id != account_id:
-		return
-
-
-	if session.character_id != character_id:
-		return
-
-
-	print(
-		"ServerMain | Error cargando Inventory persistente",
-		" | Peer: ",
-		peer_id,
-		" | Cuenta: ",
-		account_id,
-		" | Character ID: ",
-		character_id,
-		" | Motivo: ",
-		message
-	)
-
-
-	game_server.reject_authenticated_peer(
-		peer_id,
-		(
-			"No se pudo cargar el inventario "
-			+
-			"persistente."
-		)
-	)
-
-# =========================================================
 # REQUEST AUTORITATIVO DE MOVIMIENTO DE INVENTORY
 # =========================================================
 
@@ -3943,89 +3495,6 @@ func _request_equipment_unequip(
 	)
 
 # =========================================================
-# RELOAD AUTORITATIVO INVENTORY + EQUIPMENT
-# =========================================================
-
-func _reload_character_item_snapshots(
-	peer_id: int,
-	reason: String
-) -> void:
-	var session := (
-		world_session_registry.get_session(
-			peer_id
-		)
-	)
-
-
-	if session == null:
-		return
-
-
-	var inventory_result := (
-		backend_character_inventory_repository.load_inventory(
-			peer_id,
-			session.account_id,
-			session.character_id
-		)
-	)
-
-
-	var equipment_result := (
-		backend_character_equipment_repository.load_equipment(
-			peer_id,
-			session.account_id,
-			session.character_id
-		)
-	)
-
-
-	if (
-		inventory_result == OK
-		and
-		equipment_result == OK
-	):
-		return
-
-
-	push_error(
-		(
-			"ServerMain | No se pudo recargar estado "
-			+
-			"Inventory/Equipment"
-			+
-			" | Peer: %d"
-			+
-			" | Reason: %s"
-			+
-			" | Inventory error: %d"
-			+
-			" | Equipment error: %d"
-		)
-		%
-		[
-			peer_id,
-			reason,
-			inventory_result,
-			equipment_result,
-		]
-	)
-
-
-	# -----------------------------------------------------
-	# Después de una mutación persistente ya no podemos
-	# seguir jugando con un snapshot que podría estar stale.
-	# -----------------------------------------------------
-
-	game_server.reject_authenticated_peer(
-		peer_id,
-		(
-			"No se pudo resincronizar "
-			+
-			"el estado persistente del personaje."
-		)
-	)
-
-# =========================================================
 # BACKEND — ITEM EQUIPADO
 # =========================================================
 
@@ -4069,7 +3538,7 @@ func _on_backend_equipment_item_equipped(
 	)
 
 
-	_reload_character_item_snapshots(
+	character_item_state_coordinator.reload_snapshots(
 		peer_id,
 		"equip_persisted"
 	)
@@ -4118,7 +3587,7 @@ func _on_backend_equipment_item_equip_failed(
 	)
 
 
-	_reload_character_item_snapshots(
+	character_item_state_coordinator.reload_snapshots(
 		peer_id,
 		"equip_rejected"
 	)
@@ -4167,7 +3636,7 @@ func _on_backend_equipment_item_unequipped(
 	)
 
 
-	_reload_character_item_snapshots(
+	character_item_state_coordinator.reload_snapshots(
 		peer_id,
 		"unequip_persisted"
 	)
@@ -4216,7 +3685,7 @@ func _on_backend_equipment_item_unequip_failed(
 	)
 
 
-	_reload_character_item_snapshots(
+	character_item_state_coordinator.reload_snapshots(
 		peer_id,
 		"unequip_rejected"
 	)
@@ -4265,7 +3734,7 @@ func _on_client_equipment_equip_requested(
 		return
 
 
-	_resend_character_item_snapshots(
+	character_item_state_coordinator.resend_snapshots(
 		peer_id
 	)
 
@@ -4315,75 +3784,6 @@ func _on_client_equipment_unequip_requested(
 		return
 
 
-	_resend_character_item_snapshots(
+	character_item_state_coordinator.resend_snapshots(
 		peer_id
 	)
-
-# =========================================================
-# REENVIAR INVENTORY + EQUIPMENT ACTUALES
-# =========================================================
-
-func _resend_character_item_snapshots(
-	peer_id: int
-) -> void:
-	var session := (
-		world_session_registry.get_session(
-			peer_id
-		)
-	)
-
-
-	if session == null:
-		return
-
-
-	var inventory_snapshot := (
-		session.get_inventory_snapshot()
-	)
-
-
-	var equipment_snapshot := (
-		session.get_equipment_snapshot()
-	)
-
-
-	if not inventory_snapshot.is_empty():
-		var inventory_result := (
-			game_server.send_character_inventory_snapshot(
-				peer_id,
-				inventory_snapshot
-			)
-		)
-
-
-		if inventory_result != OK:
-			push_warning(
-				(
-					"ServerMain | No se pudo reenviar "
-					+
-					"Inventory. Error: %d"
-				)
-				%
-				inventory_result
-			)
-
-
-	if not equipment_snapshot.is_empty():
-		var equipment_result := (
-			game_server.send_character_equipment_snapshot(
-				peer_id,
-				equipment_snapshot
-			)
-		)
-
-
-		if equipment_result != OK:
-			push_warning(
-				(
-					"ServerMain | No se pudo reenviar "
-					+
-					"Equipment. Error: %d"
-				)
-				%
-				equipment_result
-			)
