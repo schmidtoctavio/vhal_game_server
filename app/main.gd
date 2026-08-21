@@ -33,6 +33,10 @@ extends Node
 	$CharacterItemStateCoordinator
 )
 
+@onready var equipment_coordinator: EquipmentCoordinator = (
+	$EquipmentCoordinator
+)
+
 @onready var world_session_registry: WorldSessionRegistry = (
 	$WorldSessionRegistry
 )
@@ -353,6 +357,38 @@ func _ready() -> void:
 
 		return
 
+	if equipment_coordinator == null:
+		push_error(
+			"ServerMain | No existe EquipmentCoordinator."
+		)
+
+
+		get_tree().quit(
+			16
+		)
+
+
+		return
+
+
+	if not equipment_coordinator.setup(
+		game_server,
+		world_session_registry,
+		backend_character_equipment_repository,
+		character_item_state_coordinator
+	):
+		push_error(
+			"ServerMain | No se pudo inicializar EquipmentCoordinator."
+		)
+
+
+		get_tree().quit(
+			16
+		)
+
+
+		return
+
 	if world_navigation_registry == null:
 		push_error(
 			"ServerMain | No existe WorldNavigationRegistry."
@@ -545,37 +581,6 @@ func _bind_authentication() -> void:
 			_on_backend_character_inventory_item_move_failed
 		)
 
-	if not backend_character_equipment_repository.equipment_item_equipped.is_connected(
-		_on_backend_equipment_item_equipped
-	):
-		backend_character_equipment_repository.equipment_item_equipped.connect(
-			_on_backend_equipment_item_equipped
-		)
-
-
-	if not backend_character_equipment_repository.equipment_item_equip_failed.is_connected(
-		_on_backend_equipment_item_equip_failed
-	):
-		backend_character_equipment_repository.equipment_item_equip_failed.connect(
-			_on_backend_equipment_item_equip_failed
-		)
-
-
-	if not backend_character_equipment_repository.equipment_item_unequipped.is_connected(
-		_on_backend_equipment_item_unequipped
-	):
-		backend_character_equipment_repository.equipment_item_unequipped.connect(
-			_on_backend_equipment_item_unequipped
-		)
-
-
-	if not backend_character_equipment_repository.equipment_item_unequip_failed.is_connected(
-		_on_backend_equipment_item_unequip_failed
-	):
-		backend_character_equipment_repository.equipment_item_unequip_failed.connect(
-			_on_backend_equipment_item_unequip_failed
-		)
-
 	if not backend_item_transfer_repository.item_transferred.is_connected(
 		_on_backend_item_transferred
 	):
@@ -663,20 +668,6 @@ func _bind_authentication() -> void:
 			_on_client_item_container_transfer_requested
 		)
 
-	if not game_server.client_equipment_equip_requested.is_connected(
-		_on_client_equipment_equip_requested
-	):
-		game_server.client_equipment_equip_requested.connect(
-			_on_client_equipment_equip_requested
-		)
-
-
-	if not game_server.client_equipment_unequip_requested.is_connected(
-		_on_client_equipment_unequip_requested
-	):
-		game_server.client_equipment_unequip_requested.connect(
-			_on_client_equipment_unequip_requested
-		)
 
 # =========================================================
 # AUTH REQUEST
@@ -3322,468 +3313,3 @@ func _resend_item_container_snapshots(
 				%
 				vault_result
 			)
-
-# =========================================================
-# REQUEST AUTORITATIVO — EQUIP
-# =========================================================
-
-func _request_equipment_equip(
-	peer_id: int,
-	uid: String,
-	current_position: Vector2i,
-	equipment_slot: Variant
-) -> Error:
-	var session := (
-		world_session_registry.get_session(
-			peer_id
-		)
-	)
-
-
-	if session == null:
-		return ERR_DOES_NOT_EXIST
-
-
-	var inventory_snapshot := (
-		session.get_inventory_snapshot()
-	)
-
-
-	var equipment_snapshot := (
-		session.get_equipment_snapshot()
-	)
-
-
-	if (
-		inventory_snapshot.is_empty()
-		or
-		equipment_snapshot.is_empty()
-	):
-		return ERR_UNAVAILABLE
-
-
-	var validation_result := (
-		ServerEquipmentTransferValidator.validate_equip(
-			inventory_snapshot,
-			equipment_snapshot,
-			uid,
-			current_position,
-			equipment_slot
-		)
-	)
-
-
-	if not bool(
-		validation_result.get(
-			"ok",
-			false
-		)
-	):
-		print(
-			"ServerMain | Equip rechazado antes del backend",
-			" | Peer: ",
-			peer_id,
-			" | UID: ",
-			uid,
-			" | Slot: ",
-			equipment_slot,
-			" | Motivo: ",
-			validation_result.get(
-				"message",
-				"unknown"
-			)
-		)
-
-
-		return ERR_INVALID_DATA
-
-
-	return backend_character_equipment_repository.equip_item(
-		peer_id,
-		session.account_id,
-		session.character_id,
-		uid,
-		current_position,
-		equipment_slot
-	)
-
-
-# =========================================================
-# REQUEST AUTORITATIVO — UNEQUIP
-# =========================================================
-
-func _request_equipment_unequip(
-	peer_id: int,
-	uid: String,
-	current_equipment_slot: Variant,
-	new_position: Vector2i
-) -> Error:
-	var session := (
-		world_session_registry.get_session(
-			peer_id
-		)
-	)
-
-
-	if session == null:
-		return ERR_DOES_NOT_EXIST
-
-
-	var inventory_snapshot := (
-		session.get_inventory_snapshot()
-	)
-
-
-	var equipment_snapshot := (
-		session.get_equipment_snapshot()
-	)
-
-
-	if (
-		inventory_snapshot.is_empty()
-		or
-		equipment_snapshot.is_empty()
-	):
-		return ERR_UNAVAILABLE
-
-
-	var validation_result := (
-		ServerEquipmentTransferValidator.validate_unequip(
-			inventory_snapshot,
-			equipment_snapshot,
-			uid,
-			current_equipment_slot,
-			new_position
-		)
-	)
-
-
-	if not bool(
-		validation_result.get(
-			"ok",
-			false
-		)
-	):
-		print(
-			"ServerMain | Unequip rechazado antes del backend",
-			" | Peer: ",
-			peer_id,
-			" | UID: ",
-			uid,
-			" | Slot: ",
-			current_equipment_slot,
-			" | Destino: ",
-			new_position,
-			" | Motivo: ",
-			validation_result.get(
-				"message",
-				"unknown"
-			)
-		)
-
-
-		return ERR_INVALID_DATA
-
-
-	return backend_character_equipment_repository.unequip_item(
-		peer_id,
-		session.account_id,
-		session.character_id,
-		uid,
-		current_equipment_slot,
-		new_position
-	)
-
-# =========================================================
-# BACKEND — ITEM EQUIPADO
-# =========================================================
-
-func _on_backend_equipment_item_equipped(
-	peer_id: int,
-	account_id: int,
-	character_id: int,
-	uid: String,
-	item: Dictionary
-) -> void:
-	var session := (
-		world_session_registry.get_session(
-			peer_id
-		)
-	)
-
-
-	if session == null:
-		return
-
-
-	if session.account_id != account_id:
-		return
-
-
-	if session.character_id != character_id:
-		return
-
-
-	print(
-		"ServerMain | Item equipado y persistido",
-		" | Peer: ",
-		peer_id,
-		" | UID: ",
-		uid,
-		" | Slot: ",
-		item.get(
-			"equipment_slot",
-			"?"
-		)
-	)
-
-
-	character_item_state_coordinator.reload_snapshots(
-		peer_id,
-		"equip_persisted"
-	)
-
-# =========================================================
-# BACKEND — EQUIP RECHAZADO
-# =========================================================
-
-func _on_backend_equipment_item_equip_failed(
-	peer_id: int,
-	account_id: int,
-	character_id: int,
-	uid: String,
-	response_code: int,
-	message: String
-) -> void:
-	var session := (
-		world_session_registry.get_session(
-			peer_id
-		)
-	)
-
-
-	if session == null:
-		return
-
-
-	if session.account_id != account_id:
-		return
-
-
-	if session.character_id != character_id:
-		return
-
-
-	print(
-		"ServerMain | Equip persistente rechazado",
-		" | Peer: ",
-		peer_id,
-		" | UID: ",
-		uid,
-		" | HTTP: ",
-		response_code,
-		" | Motivo: ",
-		message
-	)
-
-
-	character_item_state_coordinator.reload_snapshots(
-		peer_id,
-		"equip_rejected"
-	)
-
-# =========================================================
-# BACKEND — ITEM DESEQUIPADO
-# =========================================================
-
-func _on_backend_equipment_item_unequipped(
-	peer_id: int,
-	account_id: int,
-	character_id: int,
-	uid: String,
-	item: Dictionary
-) -> void:
-	var session := (
-		world_session_registry.get_session(
-			peer_id
-		)
-	)
-
-
-	if session == null:
-		return
-
-
-	if session.account_id != account_id:
-		return
-
-
-	if session.character_id != character_id:
-		return
-
-
-	print(
-		"ServerMain | Item desequipado y persistido",
-		" | Peer: ",
-		peer_id,
-		" | UID: ",
-		uid,
-		" | Posición: ",
-		item.get(
-			"grid_position",
-			{}
-		)
-	)
-
-
-	character_item_state_coordinator.reload_snapshots(
-		peer_id,
-		"unequip_persisted"
-	)
-
-# =========================================================
-# BACKEND — UNEQUIP RECHAZADO
-# =========================================================
-
-func _on_backend_equipment_item_unequip_failed(
-	peer_id: int,
-	account_id: int,
-	character_id: int,
-	uid: String,
-	response_code: int,
-	message: String
-) -> void:
-	var session := (
-		world_session_registry.get_session(
-			peer_id
-		)
-	)
-
-
-	if session == null:
-		return
-
-
-	if session.account_id != account_id:
-		return
-
-
-	if session.character_id != character_id:
-		return
-
-
-	print(
-		"ServerMain | Unequip persistente rechazado",
-		" | Peer: ",
-		peer_id,
-		" | UID: ",
-		uid,
-		" | HTTP: ",
-		response_code,
-		" | Motivo: ",
-		message
-	)
-
-
-	character_item_state_coordinator.reload_snapshots(
-		peer_id,
-		"unequip_rejected"
-	)
-
-# =========================================================
-# CLIENT REQUEST — EQUIP
-# =========================================================
-
-func _on_client_equipment_equip_requested(
-	peer_id: int,
-	request_id: int,
-	uid: String,
-	current_position: Vector2i,
-	equipment_slot: String
-) -> void:
-	var result := (
-		_request_equipment_equip(
-			peer_id,
-			uid,
-			current_position,
-			equipment_slot
-		)
-	)
-
-
-	print(
-		"ServerMain | Solicitud Equip procesada",
-		" | Request: ",
-		request_id,
-		" | Peer: ",
-		peer_id,
-		" | UID: ",
-		uid,
-		" | Slot: ",
-		equipment_slot,
-		" | Resultado: ",
-		result
-	)
-
-
-	if (
-		result == OK
-		or
-		result == ERR_BUSY
-	):
-		return
-
-
-	character_item_state_coordinator.resend_snapshots(
-		peer_id
-	)
-
-# =========================================================
-# CLIENT REQUEST — UNEQUIP
-# =========================================================
-
-func _on_client_equipment_unequip_requested(
-	peer_id: int,
-	request_id: int,
-	uid: String,
-	current_equipment_slot: String,
-	new_position: Vector2i
-) -> void:
-	var result := (
-		_request_equipment_unequip(
-			peer_id,
-			uid,
-			current_equipment_slot,
-			new_position
-		)
-	)
-
-
-	print(
-		"ServerMain | Solicitud Unequip procesada",
-		" | Request: ",
-		request_id,
-		" | Peer: ",
-		peer_id,
-		" | UID: ",
-		uid,
-		" | Slot: ",
-		current_equipment_slot,
-		" | Destino: ",
-		new_position,
-		" | Resultado: ",
-		result
-	)
-
-
-	if (
-		result == OK
-		or
-		result == ERR_BUSY
-	):
-		return
-
-
-	character_item_state_coordinator.resend_snapshots(
-		peer_id
-	)

@@ -12,6 +12,7 @@
 [ext_resource type="Script" uid="uid://bedirh2722dus" path="res://core/backend/backend_vault_repository.gd" id="8_o47ap"]
 [ext_resource type="Script" uid="uid://cmhauam2nd5yb" path="res://core/backend/backend_character_equipment_repository.gd" id="9_equipment"]
 [ext_resource type="Script" uid="uid://dd3y0681dsjyn" path="res://app/coordinators/character_item_state_coordinator.gd" id="10_item_state"]
+[ext_resource type="Script" uid="uid://bcf8hxcjbtj3j" path="res://app/coordinators/equipment_coordinator.gd" id="11_equipment_coordinator"]
 
 [node name="ServerMain" type="Node" unique_id=1483147024]
 script = ExtResource("1_s58fy")
@@ -36,6 +37,9 @@ script = ExtResource("6_i37im")
 
 [node name="CharacterItemStateCoordinator" type="Node" parent="." unique_id=413501555]
 script = ExtResource("10_item_state")
+
+[node name="EquipmentCoordinator" type="Node" parent="." unique_id=157098489]
+script = ExtResource("11_equipment_coordinator")
 
 [node name="WorldSessionRegistry" type="Node" parent="." unique_id=1554618836]
 script = ExtResource("4_8bux2")
