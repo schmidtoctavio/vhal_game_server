@@ -625,6 +625,21 @@ func _bind_authentication() -> void:
 			_on_client_item_container_transfer_requested
 		)
 
+	if not game_server.client_equipment_equip_requested.is_connected(
+		_on_client_equipment_equip_requested
+	):
+		game_server.client_equipment_equip_requested.connect(
+			_on_client_equipment_equip_requested
+		)
+
+
+	if not game_server.client_equipment_unequip_requested.is_connected(
+		_on_client_equipment_unequip_requested
+	):
+		game_server.client_equipment_unequip_requested.connect(
+			_on_client_equipment_unequip_requested
+		)
+
 # =========================================================
 # AUTH REQUEST
 # =========================================================
@@ -2594,6 +2609,39 @@ func _on_backend_character_equipment_loaded(
 
 		return
 
+	var send_result := (
+		game_server.send_character_equipment_snapshot(
+			peer_id,
+			snapshot
+		)
+	)
+
+
+	if send_result != OK:
+		push_error(
+			(
+				"ServerMain | No se pudo enviar "
+				+
+				"Equipment persistente al cliente."
+				+
+				" Error: %d"
+			)
+			%
+			send_result
+		)
+
+
+		game_server.reject_authenticated_peer(
+			peer_id,
+			(
+				"No se pudo sincronizar el "
+				+
+				"Equipment persistente."
+			)
+		)
+
+
+		return
 
 	var items: Array = (
 		snapshot.get(
@@ -2602,6 +2650,23 @@ func _on_backend_character_equipment_loaded(
 		)
 	)
 
+	print(
+		"ServerMain | Snapshot de Equipment enviado",
+		" | Peer: ",
+		peer_id,
+		" | Cuenta: ",
+		account_id,
+		" | Character ID: ",
+		character_id,
+		" | Items: ",
+		(
+			snapshot.get(
+				"items",
+				[]
+			)
+			as Array
+		).size()
+	)
 
 	print(
 		"ServerMain | Equipment persistente cargado",
@@ -4126,3 +4191,170 @@ func _on_backend_equipment_item_unequip_failed(
 		peer_id,
 		"unequip_rejected"
 	)
+
+# =========================================================
+# CLIENT REQUEST — EQUIP
+# =========================================================
+
+func _on_client_equipment_equip_requested(
+	peer_id: int,
+	request_id: int,
+	uid: String,
+	current_position: Vector2i,
+	equipment_slot: String
+) -> void:
+	var result := (
+		_request_equipment_equip(
+			peer_id,
+			uid,
+			current_position,
+			equipment_slot
+		)
+	)
+
+
+	print(
+		"ServerMain | Solicitud Equip procesada",
+		" | Request: ",
+		request_id,
+		" | Peer: ",
+		peer_id,
+		" | UID: ",
+		uid,
+		" | Slot: ",
+		equipment_slot,
+		" | Resultado: ",
+		result
+	)
+
+
+	if (
+		result == OK
+		or
+		result == ERR_BUSY
+	):
+		return
+
+
+	_resend_character_item_snapshots(
+		peer_id
+	)
+
+# =========================================================
+# CLIENT REQUEST — UNEQUIP
+# =========================================================
+
+func _on_client_equipment_unequip_requested(
+	peer_id: int,
+	request_id: int,
+	uid: String,
+	current_equipment_slot: String,
+	new_position: Vector2i
+) -> void:
+	var result := (
+		_request_equipment_unequip(
+			peer_id,
+			uid,
+			current_equipment_slot,
+			new_position
+		)
+	)
+
+
+	print(
+		"ServerMain | Solicitud Unequip procesada",
+		" | Request: ",
+		request_id,
+		" | Peer: ",
+		peer_id,
+		" | UID: ",
+		uid,
+		" | Slot: ",
+		current_equipment_slot,
+		" | Destino: ",
+		new_position,
+		" | Resultado: ",
+		result
+	)
+
+
+	if (
+		result == OK
+		or
+		result == ERR_BUSY
+	):
+		return
+
+
+	_resend_character_item_snapshots(
+		peer_id
+	)
+
+# =========================================================
+# REENVIAR INVENTORY + EQUIPMENT ACTUALES
+# =========================================================
+
+func _resend_character_item_snapshots(
+	peer_id: int
+) -> void:
+	var session := (
+		world_session_registry.get_session(
+			peer_id
+		)
+	)
+
+
+	if session == null:
+		return
+
+
+	var inventory_snapshot := (
+		session.get_inventory_snapshot()
+	)
+
+
+	var equipment_snapshot := (
+		session.get_equipment_snapshot()
+	)
+
+
+	if not inventory_snapshot.is_empty():
+		var inventory_result := (
+			game_server.send_character_inventory_snapshot(
+				peer_id,
+				inventory_snapshot
+			)
+		)
+
+
+		if inventory_result != OK:
+			push_warning(
+				(
+					"ServerMain | No se pudo reenviar "
+					+
+					"Inventory. Error: %d"
+				)
+				%
+				inventory_result
+			)
+
+
+	if not equipment_snapshot.is_empty():
+		var equipment_result := (
+			game_server.send_character_equipment_snapshot(
+				peer_id,
+				equipment_snapshot
+			)
+		)
+
+
+		if equipment_result != OK:
+			push_warning(
+				(
+					"ServerMain | No se pudo reenviar "
+					+
+					"Equipment. Error: %d"
+				)
+				%
+				equipment_result
+			)

@@ -76,6 +76,22 @@ signal client_item_container_transfer_requested(
 	new_position: Vector2i
 )
 
+signal client_equipment_equip_requested(
+	peer_id: int,
+	request_id: int,
+	uid: String,
+	current_position: Vector2i,
+	equipment_slot: String
+)
+
+
+signal client_equipment_unequip_requested(
+	peer_id: int,
+	request_id: int,
+	uid: String,
+	current_equipment_slot: String,
+	new_position: Vector2i
+)
 
 # =========================================================
 # CONFIGURACIÓN
@@ -143,6 +159,10 @@ const MESSAGE_CHARACTER_INVENTORY_SNAPSHOT: String = (
 	"character_inventory_snapshot"
 )
 
+const MESSAGE_CHARACTER_EQUIPMENT_SNAPSHOT: String = (
+	"character_equipment_snapshot"
+)
+
 const MESSAGE_VAULT_ITEM_MOVE_REQUEST: String = (
 	"vault_item_move_request"
 )
@@ -153,6 +173,15 @@ const MESSAGE_INVENTORY_ITEM_MOVE_REQUEST: String = (
 
 const MESSAGE_ITEM_CONTAINER_TRANSFER_REQUEST: String = (
 	"item_container_transfer_request"
+)
+
+const MESSAGE_EQUIPMENT_EQUIP_REQUEST: String = (
+	"equipment_equip_request"
+)
+
+
+const MESSAGE_EQUIPMENT_UNEQUIP_REQUEST: String = (
+	"equipment_unequip_request"
 )
 
 # =========================================================
@@ -1253,6 +1282,25 @@ func _on_peer_packet(
 
 		return
 
+	if message_type == MESSAGE_EQUIPMENT_EQUIP_REQUEST:
+		_process_equipment_equip_request(
+			peer_id,
+			message
+		)
+
+
+		return
+
+
+	if message_type == MESSAGE_EQUIPMENT_UNEQUIP_REQUEST:
+		_process_equipment_unequip_request(
+			peer_id,
+			message
+		)
+
+
+		return
+
 # =========================================================
 # MOVE REQUEST
 # =========================================================
@@ -1886,6 +1934,68 @@ func send_character_inventory_snapshot(
 
 		"type": MESSAGE_CHARACTER_INVENTORY_SNAPSHOT,
 
+		"data": snapshot,
+	}
+
+
+	var packet := (
+		JSON.stringify(
+			message
+		).to_utf8_buffer()
+	)
+
+
+	return scene_multiplayer.send_bytes(
+		packet,
+		peer_id,
+		MultiplayerPeer.TRANSFER_MODE_RELIABLE,
+		0
+	)
+
+# =========================================================
+# ENVIAR SNAPSHOT DE EQUIPMENT DEL PERSONAJE
+# =========================================================
+
+func send_character_equipment_snapshot(
+	peer_id: int,
+	snapshot: Dictionary
+) -> Error:
+	if peer_id <= 1:
+		return ERR_INVALID_PARAMETER
+
+
+	if not authenticated_sessions.has(
+		peer_id
+	):
+		return ERR_DOES_NOT_EXIST
+
+
+	if snapshot.is_empty():
+		return ERR_INVALID_DATA
+
+
+	if String(
+		snapshot.get(
+			"container",
+			""
+		)
+	).strip_edges() != "equipment":
+		return ERR_INVALID_DATA
+
+
+	var scene_multiplayer := (
+		multiplayer
+		as SceneMultiplayer
+	)
+
+
+	if scene_multiplayer == null:
+		return ERR_UNAVAILABLE
+
+
+	var message := {
+		"version": NETWORK_PROTOCOL_VERSION,
+		"type": MESSAGE_CHARACTER_EQUIPMENT_SNAPSHOT,
 		"data": snapshot,
 	}
 
@@ -2774,4 +2884,253 @@ func _parse_transfer_grid_position(
 	return Vector2i(
 		-1,
 		-1
+	)
+
+# =========================================================
+# EQUIPMENT — EQUIP REQUEST
+# =========================================================
+
+func _process_equipment_equip_request(
+	peer_id: int,
+	message: Dictionary
+) -> void:
+	if not authenticated_sessions.has(
+		peer_id
+	):
+		return
+
+
+	var data_value: Variant = (
+		message.get(
+			"data",
+			null
+		)
+	)
+
+
+	if typeof(data_value) != TYPE_DICTIONARY:
+		return
+
+
+	var data: Dictionary = (
+		data_value
+	)
+
+
+	var request_id := int(
+		data.get(
+			"request_id",
+			0
+		)
+	)
+
+
+	if request_id <= 0:
+		return
+
+
+	var uid := String(
+		data.get(
+			"uid",
+			""
+		)
+	).strip_edges()
+
+
+	if uid.is_empty():
+		return
+
+
+	var slot_id := String(
+		data.get(
+			"equipment_slot",
+			""
+		)
+	).strip_edges().to_lower()
+
+
+	if (
+		slot_id.is_empty()
+		or
+		slot_id.length() > 32
+	):
+		return
+
+
+	var position_value: Variant = (
+		data.get(
+			"current_grid_position",
+			null
+		)
+	)
+
+
+	if typeof(position_value) != TYPE_DICTIONARY:
+		return
+
+
+	var position: Dictionary = (
+		position_value
+	)
+
+
+	var current_position := Vector2i(
+		int(
+			position.get(
+				"x",
+				-1
+			)
+		),
+		int(
+			position.get(
+				"y",
+				-1
+			)
+		)
+	)
+
+
+	if not _is_inventory_grid_position_valid(
+		current_position
+	):
+		return
+
+
+	client_equipment_equip_requested.emit(
+		peer_id,
+		request_id,
+		uid,
+		current_position,
+		slot_id
+	)
+
+# =========================================================
+# EQUIPMENT — UNEQUIP REQUEST
+# =========================================================
+
+func _process_equipment_unequip_request(
+	peer_id: int,
+	message: Dictionary
+) -> void:
+	if not authenticated_sessions.has(
+		peer_id
+	):
+		return
+
+
+	var data_value: Variant = (
+		message.get(
+			"data",
+			null
+		)
+	)
+
+
+	if typeof(data_value) != TYPE_DICTIONARY:
+		return
+
+
+	var data: Dictionary = (
+		data_value
+	)
+
+
+	var request_id := int(
+		data.get(
+			"request_id",
+			0
+		)
+	)
+
+
+	if request_id <= 0:
+		return
+
+
+	var uid := String(
+		data.get(
+			"uid",
+			""
+		)
+	).strip_edges()
+
+
+	if uid.is_empty():
+		return
+
+
+	var slot_id := String(
+		data.get(
+			"current_equipment_slot",
+			""
+		)
+	).strip_edges().to_lower()
+
+
+	if (
+		slot_id.is_empty()
+		or
+		slot_id.length() > 32
+	):
+		return
+
+
+	var position_value: Variant = (
+		data.get(
+			"new_grid_position",
+			null
+		)
+	)
+
+
+	if typeof(position_value) != TYPE_DICTIONARY:
+		return
+
+
+	var position: Dictionary = (
+		position_value
+	)
+
+
+	var new_position := Vector2i(
+		int(
+			position.get(
+				"x",
+				-1
+			)
+		),
+		int(
+			position.get(
+				"y",
+				-1
+			)
+		)
+	)
+
+
+	if not _is_inventory_grid_position_valid(
+		new_position
+	):
+		return
+
+
+	client_equipment_unequip_requested.emit(
+		peer_id,
+		request_id,
+		uid,
+		slot_id,
+		new_position
+	)
+
+func _is_inventory_grid_position_valid(
+	position: Vector2i
+) -> bool:
+	return (
+		position.x >= 0
+		and
+		position.x < 8
+		and
+		position.y >= 0
+		and
+		position.y < 8
 	)
