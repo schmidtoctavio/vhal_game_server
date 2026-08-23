@@ -45,6 +45,10 @@ extends Node
 	$VaultCoordinator
 )
 
+@onready var item_container_transfer_coordinator: ItemContainerTransferCoordinator = (
+	$ItemContainerTransferCoordinator
+)
+
 @onready var world_session_registry: WorldSessionRegistry = (
 	$WorldSessionRegistry
 )
@@ -478,6 +482,50 @@ func _ready() -> void:
 
 		return
 
+	if item_container_transfer_coordinator == null:
+		push_error(
+			"ServerMain | No existe ItemContainerTransferCoordinator."
+		)
+
+
+		get_tree().quit(
+			19
+		)
+
+
+		return
+
+
+	if not item_container_transfer_coordinator.setup(
+		game_server,
+		world_session_registry,
+		backend_character_inventory_repository,
+		backend_item_transfer_repository,
+		vault_coordinator
+	):
+		push_error(
+			(
+				"ServerMain | No se pudo inicializar "
+				+
+				"ItemContainerTransferCoordinator."
+			)
+		)
+
+
+		get_tree().quit(
+			19
+		)
+
+
+		return
+
+
+	if not item_container_transfer_coordinator.npc_service_invalidation_requested.is_connected(
+		_invalidate_active_npc_service
+	):
+		item_container_transfer_coordinator.npc_service_invalidation_requested.connect(
+			_invalidate_active_npc_service
+		)
 
 	var navigation_result: Error = (
 		await world_navigation_registry.initialize()
@@ -614,20 +662,6 @@ func _bind_authentication() -> void:
 			_on_ticket_rejected
 		)
 
-	if not backend_item_transfer_repository.item_transferred.is_connected(
-		_on_backend_item_transferred
-	):
-		backend_item_transfer_repository.item_transferred.connect(
-			_on_backend_item_transferred
-		)
-
-
-	if not backend_item_transfer_repository.item_transfer_failed.is_connected(
-		_on_backend_item_transfer_failed
-	):
-		backend_item_transfer_repository.item_transfer_failed.connect(
-			_on_backend_item_transfer_failed
-		)
 
 	if not game_server.client_authenticated.is_connected(
 		_on_client_authenticated
@@ -680,13 +714,6 @@ func _bind_authentication() -> void:
 			_on_client_npc_service_end_requested
 		)
 
-
-	if not game_server.client_item_container_transfer_requested.is_connected(
-		_on_client_item_container_transfer_requested
-	):
-		game_server.client_item_container_transfer_requested.connect(
-			_on_client_item_container_transfer_requested
-		)
 
 
 # =========================================================
@@ -2036,515 +2063,3 @@ func _invalidate_active_npc_service(
 		" | Distancia: ",
 		distance
 	)
-
-# =========================================================
-# SOLICITUD CLIENTE — TRANSFERENCIA INVENTORY / VAULT
-# =========================================================
-
-func _on_client_item_container_transfer_requested(
-	peer_id: int,
-	request_id: int,
-	uid: String,
-	source_container: String,
-	target_container: String,
-	current_position: Vector2i,
-	new_position: Vector2i
-) -> void:
-	var session := (
-		world_session_registry.get_session(
-			peer_id
-		)
-	)
-
-
-	if session == null:
-		return
-
-
-	# -----------------------------------------------------
-	# VAULT SÓLO PUEDE MANIPULARSE DURANTE WAREHOUSE
-	# -----------------------------------------------------
-
-	if not session.is_using_npc_service(
-		"warehouse_keeper",
-		"warehouse"
-	):
-		print(
-			"ServerMain | Transferencia Inventory/Vault rechazada",
-			" | Request: ",
-			request_id,
-			" | Peer: ",
-			peer_id,
-			" | Motivo: servicio Warehouse no activo"
-		)
-
-
-		return
-
-
-	# -----------------------------------------------------
-	# INVENTORY AUTORITATIVO
-	# -----------------------------------------------------
-
-	var inventory_snapshot := (
-		session.get_inventory_snapshot()
-	)
-
-
-	if inventory_snapshot.is_empty():
-		print(
-			"ServerMain | Transferencia Inventory/Vault rechazada",
-			" | Request: ",
-			request_id,
-			" | Peer: ",
-			peer_id,
-			" | Motivo: Inventory autoritativo no disponible"
-		)
-
-
-		var inventory_reload_result := (
-			backend_character_inventory_repository.load_inventory(
-				peer_id,
-				session.account_id,
-				session.character_id
-			)
-		)
-
-
-		if (
-			inventory_reload_result != OK
-			and
-			inventory_reload_result != ERR_BUSY
-		):
-			game_server.reject_authenticated_peer(
-				peer_id,
-				"No se pudo recuperar el Inventory persistente."
-			)
-
-
-		return
-
-
-	# -----------------------------------------------------
-	# VAULT AUTORITATIVA
-	# -----------------------------------------------------
-
-	var vault_snapshot := (
-		session.get_active_vault_snapshot()
-	)
-
-
-	if vault_snapshot.is_empty():
-		print(
-			"ServerMain | Transferencia Inventory/Vault rechazada",
-			" | Request: ",
-			request_id,
-			" | Peer: ",
-			peer_id,
-			" | Motivo: Vault autoritativa no disponible"
-		)
-
-
-		var vault_reload_result := (
-			backend_vault_repository.load_vault(
-				peer_id,
-				session.account_id
-			)
-		)
-
-
-		if (
-			vault_reload_result != OK
-			and
-			vault_reload_result != ERR_BUSY
-		):
-			_invalidate_active_npc_service(
-				session,
-				"vault_reload_failed"
-			)
-
-
-		return
-
-
-	# -----------------------------------------------------
-	# SIMULAR + VALIDAR LOS DOS CONTENEDORES
-	# -----------------------------------------------------
-
-	var validation := (
-		ServerItemContainerTransferValidator.validate_transfer(
-			inventory_snapshot,
-			vault_snapshot,
-			uid,
-			source_container,
-			target_container,
-			current_position,
-			new_position
-		)
-	)
-
-
-	if not bool(
-		validation.get(
-			"ok",
-			false
-		)
-	):
-		print(
-			"ServerMain | Transferencia Inventory/Vault rechazada antes del backend",
-			" | Request: ",
-			request_id,
-			" | Peer: ",
-			peer_id,
-			" | UID: ",
-			uid,
-			" | Desde: ",
-			source_container,
-			" ",
-			current_position,
-			" | Hacia: ",
-			target_container,
-			" ",
-			new_position,
-			" | Motivo: ",
-			validation.get(
-				"message",
-				"unknown"
-			)
-		)
-
-
-		_resend_item_container_snapshots(
-			peer_id,
-			session,
-			inventory_snapshot,
-			vault_snapshot
-		)
-
-
-		return
-
-
-	print(
-		"ServerMain | Transferencia Inventory/Vault validada",
-		" | Request: ",
-		request_id,
-		" | Peer: ",
-		peer_id,
-		" | UID: ",
-		uid,
-		" | Desde: ",
-		source_container,
-		" ",
-		current_position,
-		" | Hacia: ",
-		target_container,
-		" ",
-		new_position
-	)
-
-
-	# -----------------------------------------------------
-	# PERSISTIR ATÓMICAMENTE EN LARAVEL
-	# -----------------------------------------------------
-
-	var transfer_result := (
-		backend_item_transfer_repository.transfer_item(
-			peer_id,
-			session.account_id,
-			session.character_id,
-			uid,
-			source_container,
-			target_container,
-			current_position,
-			new_position
-		)
-	)
-
-
-	if transfer_result == OK:
-		return
-
-
-	print(
-		"ServerMain | Transferencia Inventory/Vault no iniciada",
-		" | Request: ",
-		request_id,
-		" | Peer: ",
-		peer_id,
-		" | UID: ",
-		uid,
-		" | Error: ",
-		transfer_result
-	)
-
-
-	if transfer_result != ERR_BUSY:
-		_resend_item_container_snapshots(
-			peer_id,
-			session,
-			inventory_snapshot,
-			vault_snapshot
-		)
-
-
-# =========================================================
-# TRANSFERENCIA PERSISTIDA EN BACKEND
-# =========================================================
-
-func _on_backend_item_transferred(
-	peer_id: int,
-	account_id: int,
-	character_id: int,
-	uid: String,
-	source_container: String,
-	target_container: String,
-	item: Dictionary
-) -> void:
-	var session := (
-		world_session_registry.get_session(
-			peer_id
-		)
-	)
-
-
-	if session == null:
-		return
-
-
-	if session.account_id != account_id:
-		return
-
-
-	if session.character_id != character_id:
-		return
-
-
-	print(
-		"ServerMain | Transferencia Inventory/Vault persistida",
-		" | Peer: ",
-		peer_id,
-		" | UID: ",
-		uid,
-		" | Desde: ",
-		source_container,
-		" | Hacia: ",
-		target_container,
-		" | Posición: ",
-		item.get(
-			"grid_position",
-			{}
-		)
-	)
-
-
-	# -----------------------------------------------------
-	# MUY IMPORTANTE:
-	#
-	# No aplicamos el candidate snapshot generado antes.
-	# Laravel vuelve a ser la fuente definitiva.
-	#
-	# Recargamos Inventory y Vault desde persistencia.
-	# -----------------------------------------------------
-
-	_reload_item_container_snapshots(
-		session
-	)
-
-
-# =========================================================
-# TRANSFERENCIA RECHAZADA POR BACKEND
-# =========================================================
-
-func _on_backend_item_transfer_failed(
-	peer_id: int,
-	account_id: int,
-	character_id: int,
-	uid: String,
-	source_container: String,
-	target_container: String,
-	response_code: int,
-	message: String
-) -> void:
-	var session := (
-		world_session_registry.get_session(
-			peer_id
-		)
-	)
-
-
-	if session == null:
-		return
-
-
-	if session.account_id != account_id:
-		return
-
-
-	if session.character_id != character_id:
-		return
-
-
-	print(
-		"ServerMain | Transferencia Inventory/Vault rechazada por backend",
-		" | Peer: ",
-		peer_id,
-		" | UID: ",
-		uid,
-		" | Desde: ",
-		source_container,
-		" | Hacia: ",
-		target_container,
-		" | HTTP: ",
-		response_code,
-		" | Motivo: ",
-		message
-	)
-
-
-	# -----------------------------------------------------
-	# Puede ser, por ejemplo, un 409:
-	#
-	# la posición persistente cambió.
-	#
-	# No confiamos entonces en los snapshots anteriores;
-	# recargamos desde Laravel.
-	# -----------------------------------------------------
-
-	_reload_item_container_snapshots(
-		session
-	)
-
-
-# =========================================================
-# RECARGAR INVENTORY + VAULT
-# =========================================================
-
-func _reload_item_container_snapshots(
-	session: PlayerWorldSession
-) -> void:
-	if session == null:
-		return
-
-
-	var inventory_result := (
-		backend_character_inventory_repository.load_inventory(
-			session.peer_id,
-			session.account_id,
-			session.character_id
-		)
-	)
-
-
-	if (
-		inventory_result != OK
-		and
-		inventory_result != ERR_BUSY
-	):
-		game_server.reject_authenticated_peer(
-			session.peer_id,
-			"No se pudo recargar el Inventory persistente."
-		)
-
-
-		return
-
-
-	# -----------------------------------------------------
-	# Si el Warehouse sigue activo, refrescamos Vault.
-	#
-	# Si el jugador cerró/se alejó mientras la operación
-	# HTTP estaba en curso, no volvemos a abrirla.
-	# -----------------------------------------------------
-
-	if not session.is_using_npc_service(
-		"warehouse_keeper",
-		"warehouse"
-	):
-		return
-
-
-	var vault_result := (
-		backend_vault_repository.load_vault(
-			session.peer_id,
-			session.account_id
-		)
-	)
-
-
-	if (
-		vault_result != OK
-		and
-		vault_result != ERR_BUSY
-	):
-		_invalidate_active_npc_service(
-			session,
-			"vault_reload_failed"
-		)
-
-
-# =========================================================
-# REENVIAR ÚLTIMOS SNAPSHOTS AUTORITATIVOS
-# =========================================================
-
-func _resend_item_container_snapshots(
-	peer_id: int,
-	session: PlayerWorldSession,
-	inventory_snapshot: Dictionary,
-	vault_snapshot: Dictionary
-) -> void:
-	if session == null:
-		return
-
-
-	if not inventory_snapshot.is_empty():
-		var inventory_result := (
-			game_server.send_character_inventory_snapshot(
-				peer_id,
-				inventory_snapshot
-			)
-		)
-
-
-		if inventory_result != OK:
-			push_warning(
-				(
-					"ServerMain | No se pudo reenviar "
-					+
-					"Inventory después de transferencia."
-					+
-					" Error: %d"
-				)
-				%
-				inventory_result
-			)
-
-
-	if (
-		session.is_using_npc_service(
-			"warehouse_keeper",
-			"warehouse"
-		)
-		and
-		not vault_snapshot.is_empty()
-	):
-		var vault_result := (
-			game_server.send_vault_snapshot(
-				peer_id,
-				vault_snapshot
-			)
-		)
-
-
-		if vault_result != OK:
-			push_warning(
-				(
-					"ServerMain | No se pudo reenviar "
-					+
-					"Vault después de transferencia."
-					+
-					" Error: %d"
-				)
-				%
-				vault_result
-			)
