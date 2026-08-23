@@ -57,6 +57,10 @@ extends Node
 	$MovementCoordinator
 )
 
+@onready var world_presence_coordinator: WorldPresenceCoordinator = (
+	$WorldPresenceCoordinator
+)
+
 @onready var world_session_registry: WorldSessionRegistry = (
 	$WorldSessionRegistry
 )
@@ -72,6 +76,7 @@ extends Node
 @onready var world_npc_registry: WorldNpcRegistry = (
 	$WorldNpcRegistry
 )
+
 
 # =========================================================
 # START
@@ -113,6 +118,7 @@ func _ready() -> void:
 
 		return
 
+
 	if backend_vault_repository == null:
 		push_error(
 			"ServerMain | No existe BackendVaultRepository."
@@ -139,6 +145,7 @@ func _ready() -> void:
 
 
 		return
+
 
 	if backend_character_inventory_repository == null:
 		push_error(
@@ -176,6 +183,7 @@ func _ready() -> void:
 
 
 		return
+
 
 	if backend_character_equipment_repository == null:
 		push_error(
@@ -228,10 +236,15 @@ func _ready() -> void:
 				equipment_contract_error
 			)
 		)
+
+
 		get_tree().quit(
 			12
 		)
+
+
 		return
+
 
 	var equipment_snapshot_contract_error := (
 		ServerEquipmentSnapshotValidator.validate_contract()
@@ -293,6 +306,7 @@ func _ready() -> void:
 		"ServerMain | Equipment Transfer Contract validado."
 	)
 
+
 	if backend_item_transfer_repository == null:
 		push_error(
 			(
@@ -330,6 +344,7 @@ func _ready() -> void:
 
 		return
 
+
 	if world_session_registry == null:
 		push_error(
 			"ServerMain | No existe WorldSessionRegistry."
@@ -340,6 +355,7 @@ func _ready() -> void:
 		)
 
 		return
+
 
 	if character_item_state_coordinator == null:
 		push_error(
@@ -377,6 +393,7 @@ func _ready() -> void:
 
 		return
 
+
 	if equipment_coordinator == null:
 		push_error(
 			"ServerMain | No existe EquipmentCoordinator."
@@ -409,6 +426,7 @@ func _ready() -> void:
 
 		return
 
+
 	if inventory_coordinator == null:
 		push_error(
 			"ServerMain | No existe InventoryCoordinator."
@@ -439,6 +457,7 @@ func _ready() -> void:
 
 
 		return
+
 
 	if vault_coordinator == null:
 		push_error(
@@ -471,6 +490,7 @@ func _ready() -> void:
 
 		return
 
+
 	if world_navigation_registry == null:
 		push_error(
 			"ServerMain | No existe WorldNavigationRegistry."
@@ -481,6 +501,7 @@ func _ready() -> void:
 		)
 
 		return
+
 
 	if item_container_transfer_coordinator == null:
 		push_error(
@@ -518,6 +539,7 @@ func _ready() -> void:
 
 
 		return
+
 
 	var navigation_result: Error = (
 		await world_navigation_registry.initialize()
@@ -567,6 +589,7 @@ func _ready() -> void:
 
 		return
 
+
 	if world_npc_registry == null:
 		push_error(
 			"ServerMain | No existe WorldNpcRegistry."
@@ -582,6 +605,7 @@ func _ready() -> void:
 	var npc_registry_result := (
 		world_npc_registry.initialize()
 	)
+
 
 	if npc_service_coordinator == null:
 		push_error(
@@ -649,6 +673,7 @@ func _ready() -> void:
 
 		return
 
+
 	if movement_coordinator == null:
 		push_error(
 			"ServerMain | No existe MovementCoordinator."
@@ -681,6 +706,38 @@ func _ready() -> void:
 
 
 		return
+
+
+	if world_presence_coordinator == null:
+		push_error(
+			"ServerMain | No existe WorldPresenceCoordinator."
+		)
+
+
+		get_tree().quit(
+			22
+		)
+
+
+		return
+
+
+	if not world_presence_coordinator.setup(
+		game_server,
+		world_session_registry
+	):
+		push_error(
+			"ServerMain | No se pudo inicializar WorldPresenceCoordinator."
+		)
+
+
+		get_tree().quit(
+			22
+		)
+
+
+		return
+
 
 	_bind_authentication()
 
@@ -750,6 +807,7 @@ func _bind_authentication() -> void:
 		game_server.client_disconnected.connect(
 			_on_client_disconnected
 		)
+
 
 # =========================================================
 # AUTH REQUEST
@@ -847,6 +905,10 @@ func _on_client_authenticated(
 		return
 
 
+	# -----------------------------------------------------
+	# SNAPSHOT INICIAL DE MUNDO
+	# -----------------------------------------------------
+
 	var snapshot_result := (
 		game_server.send_world_snapshot(
 			peer_id,
@@ -883,39 +945,14 @@ func _on_client_authenticated(
 
 		return
 
-	# -----------------------------------------------------
-	# JUGADORES QUE YA ESTÁN EN EL MISMO MAPA
-	# -----------------------------------------------------
-
-	var existing_sessions := (
-		world_session_registry.get_sessions_in_map(
-			session.map_id,
-			peer_id
-		)
-	)
-
-
-	var existing_players: Array = []
-
-
-	for existing_session: PlayerWorldSession in existing_sessions:
-		if existing_session == null:
-			continue
-
-
-		existing_players.append(
-			existing_session.to_presence_snapshot()
-		)
-
 
 	# -----------------------------------------------------
-	# ENVIAR ROSTER INICIAL AL NUEVO PLAYER
+	# PRESENCIA DE MUNDO
 	# -----------------------------------------------------
 
 	var presence_result := (
-		game_server.send_world_presence_snapshot(
-			peer_id,
-			existing_players
+		world_presence_coordinator.prepare_presence(
+			session
 		)
 	)
 
@@ -923,9 +960,9 @@ func _on_client_authenticated(
 	if presence_result != OK:
 		push_error(
 			(
-				"ServerMain | No se pudo enviar el roster "
+				"ServerMain | No se pudo preparar "
 				+
-				"de mundo al peer %d. Error: %d"
+				"la presencia de mundo del peer %d. Error: %d"
 			)
 			%
 			[
@@ -949,55 +986,11 @@ func _on_client_authenticated(
 		return
 
 
-	# -----------------------------------------------------
-	# AVISAR A LOS DEMÁS QUE ESTE PLAYER ENTRÓ
-	# -----------------------------------------------------
-
-	var new_player_presence := (
-		session.to_presence_snapshot()
-	)
-
-
-	for existing_session: PlayerWorldSession in existing_sessions:
-		if existing_session == null:
-			continue
-
-
-		var notify_result := (
-			game_server.send_player_presence_joined(
-				existing_session.peer_id,
-				new_player_presence
-			)
-		)
-
-
-		if notify_result != OK:
-			push_warning(
-				(
-					"ServerMain | No se pudo avisar al peer "
-					+
-					"%d sobre la entrada del peer %d. Error: %d"
-				)
-				%
-				[
-					existing_session.peer_id,
-					peer_id,
-					notify_result,
-				]
-			)
-
 	print(
 		"ServerMain | Snapshot de mundo enviado | Peer: ",
 		peer_id
 	)
 
-	print(
-		"ServerMain | Presencia de mundo preparada",
-		" | Peer: ",
-		peer_id,
-		" | Remotos existentes: ",
-		existing_players.size()
-	)
 
 	print(
 		"ServerMain | Mundo autoritativo preparado | Peer: ",
@@ -1008,6 +1001,11 @@ func _on_client_authenticated(
 		session.position
 	)
 
+
+	# -----------------------------------------------------
+	# ESTADO PERSISTENTE DEL PERSONAJE
+	# -----------------------------------------------------
+
 	var item_state_load_result := (
 		character_item_state_coordinator.load_initial_snapshots(
 			peer_id
@@ -1017,6 +1015,7 @@ func _on_client_authenticated(
 
 	if item_state_load_result != OK:
 		return
+
 
 # =========================================================
 # PEER DESCONECTADO
@@ -1036,50 +1035,11 @@ func _on_client_disconnected(
 		return
 
 
-	var remaining_sessions := (
-		world_session_registry.get_sessions_in_map(
-			session.map_id,
-			peer_id
-		)
+	world_presence_coordinator.notify_presence_left(
+		session
 	)
-
-
-	for remaining_session: PlayerWorldSession in remaining_sessions:
-		if remaining_session == null:
-			continue
-
-
-		var result := (
-			game_server.send_player_presence_left(
-				remaining_session.peer_id,
-				peer_id
-			)
-		)
-
-
-		if result != OK:
-			push_warning(
-				(
-					"ServerMain | No se pudo avisar al peer "
-					+
-					"%d sobre la salida del peer %d. Error: %d"
-				)
-				%
-				[
-					remaining_session.peer_id,
-					peer_id,
-					result,
-				]
-			)
 
 
 	world_session_registry.remove_session(
-		peer_id
-	)
-
-
-	print(
-		"ServerMain | Presencia eliminada",
-		" | Peer: ",
 		peer_id
 	)
