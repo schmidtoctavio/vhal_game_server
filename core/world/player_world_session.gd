@@ -23,6 +23,18 @@ var class_id: String = ""
 
 var level: int = 1
 
+# =========================================================
+# VITALES AUTORITATIVOS
+# =========================================================
+
+var vitals: ServerVitalsState = null
+
+
+# =========================================================
+# SKILLS AUTORITATIVAS
+# =========================================================
+
+var skill_runtime: ServerSkillRuntimeState = null
 
 # =========================================================
 # MUNDO AUTORITATIVO
@@ -470,6 +482,19 @@ func _init(
 		)
 	)
 
+	# -----------------------------------------------------
+	# RUNTIME AUTORITATIVO DEL PERSONAJE
+	# -----------------------------------------------------
+
+	vitals = (
+		ServerCharacterRuntimeBootstrap.create_vitals()
+	)
+
+
+	skill_runtime = (
+		ServerCharacterRuntimeBootstrap.create_skill_runtime()
+	)
+
 
 	map_id = (
 		p_map_id.strip_edges()
@@ -497,6 +522,14 @@ func is_valid() -> bool:
 		not class_id.is_empty()
 		and
 		not map_id.is_empty()
+		and
+		vitals != null
+		and
+		vitals.is_valid()
+		and
+		skill_runtime != null
+		and
+		skill_runtime.is_valid()
 	)
 
 

@@ -90,7 +90,17 @@ func create_session(
 		" | Mapa: ",
 		session.map_id,
 		" | Posición: ",
-		session.position
+		session.position,
+				" | HP: ",
+		session.vitals.hp,
+		"/",
+		session.vitals.max_hp,
+		" | MP: ",
+		session.vitals.mp,
+		"/",
+		session.vitals.max_mp,
+		" | Skills: ",
+		session.skill_runtime.get_learned_skill_ids()
 	)
 
 

@@ -198,7 +198,6 @@ func _ready() -> void:
 			)
 		)
 
-
 		get_tree().quit(
 			11
 		)
@@ -294,6 +293,33 @@ func _ready() -> void:
 
 
 		return
+
+	var skill_catalog_contract_error := (
+		ServerSkillCatalog.validate_contract()
+	)
+
+
+	if not skill_catalog_contract_error.is_empty():
+		push_error(
+			(
+				"ServerMain | Skill Catalog Contract inválido: "
+				+
+				skill_catalog_contract_error
+			)
+		)
+
+
+		get_tree().quit(
+			24
+		)
+
+
+		return
+
+
+	print(
+		"ServerMain | Skill Catalog Contract validado."
+	)
 
 
 	print(
