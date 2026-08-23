@@ -16,6 +16,7 @@
 [ext_resource type="Script" uid="uid://cy00q2lnokf0q" path="res://app/coordinators/inventory_coordinator.gd" id="12_inventory_coordinator"]
 [ext_resource type="Script" uid="uid://be8ldq0prkdfq" path="res://app/coordinators/vault_coordinator.gd" id="13_vault_coordinator"]
 [ext_resource type="Script" uid="uid://cqr8u8smry178" path="res://app/coordinators/item_container_transfer_coordinator.gd" id="14_item_transfer_coordinator"]
+[ext_resource type="Script" uid="uid://bqjdhdcuf0tpr" path="res://app/coordinators/npc_service_coordinator.gd" id="15_npc_service_coordinator"]
 
 [node name="ServerMain" type="Node" unique_id=1483147024]
 script = ExtResource("1_s58fy")
@@ -52,6 +53,9 @@ script = ExtResource("13_vault_coordinator")
 
 [node name="ItemContainerTransferCoordinator" type="Node" parent="." unique_id=328034610]
 script = ExtResource("14_item_transfer_coordinator")
+
+[node name="NpcServiceCoordinator" type="Node" parent="." unique_id=1164439468]
+script = ExtResource("15_npc_service_coordinator")
 
 [node name="WorldSessionRegistry" type="Node" parent="." unique_id=1554618836]
 script = ExtResource("4_8bux2")

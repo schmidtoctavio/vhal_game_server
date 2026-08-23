@@ -49,6 +49,10 @@ extends Node
 	$ItemContainerTransferCoordinator
 )
 
+@onready var npc_service_coordinator: NpcServiceCoordinator = (
+	$NpcServiceCoordinator
+)
+
 @onready var world_session_registry: WorldSessionRegistry = (
 	$WorldSessionRegistry
 )
@@ -463,14 +467,6 @@ func _ready() -> void:
 
 		return
 
-
-	if not vault_coordinator.npc_service_invalidation_requested.is_connected(
-		_invalidate_active_npc_service
-	):
-		vault_coordinator.npc_service_invalidation_requested.connect(
-			_invalidate_active_npc_service
-		)
-
 	if world_navigation_registry == null:
 		push_error(
 			"ServerMain | No existe WorldNavigationRegistry."
@@ -518,14 +514,6 @@ func _ready() -> void:
 
 
 		return
-
-
-	if not item_container_transfer_coordinator.npc_service_invalidation_requested.is_connected(
-		_invalidate_active_npc_service
-	):
-		item_container_transfer_coordinator.npc_service_invalidation_requested.connect(
-			_invalidate_active_npc_service
-		)
 
 	var navigation_result: Error = (
 		await world_navigation_registry.initialize()
@@ -590,6 +578,54 @@ func _ready() -> void:
 	var npc_registry_result := (
 		world_npc_registry.initialize()
 	)
+
+	if npc_service_coordinator == null:
+		push_error(
+			"ServerMain | No existe NpcServiceCoordinator."
+		)
+
+
+		get_tree().quit(
+			20
+		)
+
+
+		return
+
+
+	if not npc_service_coordinator.setup(
+		game_server,
+		world_session_registry,
+		world_npc_registry,
+		vault_coordinator
+	):
+		push_error(
+			"ServerMain | No se pudo inicializar NpcServiceCoordinator."
+		)
+
+
+		get_tree().quit(
+			20
+		)
+
+
+		return
+
+
+	if not vault_coordinator.npc_service_invalidation_requested.is_connected(
+		npc_service_coordinator.invalidate_active_service
+	):
+		vault_coordinator.npc_service_invalidation_requested.connect(
+			npc_service_coordinator.invalidate_active_service
+		)
+
+
+	if not item_container_transfer_coordinator.npc_service_invalidation_requested.is_connected(
+		npc_service_coordinator.invalidate_active_service
+	):
+		item_container_transfer_coordinator.npc_service_invalidation_requested.connect(
+			npc_service_coordinator.invalidate_active_service
+		)
 
 
 	if npc_registry_result != OK:
@@ -686,13 +722,6 @@ func _bind_authentication() -> void:
 			_on_client_move_requested
 		)
 
-	if not game_server.client_npc_interaction_requested.is_connected(
-		_on_client_npc_interaction_requested
-	):
-		game_server.client_npc_interaction_requested.connect(
-			_on_client_npc_interaction_requested
-		)
-
 	if not world_movement_system.movement_completed.is_connected(
 		_on_authoritative_movement_completed
 	):
@@ -706,15 +735,6 @@ func _bind_authentication() -> void:
 		world_movement_system.movement_state_sampled.connect(
 			_on_authoritative_movement_state_sampled
 		)
-
-	if not game_server.client_npc_service_end_requested.is_connected(
-		_on_client_npc_service_end_requested
-	):
-		game_server.client_npc_service_end_requested.connect(
-			_on_client_npc_service_end_requested
-		)
-
-
 
 # =========================================================
 # AUTH REQUEST
@@ -1453,7 +1473,7 @@ func _on_authoritative_movement_completed(
 	if session == null:
 		return
 
-	_validate_active_npc_service_range(
+	npc_service_coordinator.validate_active_service_range(
 		peer_id
 	)
 
@@ -1491,7 +1511,7 @@ func _on_authoritative_movement_state_sampled(
 	position: Vector3,
 	rotation_y: float
 ) -> void:
-	_validate_active_npc_service_range(
+	npc_service_coordinator.validate_active_service_range(
 		peer_id
 	)
 
@@ -1501,565 +1521,4 @@ func _on_authoritative_movement_state_sampled(
 		position,
 		rotation_y,
 		true
-	)
-
-# =========================================================
-# SOLICITUD DE INTERACCIÓN NPC
-# =========================================================
-
-func _on_client_npc_interaction_requested(
-	peer_id: int,
-	request_id: int,
-	npc_id: String
-) -> void:
-	var session := (
-		world_session_registry.get_session(
-			peer_id
-		)
-	)
-
-
-	if session == null:
-		game_server.reject_authenticated_peer(
-			peer_id,
-			"No existe una sesión de mundo para el peer."
-		)
-
-
-		return
-
-
-	# -----------------------------------------------------
-	# RESOLVER NPC DESDE LA FUENTE AUTORITATIVA
-	# -----------------------------------------------------
-
-	var npc_definition := (
-		world_npc_registry.get_definition(
-			npc_id
-		)
-	)
-
-
-	if npc_definition == null:
-		_reject_npc_interaction(
-			peer_id,
-			request_id,
-			session,
-			npc_id,
-			"unknown_npc"
-		)
-
-
-		return
-
-
-	# -----------------------------------------------------
-	# VALIDAR MAPA
-	# -----------------------------------------------------
-
-	if (
-		session.map_id
-		!=
-		npc_definition.map_id
-	):
-		_reject_npc_interaction(
-			peer_id,
-			request_id,
-			session,
-			npc_id,
-			"wrong_map"
-		)
-
-
-		return
-
-
-	# -----------------------------------------------------
-	# DISTANCIA AUTORITATIVA X/Z
-	# -----------------------------------------------------
-
-	var player_position := Vector2(
-		session.position.x,
-		session.position.z
-	)
-
-
-	var npc_position := Vector2(
-		npc_definition.position.x,
-		npc_definition.position.z
-	)
-
-
-	var distance := (
-		player_position.distance_to(
-			npc_position
-		)
-	)
-
-
-	if (
-		distance
-		>
-		npc_definition.interaction_range
-	):
-		_reject_npc_interaction(
-			peer_id,
-			request_id,
-			session,
-			npc_id,
-			"out_of_range",
-			distance
-		)
-
-
-		return
-
-	# -----------------------------------------------------
-	# SESIÓN DE SERVICIO NPC
-	# -----------------------------------------------------
-
-	var started_new_service := false
-
-
-	if session.has_active_npc_service():
-		# -------------------------------------------------
-		# MISMO SERVICIO YA ACTIVO
-		#
-		# La operación es idempotente:
-		# no recreamos la sesión.
-		# -------------------------------------------------
-
-		if session.is_using_npc_service(
-			npc_definition.npc_id,
-			npc_definition.service_id
-		):
-			print(
-				"ServerMain | Sesión de servicio NPC ya activa",
-				" | Peer: ",
-				peer_id,
-				" | Personaje: ",
-				session.character_name,
-				" | NPC: ",
-				session.active_npc_id,
-				" | Servicio: ",
-				session.active_service_id
-			)
-
-		else:
-			# ---------------------------------------------
-			# Existe OTRO servicio activo.
-			#
-			# No permitimos reemplazarlo silenciosamente.
-			# ---------------------------------------------
-
-			_reject_npc_interaction(
-				peer_id,
-				request_id,
-				session,
-				npc_id,
-				"service_already_active",
-				distance
-			)
-
-
-			return
-
-	else:
-		# -------------------------------------------------
-		# CREAR NUEVA SESIÓN
-		# -------------------------------------------------
-
-		if not session.begin_npc_service(
-			npc_definition.npc_id,
-			npc_definition.service_id
-		):
-			_reject_npc_interaction(
-				peer_id,
-				request_id,
-				session,
-				npc_id,
-				"service_session_failed",
-				distance
-			)
-
-
-			return
-
-
-		started_new_service = true
-
-
-		print(
-			"ServerMain | Sesión de servicio NPC iniciada",
-			" | Peer: ",
-			peer_id,
-			" | Personaje: ",
-			session.character_name,
-			" | NPC: ",
-			session.active_npc_id,
-			" | Servicio: ",
-			session.active_service_id
-		)
-
-
-	# -----------------------------------------------------
-	# INFORMAR AUTORIZACIÓN AL CLIENTE
-	#
-	# Sólo llegamos acá si:
-	# - la sesión fue creada correctamente, o
-	# - ya existía exactamente la misma sesión.
-	# -----------------------------------------------------
-
-	var decision_result := (
-		game_server.send_npc_interaction_decision(
-			peer_id,
-			request_id,
-			true,
-			npc_definition.npc_id,
-			npc_definition.service_id,
-			""
-		)
-	)
-
-
-	if decision_result != OK:
-		# -------------------------------------------------
-		# Sólo deshacemos una sesión NUEVA.
-		#
-		# Si era una sesión que ya existía previamente,
-		# no debemos destruirla por fallar este segundo
-		# envío.
-		# -------------------------------------------------
-
-		if started_new_service:
-			session.end_npc_service()
-
-
-		push_warning(
-			(
-				"ServerMain | No se pudo enviar la autorización "
-				+
-				"de interacción NPC al peer %d. Error: %d"
-			)
-			%
-			[
-				peer_id,
-				decision_result,
-			]
-		)
-
-
-		return
-
-	if npc_definition.service_id == "warehouse":
-		var vault_result := (
-			vault_coordinator.load_active_vault(
-				peer_id
-			)
-		)
-
-
-		if vault_result != OK:
-			print(
-				"ServerMain | No se pudo iniciar carga de Vault",
-				" | Peer: ",
-				peer_id,
-				" | Error: ",
-				vault_result
-			)
-
-	# -----------------------------------------------------
-	# INTERACCIÓN ACEPTADA
-	# -----------------------------------------------------
-
-	print(
-		"ServerMain | Interacción NPC autorizada",
-		" | Request: ",
-		request_id,
-		" | Peer: ",
-		peer_id,
-		" | Personaje: ",
-		session.character_name,
-		" | NPC: ",
-		npc_definition.npc_id,
-		" | Servicio: ",
-		npc_definition.service_id,
-		" | Mapa: ",
-		session.map_id,
-		" | Distancia: ",
-		distance,
-		" | Rango: ",
-		npc_definition.interaction_range
-	)
-
-# =========================================================
-# RECHAZAR INTERACCIÓN NPC
-# =========================================================
-
-func _reject_npc_interaction(
-	peer_id: int,
-	request_id: int,
-	session: PlayerWorldSession,
-	npc_id: String,
-	reason: String,
-	distance: float = -1.0
-) -> void:
-	if session == null:
-		return
-
-
-	var result := (
-		game_server.send_npc_interaction_decision(
-			peer_id,
-			request_id,
-			false,
-			npc_id,
-			"",
-			reason
-		)
-	)
-
-
-	if result != OK:
-		push_warning(
-			(
-				"ServerMain | No se pudo enviar el rechazo "
-				+
-				"de interacción NPC al peer %d. Error: %d"
-			)
-			%
-			[
-				peer_id,
-				result,
-			]
-		)
-
-
-	print(
-		"ServerMain | Interacción NPC rechazada",
-		" | Request: ",
-		request_id,
-		" | Peer: ",
-		peer_id,
-		" | Personaje: ",
-		session.character_name,
-		" | NPC: ",
-		npc_id,
-		" | Motivo: ",
-		reason,
-		" | Distancia: ",
-		distance
-	)
-
-# =========================================================
-# FINALIZAR SERVICIO NPC
-# =========================================================
-
-func _on_client_npc_service_end_requested(
-	peer_id: int
-) -> void:
-	var session := (
-		world_session_registry.get_session(
-			peer_id
-		)
-	)
-
-
-	if session == null:
-		game_server.reject_authenticated_peer(
-			peer_id,
-			"No existe una sesión de mundo para el peer."
-		)
-
-
-		return
-
-
-	if not session.has_active_npc_service():
-		return
-
-
-	var npc_id := (
-		session.active_npc_id
-	)
-
-
-	var service_id := (
-		session.active_service_id
-	)
-
-
-	session.end_npc_service()
-
-
-	print(
-		"ServerMain | Sesión de servicio NPC finalizada",
-		" | Peer: ",
-		peer_id,
-		" | Personaje: ",
-		session.character_name,
-		" | NPC: ",
-		npc_id,
-		" | Servicio: ",
-		service_id
-	)
-
-# =========================================================
-# VALIDAR SESIÓN NPC ACTIVA
-# =========================================================
-
-func _validate_active_npc_service_range(
-	peer_id: int
-) -> void:
-	var session := (
-		world_session_registry.get_session(
-			peer_id
-		)
-	)
-
-
-	if session == null:
-		return
-
-
-	if not session.has_active_npc_service():
-		return
-
-
-	var npc_definition := (
-		world_npc_registry.get_definition(
-			session.active_npc_id
-		)
-	)
-
-
-	if npc_definition == null:
-		_invalidate_active_npc_service(
-			session,
-			"npc_unavailable"
-		)
-
-
-		return
-
-
-	if (
-		session.map_id
-		!=
-		npc_definition.map_id
-	):
-		_invalidate_active_npc_service(
-			session,
-			"wrong_map"
-		)
-
-
-		return
-
-
-	var player_position := Vector2(
-		session.position.x,
-		session.position.z
-	)
-
-
-	var npc_position := Vector2(
-		npc_definition.position.x,
-		npc_definition.position.z
-	)
-
-
-	var distance := (
-		player_position.distance_to(
-			npc_position
-		)
-	)
-
-
-	if (
-		distance
-		<=
-		npc_definition.interaction_range
-	):
-		return
-
-
-	_invalidate_active_npc_service(
-		session,
-		"out_of_range",
-		distance
-	)
-
-
-# =========================================================
-# INVALIDAR SESIÓN NPC ACTIVA
-# =========================================================
-
-func _invalidate_active_npc_service(
-	session: PlayerWorldSession,
-	reason: String,
-	distance: float = -1.0
-) -> void:
-	if session == null:
-		return
-
-
-	if not session.has_active_npc_service():
-		return
-
-
-	var npc_id := (
-		session.active_npc_id
-	)
-
-
-	var service_id := (
-		session.active_service_id
-	)
-
-
-	session.end_npc_service()
-
-
-	var result := (
-		game_server.send_npc_service_ended(
-			session.peer_id,
-			npc_id,
-			service_id,
-			reason
-		)
-	)
-
-
-	if result != OK:
-		push_warning(
-			(
-				"ServerMain | No se pudo informar "
-				+
-				"la finalización del servicio NPC "
-				+
-				"al peer %d. Error: %d"
-			)
-			%
-			[
-				session.peer_id,
-				result,
-			]
-		)
-
-
-	print(
-		"ServerMain | Sesión de servicio NPC invalidada",
-		" | Peer: ",
-		session.peer_id,
-		" | Personaje: ",
-		session.character_name,
-		" | NPC: ",
-		npc_id,
-		" | Servicio: ",
-		service_id,
-		" | Motivo: ",
-		reason,
-		" | Distancia: ",
-		distance
 	)
