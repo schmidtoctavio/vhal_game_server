@@ -85,6 +85,9 @@ extends Node
 	$WorldNpcRegistry
 )
 
+@onready var world_mob_registry: WorldMobRegistry = (
+	$WorldMobRegistry
+)
 
 # =========================================================
 # START
@@ -688,6 +691,47 @@ func _ready() -> void:
 
 		return
 
+	# =====================================================
+	# MOBS
+	# =====================================================
+
+	if world_mob_registry == null:
+		push_error(
+			"ServerMain | No existe WorldMobRegistry."
+		)
+
+
+		get_tree().quit(
+			26
+		)
+
+
+		return
+
+
+	var mob_registry_result := (
+		world_mob_registry.initialize()
+	)
+
+
+	if mob_registry_result != OK:
+		push_error(
+			(
+				"ServerMain | No se pudo inicializar "
+				+
+				"WorldMobRegistry. Error: %d"
+			)
+			%
+			mob_registry_result
+		)
+
+
+		get_tree().quit(
+			26
+		)
+
+
+		return
 
 	if npc_service_coordinator == null:
 		push_error(
