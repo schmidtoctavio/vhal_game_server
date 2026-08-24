@@ -124,6 +124,10 @@ const MESSAGE_SKILL_CAST_REQUEST: String = (
 	"skill_cast_request"
 )
 
+const MESSAGE_SKILL_CAST_RESULT: String = (
+	"skill_cast_result"
+)
+
 const MESSAGE_NPC_INTERACTION_REQUEST: String = (
 	"npc_interaction_request"
 )
@@ -1045,6 +1049,106 @@ func send_movement_decision(
 			},
 
 			"reason": reason,
+		},
+	}
+
+
+	var packet := (
+		JSON.stringify(
+			message
+		).to_utf8_buffer()
+	)
+
+
+	return scene_multiplayer.send_bytes(
+		packet,
+		peer_id,
+		MultiplayerPeer.TRANSFER_MODE_RELIABLE,
+		0
+	)
+
+# =========================================================
+# ENVIAR RESULTADO DE SKILL CAST
+# =========================================================
+
+func send_skill_cast_result(
+	peer_id: int,
+	request_id: int,
+	skill_id: String,
+	accepted: bool,
+	reason: String,
+	vitals_snapshot: Dictionary,
+	cooldown_remaining_seconds: float = 0.0,
+	effect: Dictionary = {}
+) -> Error:
+	if peer_id <= 1:
+		return ERR_INVALID_PARAMETER
+
+
+	if request_id <= 0:
+		return ERR_INVALID_PARAMETER
+
+
+	if not authenticated_sessions.has(
+		peer_id
+	):
+		return ERR_DOES_NOT_EXIST
+
+
+	var normalized_skill_id := (
+		skill_id
+		.strip_edges()
+		.to_lower()
+	)
+
+
+	if normalized_skill_id.is_empty():
+		return ERR_INVALID_PARAMETER
+
+
+	if vitals_snapshot.is_empty():
+		return ERR_INVALID_DATA
+
+
+	if cooldown_remaining_seconds < 0.0:
+		return ERR_INVALID_PARAMETER
+
+
+	var scene_multiplayer := (
+		multiplayer
+		as SceneMultiplayer
+	)
+
+
+	if scene_multiplayer == null:
+		return ERR_UNAVAILABLE
+
+
+	var message := {
+		"version": NETWORK_PROTOCOL_VERSION,
+
+		"type": MESSAGE_SKILL_CAST_RESULT,
+
+		"data": {
+			"request_id": request_id,
+
+			"skill_id": normalized_skill_id,
+
+			"accepted": accepted,
+
+			"reason": reason,
+
+			"vitals": vitals_snapshot.duplicate(
+				true
+			),
+
+			"cooldown_remaining_seconds": (
+				cooldown_remaining_seconds
+			),
+
+			"effect": effect.duplicate(
+				true
+			),
 		},
 	}
 
