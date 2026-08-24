@@ -1867,7 +1867,8 @@ func _process_npc_interaction_request(
 
 func send_world_presence_snapshot(
 	peer_id: int,
-	players: Array
+	players: Array,
+	mobs: Array
 ) -> Error:
 	if peer_id <= 1:
 		return ERR_INVALID_PARAMETER
@@ -1895,7 +1896,13 @@ func send_world_presence_snapshot(
 		"type": MESSAGE_WORLD_PRESENCE_SNAPSHOT,
 
 		"data": {
-			"players": players,
+			"players": players.duplicate(
+				true
+			),
+
+			"mobs": mobs.duplicate(
+				true
+			),
 		},
 	}
 

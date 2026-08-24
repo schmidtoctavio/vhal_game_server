@@ -10,6 +10,7 @@ var game_server: GameServer = null
 
 var world_session_registry: WorldSessionRegistry = null
 
+var world_mob_registry: WorldMobRegistry = null
 
 # =========================================================
 # ESTADO
@@ -24,7 +25,8 @@ var configured: bool = false
 
 func setup(
 	p_game_server: GameServer,
-	p_world_session_registry: WorldSessionRegistry
+	p_world_session_registry: WorldSessionRegistry,
+	p_world_mob_registry: WorldMobRegistry
 ) -> bool:
 	if configured:
 		return true
@@ -38,9 +40,15 @@ func setup(
 		return false
 
 
+	if p_world_mob_registry == null:
+		return false
+
+
 	game_server = p_game_server
 
 	world_session_registry = p_world_session_registry
+
+	world_mob_registry = p_world_mob_registry
 
 
 	configured = true
@@ -93,6 +101,41 @@ func prepare_presence(
 			existing_session.to_presence_snapshot()
 		)
 
+	# -----------------------------------------------------
+	# MOBS AUTORITATIVOS DEL MAPA
+	# -----------------------------------------------------
+
+	var mobs_in_map := (
+		world_mob_registry.get_mobs_in_map(
+			session.map_id
+		)
+	)
+
+
+	var world_mobs: Array = []
+
+
+	for mob: WorldMobRuntimeState in mobs_in_map:
+		if mob == null:
+			continue
+
+
+		if not mob.is_valid():
+			continue
+
+
+		var mob_snapshot := (
+			mob.to_snapshot()
+		)
+
+
+		if mob_snapshot.is_empty():
+			continue
+
+
+		world_mobs.append(
+			mob_snapshot
+		)
 
 	# -----------------------------------------------------
 	# ROSTER INICIAL PARA EL NUEVO PLAYER
@@ -101,10 +144,10 @@ func prepare_presence(
 	var presence_result := (
 		game_server.send_world_presence_snapshot(
 			session.peer_id,
-			existing_players
+			existing_players,
+			world_mobs
 		)
 	)
-
 
 	if presence_result != OK:
 		return presence_result
@@ -158,6 +201,8 @@ func prepare_presence(
 		session.character_name,
 		" | Mapa: ",
 		session.map_id,
+		" | Mobs: ",
+		world_mobs.size(),
 		" | Remotos existentes: ",
 		existing_players.size()
 	)

@@ -832,7 +832,8 @@ func _ready() -> void:
 
 	if not world_presence_coordinator.setup(
 		game_server,
-		world_session_registry
+		world_session_registry,
+		world_mob_registry
 	):
 		push_error(
 			"ServerMain | No se pudo inicializar WorldPresenceCoordinator."
