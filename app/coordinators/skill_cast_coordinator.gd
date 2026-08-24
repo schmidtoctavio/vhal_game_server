@@ -10,6 +10,7 @@ var game_server: GameServer = null
 
 var world_session_registry: WorldSessionRegistry = null
 
+var world_mob_registry: WorldMobRegistry = null
 
 # =========================================================
 # ESTADO
@@ -24,7 +25,8 @@ var configured: bool = false
 
 func setup(
 	p_game_server: GameServer,
-	p_world_session_registry: WorldSessionRegistry
+	p_world_session_registry: WorldSessionRegistry,
+	p_world_mob_registry: WorldMobRegistry
 ) -> bool:
 	if configured:
 		return true
@@ -38,10 +40,20 @@ func setup(
 		return false
 
 
+	if p_world_mob_registry == null:
+		return false
+
+
 	game_server = p_game_server
+
 
 	world_session_registry = (
 		p_world_session_registry
+	)
+
+
+	world_mob_registry = (
+		p_world_mob_registry
 	)
 
 
@@ -171,10 +183,75 @@ func _on_client_skill_cast_requested(
 
 
 	# -----------------------------------------------------
-	# F16-C
+	# ESTADO VITAL DEL CASTER
+	# -----------------------------------------------------
+
+	if session.vitals.hp <= 0:
+		_send_result(
+			peer_id,
+			request_id,
+			definition.skill_id,
+			false,
+			"character_not_alive",
+			session,
+			0.0,
+			{}
+		)
+
+
+		return
+
+
+	# -----------------------------------------------------
+	# TARGET AUTORITATIVO
 	#
-	# Por ahora sólo Heal posee ejecución real.
-	# Fire Ball y Poison entrarán después.
+	# F17-C:
+	#
+	# Ya no asumimos que todas las skills usan "self".
+	#
+	# La definición de la skill determina si espera:
+	#
+	# self
+	# entity
+	#
+	# Para entity, el Game Server vuelve a resolver el
+	# entity_id contra WorldMobRegistry.
+	# -----------------------------------------------------
+
+	var target_error := (
+		_validate_authoritative_target(
+			definition,
+			session,
+			target,
+			request_id
+		)
+	)
+
+
+	if not target_error.is_empty():
+		_send_result(
+			peer_id,
+			request_id,
+			definition.skill_id,
+			false,
+			target_error,
+			session,
+			0.0,
+			{}
+		)
+
+
+		return
+
+
+	# -----------------------------------------------------
+	# EJECUCIÓN IMPLEMENTADA
+	#
+	# F17-C ya permite validar un target de entidad real,
+	# pero todavía solamente Heal posee efecto real.
+	#
+	# Fire Ball y Poison deben llegar hasta acá DESPUÉS
+	# de haber validado correctamente el target.
 	# -----------------------------------------------------
 
 	if (
@@ -188,54 +265,6 @@ func _on_client_skill_cast_requested(
 			definition.skill_id,
 			false,
 			"skill_not_implemented",
-			session,
-			0.0,
-			{}
-		)
-
-
-		return
-
-
-	# -----------------------------------------------------
-	# TARGET
-	# -----------------------------------------------------
-
-	var target_kind := String(
-		target.get(
-			"kind",
-			""
-		)
-	).strip_edges().to_lower()
-
-
-	if target_kind != "self":
-		_send_result(
-			peer_id,
-			request_id,
-			definition.skill_id,
-			false,
-			"invalid_target",
-			session,
-			0.0,
-			{}
-		)
-
-
-		return
-
-
-	# -----------------------------------------------------
-	# ESTADO VITAL
-	# -----------------------------------------------------
-
-	if session.vitals.hp <= 0:
-		_send_result(
-			peer_id,
-			request_id,
-			definition.skill_id,
-			false,
-			"character_not_alive",
 			session,
 			0.0,
 			{}
@@ -328,6 +357,7 @@ func _on_client_skill_cast_requested(
 	):
 		# Si por alguna razón inesperada no podemos iniciar
 		# el cooldown, devolvemos el mana consumido.
+
 		session.vitals.restore_mp(
 			definition.mana_cost
 		)
@@ -411,6 +441,130 @@ func _on_client_skill_cast_requested(
 		cooldown_remaining
 	)
 
+# =========================================================
+# VALIDAR TARGET AUTORITATIVO
+# =========================================================
+
+func _validate_authoritative_target(
+	definition: ServerSkillDefinition,
+	session: PlayerWorldSession,
+	target: Dictionary,
+	request_id: int
+) -> String:
+	if definition == null:
+		return "invalid_target"
+
+
+	if session == null:
+		return "invalid_target"
+
+
+	var target_kind := String(
+		target.get(
+			"kind",
+			""
+		)
+	).strip_edges().to_lower()
+
+
+	# -----------------------------------------------------
+	# EL TARGET DEBE COINCIDIR CON LA DEFINICIÓN
+	# -----------------------------------------------------
+
+	if target_kind != definition.target_kind:
+		return "invalid_target"
+
+
+	# -----------------------------------------------------
+	# SELF
+	# -----------------------------------------------------
+
+	if (
+		target_kind
+		==
+		ServerSkillDefinition.TARGET_SELF
+	):
+		return ""
+
+
+	# -----------------------------------------------------
+	# ENTITY
+	# -----------------------------------------------------
+
+	if (
+		target_kind
+		!=
+		ServerSkillDefinition.TARGET_ENTITY
+	):
+		return "invalid_target"
+
+
+	var entity_id := String(
+		target.get(
+			"entity_id",
+			""
+		)
+	).strip_edges().to_lower()
+
+
+	if entity_id.is_empty():
+		return "invalid_target"
+
+
+	# -----------------------------------------------------
+	# RESOLVER LA ENTIDAD CONTRA EL REGISTRY AUTORITATIVO
+	# -----------------------------------------------------
+
+	var mob := (
+		world_mob_registry.get_mob(
+			entity_id
+		)
+	)
+
+
+	if mob == null:
+		return "target_not_found"
+
+
+	# -----------------------------------------------------
+	# MISMO MAPA
+	# -----------------------------------------------------
+
+	if mob.map_id != session.map_id:
+		return "target_wrong_map"
+
+
+	# -----------------------------------------------------
+	# MOB VIVO
+	# -----------------------------------------------------
+
+	if not mob.is_alive():
+		return "target_not_alive"
+
+
+	# -----------------------------------------------------
+	# TARGET VALIDADO
+	# -----------------------------------------------------
+
+	print(
+		"SkillCastCoordinator | Target autoritativo validado",
+		" | Request: ",
+		request_id,
+		" | Skill: ",
+		definition.skill_id,
+		" | Entity: ",
+		mob.entity_id,
+		" | Type: mob",
+		" | Mapa: ",
+		mob.map_id,
+		" | HP: ",
+		mob.vitals.hp,
+		"/",
+		mob.vitals.max_hp
+	)
+
+
+	return ""
 
 # =========================================================
 # ENVIAR RESULTADO

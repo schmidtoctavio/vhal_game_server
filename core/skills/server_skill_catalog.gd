@@ -32,21 +32,24 @@ static func get_definition(
 			return ServerSkillDefinition.new(
 				FIRE_BALL_ID,
 				30,
-				3.0
+				3.0,
+				ServerSkillDefinition.TARGET_ENTITY
 			)
 
 		POISON_ID:
 			return ServerSkillDefinition.new(
 				POISON_ID,
 				20,
-				5.0
+				5.0,
+				ServerSkillDefinition.TARGET_ENTITY
 			)
 
 		HEAL_ID:
 			return ServerSkillDefinition.new(
 				HEAL_ID,
 				40,
-				4.0
+				4.0,
+				ServerSkillDefinition.TARGET_SELF
 			)
 
 

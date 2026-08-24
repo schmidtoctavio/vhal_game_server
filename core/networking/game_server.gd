@@ -1736,16 +1736,86 @@ func _process_skill_cast_request(
 		return
 
 
-	var normalized_target := (
-		target.duplicate(
-			true
+	var normalized_target: Dictionary = {}
+
+
+	# -----------------------------------------------------
+	# SELF TARGET
+	# -----------------------------------------------------
+
+	if target_kind == "self":
+		normalized_target = {
+			"kind": "self",
+		}
+
+
+	# -----------------------------------------------------
+	# ENTITY TARGET
+	# -----------------------------------------------------
+
+	elif target_kind == "entity":
+		var entity_id_value: Variant = (
+			target.get(
+				"entity_id",
+				null
+			)
 		)
-	)
 
 
-	normalized_target[
-		"kind"
-	] = target_kind
+		if typeof(entity_id_value) != TYPE_STRING:
+			reject_authenticated_peer(
+				peer_id,
+				"Cast entity sin Entity ID válido."
+			)
+
+
+			return
+
+
+		var entity_id := String(
+			entity_id_value
+		).strip_edges().to_lower()
+
+
+		if entity_id.is_empty():
+			reject_authenticated_peer(
+				peer_id,
+				"Cast entity con Entity ID vacío."
+			)
+
+
+			return
+
+
+		if entity_id.length() > 96:
+			reject_authenticated_peer(
+				peer_id,
+				"Cast entity con Entity ID demasiado largo."
+			)
+
+
+			return
+
+
+		normalized_target = {
+			"kind": "entity",
+
+			"entity_id": entity_id,
+		}
+
+
+	# -----------------------------------------------------
+	# KIND NO SOPORTADO
+	# -----------------------------------------------------
+
+	else:
+		reject_authenticated_peer(
+			peer_id,
+			"Tipo de target de cast no soportado."
+		)
+
+
+		return
 
 
 	client_skill_cast_requested.emit(
