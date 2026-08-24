@@ -40,6 +40,13 @@ signal client_move_requested(
 	target: Vector3
 )
 
+signal client_skill_cast_requested(
+	peer_id: int,
+	request_id: int,
+	skill_id: String,
+	target: Dictionary
+)
+
 signal client_npc_interaction_requested(
 	peer_id: int,
 	request_id: int,
@@ -111,6 +118,10 @@ const MESSAGE_WORLD_SNAPSHOT: String = (
 
 const MESSAGE_MOVE_REQUEST: String = (
 	"move_request"
+)
+
+const MESSAGE_SKILL_CAST_REQUEST: String = (
+	"skill_cast_request"
 )
 
 const MESSAGE_NPC_INTERACTION_REQUEST: String = (
@@ -1237,6 +1248,15 @@ func _on_peer_packet(
 
 		return
 
+	if message_type == MESSAGE_SKILL_CAST_REQUEST:
+		_process_skill_cast_request(
+			peer_id,
+			message
+		)
+
+
+		return
+
 
 	if message_type == MESSAGE_NPC_INTERACTION_REQUEST:
 		_process_npc_interaction_request(
@@ -1440,6 +1460,195 @@ func _process_move_request(
 		peer_id,
 		request_id,
 		target
+	)
+
+# =========================================================
+# SKILL CAST REQUEST
+# =========================================================
+
+func _process_skill_cast_request(
+	peer_id: int,
+	message: Dictionary
+) -> void:
+	var data_value: Variant = (
+		message.get(
+			"data",
+			null
+		)
+	)
+
+
+	if typeof(data_value) != TYPE_DICTIONARY:
+		reject_authenticated_peer(
+			peer_id,
+			"Cast sin datos válidos."
+		)
+
+
+		return
+
+
+	var data: Dictionary = (
+		data_value
+	)
+
+
+	# -----------------------------------------------------
+	# REQUEST ID
+	# -----------------------------------------------------
+
+	var request_id := int(
+		data.get(
+			"request_id",
+			0
+		)
+	)
+
+
+	if request_id <= 0:
+		reject_authenticated_peer(
+			peer_id,
+			"Cast sin Request ID válido."
+		)
+
+
+		return
+
+
+	# -----------------------------------------------------
+	# SKILL ID
+	# -----------------------------------------------------
+
+	var skill_id_value: Variant = (
+		data.get(
+			"skill_id",
+			null
+		)
+	)
+
+
+	if typeof(skill_id_value) != TYPE_STRING:
+		reject_authenticated_peer(
+			peer_id,
+			"Cast sin Skill ID válido."
+		)
+
+
+		return
+
+
+	var skill_id := String(
+		skill_id_value
+	).strip_edges().to_lower()
+
+
+	if skill_id.is_empty():
+		reject_authenticated_peer(
+			peer_id,
+			"Cast con Skill ID vacío."
+		)
+
+
+		return
+
+
+	if skill_id.length() > 64:
+		reject_authenticated_peer(
+			peer_id,
+			"Cast con Skill ID demasiado largo."
+		)
+
+
+		return
+
+
+	# -----------------------------------------------------
+	# TARGET
+	# -----------------------------------------------------
+
+	var target_value: Variant = (
+		data.get(
+			"target",
+			null
+		)
+	)
+
+
+	if typeof(target_value) != TYPE_DICTIONARY:
+		reject_authenticated_peer(
+			peer_id,
+			"Cast sin target válido."
+		)
+
+
+		return
+
+
+	var target: Dictionary = (
+		target_value
+	)
+
+
+	var target_kind_value: Variant = (
+		target.get(
+			"kind",
+			null
+		)
+	)
+
+
+	if typeof(target_kind_value) != TYPE_STRING:
+		reject_authenticated_peer(
+			peer_id,
+			"Cast sin tipo de target válido."
+		)
+
+
+		return
+
+
+	var target_kind := String(
+		target_kind_value
+	).strip_edges().to_lower()
+
+
+	if target_kind.is_empty():
+		reject_authenticated_peer(
+			peer_id,
+			"Cast con tipo de target vacío."
+		)
+
+
+		return
+
+
+	if target_kind.length() > 32:
+		reject_authenticated_peer(
+			peer_id,
+			"Cast con tipo de target demasiado largo."
+		)
+
+
+		return
+
+
+	var normalized_target := (
+		target.duplicate(
+			true
+		)
+	)
+
+
+	normalized_target[
+		"kind"
+	] = target_kind
+
+
+	client_skill_cast_requested.emit(
+		peer_id,
+		request_id,
+		skill_id,
+		normalized_target
 	)
 
 # =========================================================

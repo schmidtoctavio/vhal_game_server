@@ -57,6 +57,10 @@ extends Node
 	$MovementCoordinator
 )
 
+@onready var skill_cast_coordinator: SkillCastCoordinator = (
+	$SkillCastCoordinator
+)
+
 @onready var world_presence_coordinator: WorldPresenceCoordinator = (
 	$WorldPresenceCoordinator
 )
@@ -383,6 +387,36 @@ func _ready() -> void:
 		get_tree().quit(
 			4
 		)
+
+		return
+
+	if skill_cast_coordinator == null:
+		push_error(
+			"ServerMain | No existe SkillCastCoordinator."
+		)
+
+
+		get_tree().quit(
+			25
+		)
+
+
+		return
+
+
+	if not skill_cast_coordinator.setup(
+		game_server,
+		world_session_registry
+	):
+		push_error(
+			"ServerMain | No se pudo inicializar SkillCastCoordinator."
+		)
+
+
+		get_tree().quit(
+			25
+		)
+
 
 		return
 
