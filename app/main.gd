@@ -61,6 +61,10 @@ extends Node
 	$SkillCastCoordinator
 )
 
+@onready var basic_attack_coordinator: BasicAttackCoordinator = (
+	$BasicAttackCoordinator
+)
+
 @onready var world_presence_coordinator: WorldPresenceCoordinator = (
 	$WorldPresenceCoordinator
 )
@@ -419,6 +423,37 @@ func _ready() -> void:
 
 		get_tree().quit(
 			25
+		)
+
+
+		return
+
+	if basic_attack_coordinator == null:
+		push_error(
+			"ServerMain | No existe BasicAttackCoordinator."
+		)
+
+
+		get_tree().quit(
+			27
+		)
+
+
+		return
+
+
+	if not basic_attack_coordinator.setup(
+		game_server,
+		world_session_registry,
+		world_mob_registry
+	):
+		push_error(
+			"ServerMain | No se pudo inicializar BasicAttackCoordinator."
+		)
+
+
+		get_tree().quit(
+			27
 		)
 
 

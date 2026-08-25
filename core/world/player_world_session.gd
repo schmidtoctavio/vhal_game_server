@@ -38,6 +38,8 @@ var skill_runtime: ServerSkillRuntimeState = null
 
 var latest_skill_cast_request_id: int = 0
 
+var latest_basic_attack_request_id: int = 0
+
 # =========================================================
 # REQUESTS DE SKILLS
 # =========================================================
@@ -54,6 +56,27 @@ func accept_skill_cast_request_id(
 
 
 	latest_skill_cast_request_id = request_id
+
+
+	return true
+
+
+# =========================================================
+# REQUESTS DE BASIC ATTACK
+# =========================================================
+
+func accept_basic_attack_request_id(
+	request_id: int
+) -> bool:
+	if request_id <= 0:
+		return false
+
+
+	if request_id <= latest_basic_attack_request_id:
+		return false
+
+
+	latest_basic_attack_request_id = request_id
 
 
 	return true

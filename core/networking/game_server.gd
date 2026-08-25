@@ -47,6 +47,12 @@ signal client_skill_cast_requested(
 	target: Dictionary
 )
 
+signal client_basic_attack_requested(
+	peer_id: int,
+	request_id: int,
+	target: Dictionary
+)
+
 signal client_npc_interaction_requested(
 	peer_id: int,
 	request_id: int,
@@ -126,6 +132,14 @@ const MESSAGE_SKILL_CAST_REQUEST: String = (
 
 const MESSAGE_SKILL_CAST_RESULT: String = (
 	"skill_cast_result"
+)
+
+const MESSAGE_BASIC_ATTACK_REQUEST: String = (
+	"basic_attack_request"
+)
+
+const MESSAGE_BASIC_ATTACK_RESULT: String = (
+	"basic_attack_result"
 )
 
 const MESSAGE_NPC_INTERACTION_REQUEST: String = (
@@ -1361,6 +1375,14 @@ func _on_peer_packet(
 
 		return
 
+	if message_type == MESSAGE_BASIC_ATTACK_REQUEST:
+		_process_basic_attack_request(
+			peer_id,
+			message
+		)
+
+
+		return
 
 	if message_type == MESSAGE_NPC_INTERACTION_REQUEST:
 		_process_npc_interaction_request(
@@ -3523,4 +3545,217 @@ func _is_inventory_grid_position_valid(
 		position.y >= 0
 		and
 		position.y < 8
+	)
+
+
+# =========================================================
+# BASIC ATTACK REQUEST
+# =========================================================
+
+func _process_basic_attack_request(
+	peer_id: int,
+	message: Dictionary
+) -> void:
+	var data_value: Variant = (
+		message.get(
+			"data",
+			null
+		)
+	)
+
+
+	if typeof(data_value) != TYPE_DICTIONARY:
+		reject_authenticated_peer(
+			peer_id,
+			"Basic Attack sin datos válidos."
+		)
+
+
+		return
+
+
+	var data: Dictionary = data_value
+
+
+	var request_id := int(
+		data.get(
+			"request_id",
+			0
+		)
+	)
+
+
+	if request_id <= 0:
+		reject_authenticated_peer(
+			peer_id,
+			"Basic Attack sin Request ID válido."
+		)
+
+
+		return
+
+
+	var target_value: Variant = (
+		data.get(
+			"target",
+			null
+		)
+	)
+
+
+	if typeof(target_value) != TYPE_DICTIONARY:
+		reject_authenticated_peer(
+			peer_id,
+			"Basic Attack sin target válido."
+		)
+
+
+		return
+
+
+	var target: Dictionary = target_value
+
+
+	var target_kind := String(
+		target.get(
+			"kind",
+			""
+		)
+	).strip_edges().to_lower()
+
+
+	if target_kind != "entity":
+		reject_authenticated_peer(
+			peer_id,
+			"Basic Attack con tipo de target inválido."
+		)
+
+
+		return
+
+
+	var entity_id_value: Variant = (
+		target.get(
+			"entity_id",
+			null
+		)
+	)
+
+
+	if typeof(entity_id_value) != TYPE_STRING:
+		reject_authenticated_peer(
+			peer_id,
+			"Basic Attack sin Entity ID válido."
+		)
+
+
+		return
+
+
+	var entity_id := String(
+		entity_id_value
+	).strip_edges().to_lower()
+
+
+	if (
+		entity_id.is_empty()
+		or
+		entity_id.length() > 96
+	):
+		reject_authenticated_peer(
+			peer_id,
+			"Basic Attack con Entity ID inválido."
+		)
+
+
+		return
+
+
+	client_basic_attack_requested.emit(
+		peer_id,
+		request_id,
+		{
+			"kind": "entity",
+
+			"entity_id": entity_id,
+		}
+	)
+
+func send_basic_attack_result(
+	peer_id: int,
+	request_id: int,
+	accepted: bool,
+	reason: String,
+	target: Dictionary,
+	attack_profile: Dictionary
+) -> Error:
+	if peer_id <= 1:
+		return ERR_INVALID_PARAMETER
+
+
+	if request_id <= 0:
+		return ERR_INVALID_PARAMETER
+
+
+	if not authenticated_sessions.has(
+		peer_id
+	):
+		return ERR_DOES_NOT_EXIST
+
+
+	var normalized_reason := (
+		reason.strip_edges()
+	)
+
+
+	if normalized_reason.is_empty():
+		return ERR_INVALID_PARAMETER
+
+
+	if (
+		target.is_empty()
+		or
+		attack_profile.is_empty()
+	):
+		return ERR_INVALID_DATA
+
+
+	var scene_multiplayer := (
+		multiplayer
+		as SceneMultiplayer
+	)
+
+
+	if scene_multiplayer == null:
+		return ERR_UNAVAILABLE
+
+
+	var message := {
+		"version": NETWORK_PROTOCOL_VERSION,
+
+		"type": MESSAGE_BASIC_ATTACK_RESULT,
+
+		"data": {
+			"request_id": request_id,
+
+			"accepted": accepted,
+
+			"reason": normalized_reason,
+
+			"target": target.duplicate(true),
+
+			"attack_profile": (
+				attack_profile.duplicate(true)
+			),
+		},
+	}
+
+
+	return scene_multiplayer.send_bytes(
+		JSON.stringify(
+			message
+		).to_utf8_buffer(),
+		peer_id,
+		MultiplayerPeer.TRANSFER_MODE_RELIABLE,
+		0
 	)

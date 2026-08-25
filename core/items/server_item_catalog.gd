@@ -29,6 +29,8 @@ const DEFINITIONS: Dictionary = {
 
 		"equipment_category_id": "weapon",
 		"hand_equip_mode_id": "one_hand",
+
+		"basic_attack_mode_id": "melee",
 	},
 
 	"health_potion": {
@@ -38,6 +40,7 @@ const DEFINITIONS: Dictionary = {
 
 		"equipment_category_id": "none",
 		"hand_equip_mode_id": "none",
+		"basic_attack_mode_id": "none",
 	},
 
 	"leather_helmet": {
@@ -47,6 +50,7 @@ const DEFINITIONS: Dictionary = {
 
 		"equipment_category_id": "head",
 		"hand_equip_mode_id": "none",
+		"basic_attack_mode_id": "none",
 	},
 }
 
