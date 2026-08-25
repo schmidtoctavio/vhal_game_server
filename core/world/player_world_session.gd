@@ -644,6 +644,12 @@ func to_snapshot() -> Dictionary:
 			),
 		},
 
+		"skills": {
+			"learned_skill_ids": Array(
+				skill_runtime.get_learned_skill_ids()
+			),
+		},
+
 		"vitals": vitals.to_snapshot(),
 
 		"world": {
