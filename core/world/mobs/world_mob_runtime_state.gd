@@ -162,6 +162,41 @@ func apply_damage(
 	)
 
 # =========================================================
+# RESPAWN
+# =========================================================
+
+func respawn_at_spawn() -> bool:
+	if definition == null:
+		return false
+
+
+	if vitals == null:
+		return false
+
+
+	if is_alive():
+		return false
+
+
+	vitals.set_hp(
+		vitals.max_hp
+	)
+
+
+	vitals.set_mp(
+		vitals.max_mp
+	)
+
+
+	set_world_transform(
+		spawn_position,
+		spawn_rotation_y
+	)
+
+
+	return is_alive()
+
+# =========================================================
 # TRANSFORM
 # =========================================================
 

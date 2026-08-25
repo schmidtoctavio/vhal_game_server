@@ -50,6 +50,12 @@ func setup(
 
 	world_mob_registry = p_world_mob_registry
 
+	if not world_mob_registry.mob_respawned.is_connected(
+		_on_mob_respawned
+	):
+		world_mob_registry.mob_respawned.connect(
+			_on_mob_respawned
+		)
 
 	configured = true
 
@@ -275,4 +281,96 @@ func notify_presence_left(
 		session.map_id,
 		" | Peers notificados: ",
 		remaining_sessions.size()
+	)
+
+# =========================================================
+# MOB RESPAWN
+# =========================================================
+
+func _on_mob_respawned(
+	entity_id: String,
+	map_id: String,
+	mob_snapshot: Dictionary
+) -> void:
+	if not configured:
+		return
+
+
+	var normalized_entity_id := (
+		entity_id
+		.strip_edges()
+		.to_lower()
+	)
+
+
+	var normalized_map_id := (
+		map_id.strip_edges()
+	)
+
+
+	if (
+		normalized_entity_id.is_empty()
+		or
+		normalized_map_id.is_empty()
+		or
+		mob_snapshot.is_empty()
+	):
+		return
+
+
+	var sessions := (
+		world_session_registry.get_sessions_in_map(
+			normalized_map_id
+		)
+	)
+
+
+	var recipients := 0
+
+
+	for session: PlayerWorldSession in sessions:
+		if session == null:
+			continue
+
+
+		var result := (
+			game_server.send_mob_state_updated(
+				session.peer_id,
+				mob_snapshot
+			)
+		)
+
+
+		if result != OK:
+			push_warning(
+				(
+					"WorldPresenceCoordinator | "
+					+
+					"No se pudo replicar respawn de '%s' "
+					+
+					"al peer %d. Error: %d"
+				)
+				%
+				[
+					normalized_entity_id,
+					session.peer_id,
+					result,
+				]
+			)
+
+
+			continue
+
+
+		recipients += 1
+
+
+	print(
+		"WorldPresenceCoordinator | Respawn de mob replicado",
+		" | Entity: ",
+		normalized_entity_id,
+		" | Mapa: ",
+		normalized_map_id,
+		" | Recipients: ",
+		recipients
 	)

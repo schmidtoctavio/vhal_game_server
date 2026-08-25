@@ -13,6 +13,12 @@ signal mob_died(
 	mob_snapshot: Dictionary
 )
 
+signal mob_respawned(
+	entity_id: String,
+	map_id: String,
+	mob_snapshot: Dictionary
+)
+
 # =========================================================
 # DEFINICIONES
 # =========================================================
@@ -26,6 +32,13 @@ var definitions_by_type_id: Dictionary = {}
 
 var mobs_by_entity_id: Dictionary = {}
 
+# =========================================================
+# RESPAWN SCHEDULER
+# =========================================================
+
+var pending_respawn_deadlines_msec: Dictionary = {}
+
+var respawn_timer: Timer = null
 
 # =========================================================
 # INICIALIZACIÓN
@@ -36,6 +49,11 @@ func initialize() -> Error:
 
 	mobs_by_entity_id.clear()
 
+	pending_respawn_deadlines_msec.clear()
+
+
+	if not _prepare_respawn_scheduler():
+		return ERR_CANT_CREATE
 
 	# -----------------------------------------------------
 	# DEFINICIÓN TEMPORAL DEL PRIMER MOB
@@ -48,7 +66,8 @@ func initialize() -> Error:
 			"training_goblin",
 			"Training Goblin",
 			1,
-			5_000
+			5_000,
+			3.0
 		)
 	)
 
@@ -116,6 +135,297 @@ func initialize() -> Error:
 
 	return OK
 
+# =========================================================
+# PREPARAR RESPAWN SCHEDULER
+# =========================================================
+
+func _prepare_respawn_scheduler() -> bool:
+	if (
+		respawn_timer == null
+		or
+		not is_instance_valid(
+			respawn_timer
+		)
+	):
+		respawn_timer = Timer.new()
+
+		respawn_timer.name = (
+			"RespawnTimer"
+		)
+
+		respawn_timer.one_shot = true
+
+		add_child(
+			respawn_timer
+		)
+
+
+	if not respawn_timer.timeout.is_connected(
+		_on_respawn_timer_timeout
+	):
+		respawn_timer.timeout.connect(
+			_on_respawn_timer_timeout
+		)
+
+
+	respawn_timer.stop()
+
+
+	return true
+
+# =========================================================
+# PROGRAMAR RESPAWN
+# =========================================================
+
+func _schedule_mob_respawn(
+	mob: WorldMobRuntimeState
+) -> bool:
+	if mob == null:
+		return false
+
+
+	if mob.is_alive():
+		return false
+
+
+	if mob.definition == null:
+		return false
+
+
+	var delay_seconds := (
+		mob.definition.respawn_delay_seconds
+	)
+
+
+	if delay_seconds <= 0.0:
+		return false
+
+
+	if pending_respawn_deadlines_msec.has(
+		mob.entity_id
+	):
+		return true
+
+
+	var delay_msec := maxi(
+		ceili(
+			delay_seconds
+			*
+			1000.0
+		),
+		1
+	)
+
+
+	var deadline_msec := (
+		Time.get_ticks_msec()
+		+
+		delay_msec
+	)
+
+
+	pending_respawn_deadlines_msec[
+		mob.entity_id
+	] = deadline_msec
+
+
+	print(
+		"WorldMobRegistry | Respawn programado",
+		" | Entity: ",
+		mob.entity_id,
+		" | Delay: ",
+		delay_seconds,
+		" s"
+	)
+
+
+	_arm_next_respawn()
+
+
+	return true
+
+# =========================================================
+# ARMAR PRÓXIMO RESPAWN
+# =========================================================
+
+func _arm_next_respawn() -> void:
+	if respawn_timer == null:
+		return
+
+
+	if pending_respawn_deadlines_msec.is_empty():
+		respawn_timer.stop()
+
+
+		return
+
+
+	var nearest_deadline_msec: int = 0
+
+
+	for deadline_value: Variant in (
+		pending_respawn_deadlines_msec.values()
+	):
+		var deadline_msec := int(
+			deadline_value
+		)
+
+
+		if deadline_msec <= 0:
+			continue
+
+
+		if (
+			nearest_deadline_msec == 0
+			or
+			deadline_msec
+			<
+			nearest_deadline_msec
+		):
+			nearest_deadline_msec = (
+				deadline_msec
+			)
+
+
+	if nearest_deadline_msec <= 0:
+		respawn_timer.stop()
+
+
+		return
+
+
+	var remaining_msec := maxi(
+		nearest_deadline_msec
+		-
+		Time.get_ticks_msec(),
+		1
+	)
+
+
+	respawn_timer.start(
+		float(
+			remaining_msec
+		)
+		/
+		1000.0
+	)
+
+# =========================================================
+# EJECUTAR RESPAWNS VENCIDOS
+# =========================================================
+
+func _on_respawn_timer_timeout() -> void:
+	var now_msec := (
+		Time.get_ticks_msec()
+	)
+
+
+	var due_entity_ids: Array[String] = []
+
+
+	for entity_value: Variant in (
+		pending_respawn_deadlines_msec.keys()
+	):
+		var entity_id := String(
+			entity_value
+		)
+
+
+		var deadline_msec := int(
+			pending_respawn_deadlines_msec[
+				entity_id
+			]
+		)
+
+
+		if deadline_msec > now_msec:
+			continue
+
+
+		due_entity_ids.append(
+			entity_id
+		)
+
+
+	for entity_id: String in due_entity_ids:
+		pending_respawn_deadlines_msec.erase(
+			entity_id
+		)
+
+
+		var mob := get_mob(
+			entity_id
+		)
+
+
+		if mob == null:
+			continue
+
+
+		if mob.is_alive():
+			continue
+
+
+		if not mob.respawn_at_spawn():
+			push_warning(
+				(
+					"WorldMobRegistry | "
+					+
+					"No se pudo respawnear mob '%s'."
+				)
+				%
+				entity_id
+			)
+
+
+			continue
+
+
+		var mob_snapshot := (
+			mob.to_snapshot()
+		)
+
+
+		if mob_snapshot.is_empty():
+			push_warning(
+				(
+					"WorldMobRegistry | "
+					+
+					"Snapshot inválido tras respawn '%s'."
+				)
+				%
+				entity_id
+			)
+
+
+			continue
+
+
+		print(
+			"WorldMobRegistry | Respawn autoritativo confirmado",
+			" | Entity: ",
+			mob.entity_id,
+			" | Mapa: ",
+			mob.map_id,
+			" | Posición: ",
+			mob.position,
+			" | HP: ",
+			mob.vitals.hp,
+			"/",
+			mob.vitals.max_hp
+		)
+
+
+		mob_respawned.emit(
+			mob.entity_id,
+			mob.map_id,
+			mob_snapshot.duplicate(
+				true
+			)
+		)
+
+
+	_arm_next_respawn()
 
 # =========================================================
 # REGISTRAR DEFINICIÓN
@@ -345,6 +655,18 @@ func apply_damage_to_mob(
 			)
 		)
 
+		if not _schedule_mob_respawn(
+			mob
+		):
+			push_warning(
+				(
+					"WorldMobRegistry | "
+					+
+					"No se pudo programar respawn para '%s'."
+				)
+				%
+				mob.entity_id
+			)
 
 	return {
 		"applied_damage": (

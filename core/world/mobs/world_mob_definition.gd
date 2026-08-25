@@ -19,6 +19,7 @@ var level: int = 1
 
 var max_hp: int = 1
 
+var respawn_delay_seconds: float = 5.0
 
 # =========================================================
 # CREAR
@@ -28,7 +29,8 @@ static func create(
 	new_mob_type_id: String,
 	new_display_name: String,
 	new_level: int,
-	new_max_hp: int
+	new_max_hp: int,
+	new_respawn_delay_seconds: float = 5.0
 ) -> WorldMobDefinition:
 	var definition := WorldMobDefinition.new()
 
@@ -50,6 +52,9 @@ static func create(
 
 	definition.max_hp = new_max_hp
 
+	definition.respawn_delay_seconds = (
+		new_respawn_delay_seconds
+	)
 
 	return definition
 
@@ -74,5 +79,7 @@ func is_valid() -> bool:
 	if max_hp <= 0:
 		return false
 
+	if respawn_delay_seconds <= 0.0:
+		return false
 
 	return true
