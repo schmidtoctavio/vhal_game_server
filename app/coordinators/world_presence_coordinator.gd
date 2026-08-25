@@ -12,6 +12,8 @@ var world_session_registry: WorldSessionRegistry = null
 
 var world_mob_registry: WorldMobRegistry = null
 
+var world_drop_registry: WorldDropRegistry = null
+
 # =========================================================
 # ESTADO
 # =========================================================
@@ -26,7 +28,8 @@ var configured: bool = false
 func setup(
 	p_game_server: GameServer,
 	p_world_session_registry: WorldSessionRegistry,
-	p_world_mob_registry: WorldMobRegistry
+	p_world_mob_registry: WorldMobRegistry,
+	p_world_drop_registry: WorldDropRegistry
 ) -> bool:
 	if configured:
 		return true
@@ -43,12 +46,18 @@ func setup(
 	if p_world_mob_registry == null:
 		return false
 
+	if p_world_drop_registry == null:
+		return false
 
 	game_server = p_game_server
 
 	world_session_registry = p_world_session_registry
 
 	world_mob_registry = p_world_mob_registry
+	
+	world_drop_registry = (
+		p_world_drop_registry
+	)
 
 	if not world_mob_registry.mob_respawned.is_connected(
 		_on_mob_respawned
@@ -59,6 +68,12 @@ func setup(
 
 	configured = true
 
+	if not world_drop_registry.world_drop_spawned.is_connected(
+		_on_world_drop_spawned
+	):
+		world_drop_registry.world_drop_spawned.connect(
+			_on_world_drop_spawned
+		)
 
 	print(
 		"WorldPresenceCoordinator | Inicializado."
@@ -144,6 +159,42 @@ func prepare_presence(
 		)
 
 	# -----------------------------------------------------
+	# WORLD DROPS AUTORITATIVOS DEL MAPA
+	# -----------------------------------------------------
+
+	var drops_in_map := (
+		world_drop_registry.get_drops_in_map(
+			session.map_id
+		)
+	)
+
+
+	var world_drops: Array = []
+
+
+	for drop: WorldDropRuntimeState in drops_in_map:
+		if drop == null:
+			continue
+
+
+		if not drop.is_valid():
+			continue
+
+
+		var drop_snapshot := (
+			drop.to_snapshot()
+		)
+
+
+		if drop_snapshot.is_empty():
+			continue
+
+
+		world_drops.append(
+			drop_snapshot
+		)
+
+	# -----------------------------------------------------
 	# ROSTER INICIAL PARA EL NUEVO PLAYER
 	# -----------------------------------------------------
 
@@ -151,7 +202,8 @@ func prepare_presence(
 		game_server.send_world_presence_snapshot(
 			session.peer_id,
 			existing_players,
-			world_mobs
+			world_mobs,
+			world_drops
 		)
 	)
 
@@ -210,7 +262,9 @@ func prepare_presence(
 		" | Mobs: ",
 		world_mobs.size(),
 		" | Remotos existentes: ",
-		existing_players.size()
+		existing_players.size(),
+		" | Drops: ",
+		world_drops.size(),
 	)
 
 
@@ -367,6 +421,92 @@ func _on_mob_respawned(
 
 	print(
 		"WorldPresenceCoordinator | Respawn de mob replicado",
+		" | Entity: ",
+		normalized_entity_id,
+		" | Mapa: ",
+		normalized_map_id,
+		" | Recipients: ",
+		recipients
+	)
+
+# =========================================================
+# WORLD DROP SPAWNED
+# =========================================================
+
+func _on_world_drop_spawned(
+	entity_id: String,
+	map_id: String,
+	drop_snapshot: Dictionary
+) -> void:
+	if not configured:
+		return
+
+
+	var normalized_entity_id := (
+		entity_id
+		.strip_edges()
+		.to_lower()
+	)
+
+
+	var normalized_map_id := (
+		map_id.strip_edges()
+	)
+
+
+	if (
+		normalized_entity_id.is_empty()
+		or
+		normalized_map_id.is_empty()
+		or
+		drop_snapshot.is_empty()
+	):
+		return
+
+
+	var recipients := 0
+
+
+	for session: PlayerWorldSession in (
+		world_session_registry.get_sessions_in_map(
+			normalized_map_id
+		)
+	):
+		if session == null:
+			continue
+
+
+		var result := (
+			game_server.send_world_drop_spawned(
+				session.peer_id,
+				drop_snapshot
+			)
+		)
+
+
+		if result != OK:
+			push_warning(
+				(
+					"WorldPresenceCoordinator | "
+					+
+					"No se pudo replicar drop '%s'. Error: %d"
+				)
+				%
+				[
+					normalized_entity_id,
+					result,
+				]
+			)
+
+
+			continue
+
+
+		recipients += 1
+
+
+	print(
+		"WorldPresenceCoordinator | Drop de mundo replicado",
 		" | Entity: ",
 		normalized_entity_id,
 		" | Mapa: ",
