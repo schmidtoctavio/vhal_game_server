@@ -115,6 +115,14 @@ extends Node
 	$CharacterProgressionCoordinator
 )
 
+@onready var backend_character_runtime_state_repository: BackendCharacterRuntimeStateRepository = (
+	$BackendCharacterRuntimeStateRepository
+)
+
+@onready var character_runtime_state_coordinator: CharacterRuntimeStateCoordinator = (
+	$CharacterRuntimeStateCoordinator
+)
+
 # =========================================================
 # START
 # =========================================================
@@ -258,6 +266,28 @@ func _ready() -> void:
 
 		return
 
+	if backend_character_runtime_state_repository == null:
+		push_error(
+			"ServerMain | No existe BackendCharacterRuntimeStateRepository."
+		)
+
+		get_tree().quit(
+			34
+		)
+
+		return
+
+
+	if not backend_character_runtime_state_repository.is_configured():
+		push_error(
+			"ServerMain | BackendCharacterRuntimeStateRepository no configurado."
+		)
+
+		get_tree().quit(
+			34
+		)
+
+		return
 
 	if backend_character_equipment_repository == null:
 		push_error(
@@ -478,6 +508,32 @@ func _ready() -> void:
 
 		get_tree().quit(
 			4
+		)
+
+		return
+
+	if character_runtime_state_coordinator == null:
+		push_error(
+			"ServerMain | No existe CharacterRuntimeStateCoordinator."
+		)
+
+		get_tree().quit(
+			35
+		)
+
+		return
+
+
+	if not character_runtime_state_coordinator.setup(
+		world_session_registry,
+		backend_character_runtime_state_repository
+	):
+		push_error(
+			"ServerMain | No se pudo inicializar CharacterRuntimeStateCoordinator."
+		)
+
+		get_tree().quit(
+			35
 		)
 
 		return
@@ -1129,7 +1185,8 @@ func _ready() -> void:
 		backend_ticket_validator,
 		world_session_registry,
 		world_presence_coordinator,
-		character_item_state_coordinator
+		character_item_state_coordinator,
+		character_runtime_state_coordinator
 	):
 		push_error(
 			"ServerMain | No se pudo inicializar AuthenticationCoordinator."

@@ -16,6 +16,7 @@ var world_presence_coordinator: WorldPresenceCoordinator = null
 
 var character_item_state_coordinator: CharacterItemStateCoordinator = null
 
+var character_runtime_state_coordinator: CharacterRuntimeStateCoordinator = null
 
 # =========================================================
 # ESTADO
@@ -33,7 +34,8 @@ func setup(
 	p_backend_ticket_validator: BackendTicketValidator,
 	p_world_session_registry: WorldSessionRegistry,
 	p_world_presence_coordinator: WorldPresenceCoordinator,
-	p_character_item_state_coordinator: CharacterItemStateCoordinator
+	p_character_item_state_coordinator: CharacterItemStateCoordinator,
+	p_character_runtime_state_coordinator: CharacterRuntimeStateCoordinator
 ) -> bool:
 	if configured:
 		return true
@@ -62,6 +64,8 @@ func setup(
 	if p_character_item_state_coordinator == null:
 		return false
 
+	if p_character_runtime_state_coordinator == null:
+		return false
 
 	game_server = p_game_server
 
@@ -73,6 +77,9 @@ func setup(
 
 	character_item_state_coordinator = p_character_item_state_coordinator
 
+	character_runtime_state_coordinator = (
+		p_character_runtime_state_coordinator
+	)
 
 	_bind_signals()
 
@@ -376,6 +383,34 @@ func _on_client_disconnected(
 	if session == null:
 		return
 
+	var checkpoint_result := (
+		character_runtime_state_coordinator.checkpoint_session(
+			session,
+			"disconnect"
+		)
+	)
+
+
+	if checkpoint_result != OK:
+		push_warning(
+			(
+				"AuthenticationCoordinator | "
+				+
+				"No se pudo iniciar checkpoint runtime"
+				+
+				" | Peer: %d"
+				+
+				" | Character ID: %d"
+				+
+				" | Error: %d"
+			)
+			%
+			[
+				peer_id,
+				session.character_id,
+				checkpoint_result,
+			]
+		)
 
 	world_presence_coordinator.notify_presence_left(
 		session

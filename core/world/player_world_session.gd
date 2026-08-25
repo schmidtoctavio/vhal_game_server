@@ -855,6 +855,33 @@ func set_world_transform(
 
 	rotation_y = new_rotation_y
 
+# =========================================================
+# SNAPSHOT RUNTIME PERSISTENTE
+# =========================================================
+
+func to_persistent_runtime_state() -> Dictionary:
+	if vitals == null:
+		return {}
+
+
+	return {
+		"world": {
+			"map_id": map_id,
+
+			"position": {
+				"x": position.x,
+				"y": position.y,
+				"z": position.z,
+			},
+
+			"rotation_y": rotation_y,
+		},
+
+		"vitals": {
+			"hp": vitals.hp,
+			"mp": vitals.mp,
+		},
+	}
 
 # =========================================================
 # SNAPSHOT
