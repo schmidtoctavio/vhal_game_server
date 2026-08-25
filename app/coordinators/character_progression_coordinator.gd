@@ -12,6 +12,7 @@ var world_mob_registry: WorldMobRegistry = null
 
 var progression_repository: BackendCharacterProgressionRepository = null
 
+var game_server: GameServer = null
 
 # =========================================================
 # PENDING
@@ -30,6 +31,7 @@ var configured: bool = false
 # =========================================================
 
 func setup(
+	p_game_server: GameServer,
 	p_world_session_registry: WorldSessionRegistry,
 	p_world_mob_registry: WorldMobRegistry,
 	p_progression_repository: BackendCharacterProgressionRepository
@@ -39,6 +41,8 @@ func setup(
 
 
 	if (
+		p_game_server == null
+		or
 		p_world_session_registry == null
 		or
 		p_world_mob_registry == null
@@ -47,6 +51,7 @@ func setup(
 	):
 		return false
 
+	game_server = p_game_server
 
 	world_session_registry = (
 		p_world_session_registry
@@ -468,6 +473,48 @@ func _on_progression_persisted(
 
 		session.experience = experience
 
+		var experience_required := (
+			ServerCharacterProgressionRules
+			.get_experience_required(
+				level
+			)
+		)
+
+
+		var levels_gained := maxi(
+			level
+			-
+			previous_level,
+			0
+		)
+
+
+		var replication_result := (
+			game_server
+			.send_character_progression_updated(
+				peer_id,
+				character_id,
+				level,
+				experience,
+				experience_required,
+				reward,
+				levels_gained
+			)
+		)
+
+
+		if replication_result != OK:
+			push_warning(
+				(
+					"CharacterProgressionCoordinator | "
+					+
+					"No se pudo replicar Progression. "
+					+
+					"Error: %d"
+				)
+				%
+				replication_result
+			)
 
 	print(
 		"CharacterProgressionCoordinator | Progresión confirmada",

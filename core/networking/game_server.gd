@@ -239,6 +239,10 @@ const MESSAGE_WORLD_DROP_REMOVED: String = (
 	"world_drop_removed"
 )
 
+const MESSAGE_CHARACTER_PROGRESSION_UPDATED: String = (
+	"character_progression_updated"
+)
+
 # =========================================================
 # ESTADO
 # =========================================================
@@ -4067,6 +4071,108 @@ func send_world_drop_spawned(
 			"drop": drop_snapshot.duplicate(
 				true
 			),
+		},
+	}
+
+
+	var packet := (
+		JSON.stringify(
+			message
+		).to_utf8_buffer()
+	)
+
+
+	return scene_multiplayer.send_bytes(
+		packet,
+		peer_id,
+		MultiplayerPeer.TRANSFER_MODE_RELIABLE,
+		0
+	)
+
+# =========================================================
+# ENVIAR PROGRESIÓN AUTORITATIVA
+# =========================================================
+
+func send_character_progression_updated(
+	peer_id: int,
+	character_id: int,
+	level: int,
+	experience: int,
+	experience_required: int,
+	experience_gained: int,
+	levels_gained: int
+) -> Error:
+	if peer_id <= 1:
+		return ERR_INVALID_PARAMETER
+
+
+	if not authenticated_sessions.has(
+		peer_id
+	):
+		return ERR_DOES_NOT_EXIST
+
+
+	if character_id <= 0:
+		return ERR_INVALID_PARAMETER
+
+
+	if level <= 0:
+		return ERR_INVALID_PARAMETER
+
+
+	if experience < 0:
+		return ERR_INVALID_PARAMETER
+
+
+	if experience_required <= 0:
+		return ERR_INVALID_PARAMETER
+
+
+	if experience >= experience_required:
+		return ERR_INVALID_PARAMETER
+
+
+	if experience_gained <= 0:
+		return ERR_INVALID_PARAMETER
+
+
+	if levels_gained < 0:
+		return ERR_INVALID_PARAMETER
+
+
+	var scene_multiplayer := (
+		multiplayer
+		as SceneMultiplayer
+	)
+
+
+	if scene_multiplayer == null:
+		return ERR_UNAVAILABLE
+
+
+	var message := {
+		"version": NETWORK_PROTOCOL_VERSION,
+
+		"type": (
+			MESSAGE_CHARACTER_PROGRESSION_UPDATED
+		),
+
+		"data": {
+			"character_id": character_id,
+
+			"level": level,
+
+			"experience": experience,
+
+			"experience_required": (
+				experience_required
+			),
+
+			"experience_gained": (
+				experience_gained
+			),
+
+			"levels_gained": levels_gained,
 		},
 	}
 
