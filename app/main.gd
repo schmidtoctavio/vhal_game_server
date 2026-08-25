@@ -106,6 +106,15 @@ extends Node
 	$WorldDropPickupCoordinator
 )
 
+@onready var backend_character_progression_repository: BackendCharacterProgressionRepository = (
+	$BackendCharacterProgressionRepository
+)
+
+
+@onready var character_progression_coordinator: CharacterProgressionCoordinator = (
+	$CharacterProgressionCoordinator
+)
+
 # =========================================================
 # START
 # =========================================================
@@ -207,6 +216,43 @@ func _ready() -> void:
 
 		get_tree().quit(
 			9
+		)
+
+
+		return
+
+	if backend_character_progression_repository == null:
+		push_error(
+			(
+				"ServerMain | No existe "
+				+
+				"BackendCharacterProgressionRepository."
+			)
+		)
+
+
+		get_tree().quit(
+			32
+		)
+
+
+		return
+
+
+	if not backend_character_progression_repository.is_configured():
+		push_error(
+			(
+				"ServerMain | "
+				+
+				"BackendCharacterProgressionRepository "
+				+
+				"no configurado."
+			)
+		)
+
+
+		get_tree().quit(
+			32
 		)
 
 
@@ -803,6 +849,45 @@ func _ready() -> void:
 
 		get_tree().quit(
 			26
+		)
+
+
+		return
+
+	# =====================================================
+	# CHARACTER PROGRESSION
+	# =====================================================
+
+	if character_progression_coordinator == null:
+		push_error(
+			"ServerMain | No existe CharacterProgressionCoordinator."
+		)
+
+
+		get_tree().quit(
+			33
+		)
+
+
+		return
+
+
+	if not character_progression_coordinator.setup(
+		world_session_registry,
+		world_mob_registry,
+		backend_character_progression_repository
+	):
+		push_error(
+			(
+				"ServerMain | No se pudo inicializar "
+				+
+				"CharacterProgressionCoordinator."
+			)
+		)
+
+
+		get_tree().quit(
+			33
 		)
 
 

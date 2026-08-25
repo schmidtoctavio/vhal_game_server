@@ -24,6 +24,8 @@ var class_id: String = ""
 
 var level: int = 1
 
+var experience: int = 0
+
 # =========================================================
 # VITALES AUTORITATIVOS
 # =========================================================
@@ -530,6 +532,13 @@ func _init(
 		)
 	)
 
+	experience = int(
+		character_data.get(
+			"experience",
+			0
+		)
+	)
+
 	# -----------------------------------------------------
 	# RUNTIME AUTORITATIVO DEL PERSONAJE
 	# -----------------------------------------------------
@@ -569,6 +578,11 @@ func is_valid() -> bool:
 		character_id > 0
 		and
 		not character_name.is_empty()
+		and
+		ServerCharacterProgressionRules.is_state_valid(
+			level,
+			experience
+		)
 		and
 		not class_id.is_empty()
 		and
@@ -615,6 +629,19 @@ func to_snapshot() -> Dictionary:
 			"name": character_name,
 			"class_id": class_id,
 			"level": level,
+		},
+
+		"progression": {
+			"level": level,
+
+			"experience": experience,
+
+			"experience_required": (
+				ServerCharacterProgressionRules
+				.get_experience_required(
+					level
+				)
+			),
 		},
 
 		"vitals": vitals.to_snapshot(),

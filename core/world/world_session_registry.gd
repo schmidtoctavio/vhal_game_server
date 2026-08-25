@@ -100,7 +100,15 @@ func create_session(
 		"/",
 		session.vitals.max_mp,
 		" | Skills: ",
-		session.skill_runtime.get_learned_skill_ids()
+		session.skill_runtime.get_learned_skill_ids(),
+		" | Nivel: ",
+		session.level,
+		" | EXP: ",
+		session.experience,
+		"/",
+		ServerCharacterProgressionRules.get_experience_required(
+			session.level
+		),
 	)
 
 

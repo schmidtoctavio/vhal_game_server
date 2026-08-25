@@ -9,8 +9,10 @@
 [ext_resource type="Script" uid="uid://ci1ikv3knfmb0" path="res://core/backend/backend_item_transfer_repository.gd" id="6_i37im"]
 [ext_resource type="Script" uid="uid://b4l0mcb2inpp" path="res://core/world/movement/world_movement_system.gd" id="6_tnehs"]
 [ext_resource type="Script" uid="uid://dk0j3fhb7xwpg" path="res://core/world/npcs/world_npc_registry.gd" id="7_tppe5"]
+[ext_resource type="Script" uid="uid://pmsnsbkho1ye" path="res://core/backend/backend_character_progression_repository.gd" id="8_fggjv"]
 [ext_resource type="Script" uid="uid://bedirh2722dus" path="res://core/backend/backend_vault_repository.gd" id="8_o47ap"]
 [ext_resource type="Script" uid="uid://cmhauam2nd5yb" path="res://core/backend/backend_character_equipment_repository.gd" id="9_equipment"]
+[ext_resource type="Script" uid="uid://ddwh4hsgnvk48" path="res://app/coordinators/character_progression_coordinator.gd" id="10_gtjuo"]
 [ext_resource type="Script" uid="uid://dd3y0681dsjyn" path="res://app/coordinators/character_item_state_coordinator.gd" id="10_item_state"]
 [ext_resource type="Script" uid="uid://bcf8hxcjbtj3j" path="res://app/coordinators/equipment_coordinator.gd" id="11_equipment_coordinator"]
 [ext_resource type="Script" uid="uid://cy00q2lnokf0q" path="res://app/coordinators/inventory_coordinator.gd" id="12_inventory_coordinator"]
@@ -48,8 +50,14 @@ script = ExtResource("9_equipment")
 [node name="BackendItemTransferRepository" type="Node" parent="." unique_id=1114315393]
 script = ExtResource("6_i37im")
 
+[node name="BackendCharacterProgressionRepository" type="Node" parent="." unique_id=366720980]
+script = ExtResource("8_fggjv")
+
 [node name="CharacterItemStateCoordinator" type="Node" parent="." unique_id=413501555]
 script = ExtResource("10_item_state")
+
+[node name="CharacterProgressionCoordinator" type="Node" parent="." unique_id=1049233232]
+script = ExtResource("10_gtjuo")
 
 [node name="EquipmentCoordinator" type="Node" parent="." unique_id=157098489]
 script = ExtResource("11_equipment_coordinator")

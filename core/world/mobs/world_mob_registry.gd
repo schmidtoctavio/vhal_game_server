@@ -67,6 +67,7 @@ func initialize() -> Error:
 			"Training Goblin",
 			1,
 			5_000,
+			50,
 			3.0
 		)
 	)

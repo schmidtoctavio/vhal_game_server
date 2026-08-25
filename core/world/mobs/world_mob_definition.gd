@@ -19,6 +19,8 @@ var level: int = 1
 
 var max_hp: int = 1
 
+var experience_reward: int = 0
+
 var respawn_delay_seconds: float = 5.0
 
 # =========================================================
@@ -30,6 +32,7 @@ static func create(
 	new_display_name: String,
 	new_level: int,
 	new_max_hp: int,
+	new_experience_reward: int,
 	new_respawn_delay_seconds: float = 5.0
 ) -> WorldMobDefinition:
 	var definition := WorldMobDefinition.new()
@@ -51,6 +54,10 @@ static func create(
 	definition.level = new_level
 
 	definition.max_hp = new_max_hp
+
+	definition.experience_reward = (
+		new_experience_reward
+	)
 
 	definition.respawn_delay_seconds = (
 		new_respawn_delay_seconds
@@ -80,6 +87,9 @@ func is_valid() -> bool:
 		return false
 
 	if respawn_delay_seconds <= 0.0:
+		return false
+
+	if experience_reward < 0:
 		return false
 
 	return true
