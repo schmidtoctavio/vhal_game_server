@@ -48,7 +48,7 @@ func initialize() -> Error:
 			"training_goblin",
 			"Training Goblin",
 			1,
-			50_000
+			5_000
 		)
 	)
 
