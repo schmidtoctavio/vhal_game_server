@@ -93,6 +93,15 @@ extends Node
 	$WorldMobRegistry
 )
 
+@onready var world_drop_coordinator: WorldDropCoordinator = (
+	$WorldDropCoordinator
+)
+
+
+@onready var world_drop_registry: WorldDropRegistry = (
+	$WorldDropRegistry
+)
+
 # =========================================================
 # START
 # =========================================================
@@ -327,6 +336,32 @@ func _ready() -> void:
 
 		return
 
+	var mob_drop_catalog_contract_error := (
+		ServerMobDropCatalog.validate_contract()
+	)
+
+
+	if not mob_drop_catalog_contract_error.is_empty():
+		push_error(
+			(
+				"ServerMain | Mob Drop Catalog inválido: "
+				+
+				mob_drop_catalog_contract_error
+			)
+		)
+
+
+		get_tree().quit(
+			28
+		)
+
+
+		return
+
+
+	print(
+		"ServerMain | Mob Drop Catalog Contract validado."
+	)
 
 	print(
 		"ServerMain | Skill Catalog Contract validado."
@@ -764,6 +799,78 @@ func _ready() -> void:
 
 		get_tree().quit(
 			26
+		)
+
+
+		return
+
+	# =====================================================
+	# WORLD DROPS
+	# =====================================================
+
+	if world_drop_registry == null:
+		push_error(
+			"ServerMain | No existe WorldDropRegistry."
+		)
+
+
+		get_tree().quit(
+			29
+		)
+
+
+		return
+
+
+	var world_drop_registry_result := (
+		world_drop_registry.initialize()
+	)
+
+
+	if world_drop_registry_result != OK:
+		push_error(
+			(
+				"ServerMain | No se pudo inicializar "
+				+
+				"WorldDropRegistry. Error: %d"
+			)
+			%
+			world_drop_registry_result
+		)
+
+
+		get_tree().quit(
+			29
+		)
+
+
+		return
+
+	if world_drop_coordinator == null:
+		push_error(
+			"ServerMain | No existe WorldDropCoordinator."
+		)
+
+
+		get_tree().quit(
+			30
+		)
+
+
+		return
+
+
+	if not world_drop_coordinator.setup(
+		world_mob_registry,
+		world_drop_registry
+	):
+		push_error(
+			"ServerMain | No se pudo inicializar WorldDropCoordinator."
+		)
+
+
+		get_tree().quit(
+			30
 		)
 
 

@@ -23,6 +23,8 @@
 [ext_resource type="Script" uid="uid://cmi1h5d5q7pym" path="res://app/coordinators/authentication_coordinator.gd" id="18_authentication_coordinator"]
 [ext_resource type="Script" uid="uid://bysm6u42usta" path="res://app/coordinators/basic_attack_coordinator.gd" id="18_j6djv"]
 [ext_resource type="Script" uid="uid://biw3o53jd2vvc" path="res://core/world/mobs/world_mob_registry.gd" id="22_m3sc2"]
+[ext_resource type="Script" uid="uid://dk1r4smoh7clq" path="res://app/coordinators/world_drop_coordinator.gd" id="24_5bd50"]
+[ext_resource type="Script" uid="uid://bsy1a01fqswxd" path="res://core/world/drops/world_drop_registry.gd" id="25_jypu3"]
 
 [node name="ServerMain" type="Node" unique_id=1483147024]
 script = ExtResource("1_s58fy")
@@ -93,3 +95,9 @@ script = ExtResource("7_tppe5")
 
 [node name="WorldMobRegistry" type="Node" parent="." unique_id=1533026603]
 script = ExtResource("22_m3sc2")
+
+[node name="WorldDropCoordinator" type="Node" parent="." unique_id=1766472610]
+script = ExtResource("24_5bd50")
+
+[node name="WorldDropRegistry" type="Node" parent="." unique_id=1879346526]
+script = ExtResource("25_jypu3")
