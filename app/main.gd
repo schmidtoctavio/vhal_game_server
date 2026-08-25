@@ -102,6 +102,10 @@ extends Node
 	$WorldDropRegistry
 )
 
+@onready var world_drop_pickup_coordinator: WorldDropPickupCoordinator = (
+	$WorldDropPickupCoordinator
+)
+
 # =========================================================
 # START
 # =========================================================
@@ -873,6 +877,34 @@ func _ready() -> void:
 			30
 		)
 
+
+		return
+
+	if world_drop_pickup_coordinator == null:
+		push_error(
+			"ServerMain | No existe WorldDropPickupCoordinator."
+		)
+
+		get_tree().quit(
+			31
+		)
+
+		return
+
+
+	if not world_drop_pickup_coordinator.setup(
+		game_server,
+		world_session_registry,
+		world_drop_registry,
+		backend_character_inventory_repository
+	):
+		push_error(
+			"ServerMain | No se pudo inicializar WorldDropPickupCoordinator."
+		)
+
+		get_tree().quit(
+			31
+		)
 
 		return
 

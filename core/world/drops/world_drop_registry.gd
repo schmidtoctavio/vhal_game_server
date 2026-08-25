@@ -12,6 +12,10 @@ signal world_drop_spawned(
 	drop_snapshot: Dictionary
 )
 
+signal world_drop_removed(
+	entity_id: String,
+	map_id: String
+)
 
 # =========================================================
 # ESTADO
@@ -56,10 +60,18 @@ func spawn_drop(
 		next_drop_sequence
 	)
 
+	var persistent_item_uid := (
+		ServerPersistentItemUidGenerator.generate_uuid_v4()
+	)
+
+
+	if persistent_item_uid.is_empty():
+		return null
 
 	var drop := (
 		WorldDropRuntimeState.create(
 			entity_id,
+			persistent_item_uid,
 			item_id,
 			quantity,
 			map_id,
@@ -106,7 +118,9 @@ func spawn_drop(
 		" | Mapa: ",
 		drop.map_id,
 		" | Posición: ",
-		drop.position
+		drop.position,
+		" | Persistent UID: ",
+		drop.persistent_item_uid,
 	)
 
 
@@ -182,6 +196,45 @@ func get_drop(
 		as WorldDropRuntimeState
 	)
 
+# =========================================================
+# CONSUMIR DROP
+# =========================================================
+
+func consume_drop(
+	entity_id: String
+) -> WorldDropRuntimeState:
+	var drop := get_drop(
+		entity_id
+	)
+
+
+	if drop == null:
+		return null
+
+
+	drops_by_entity_id.erase(
+		drop.entity_id
+	)
+
+
+	print(
+		"WorldDropRegistry | Drop consumido",
+		" | Entity: ",
+		drop.entity_id,
+		" | Item: ",
+		drop.item_id,
+		" | Quantity: ",
+		drop.quantity
+	)
+
+
+	world_drop_removed.emit(
+		drop.entity_id,
+		drop.map_id
+	)
+
+
+	return drop
 
 # =========================================================
 # DROPS DE MAPA

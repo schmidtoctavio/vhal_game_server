@@ -106,6 +106,12 @@ signal client_equipment_unequip_requested(
 	new_position: Vector2i
 )
 
+signal client_world_drop_pickup_requested(
+	peer_id: int,
+	request_id: int,
+	entity_id: String
+)
+
 # =========================================================
 # CONFIGURACIÓN
 # =========================================================
@@ -219,6 +225,18 @@ const MESSAGE_MOB_STATE_UPDATED: String = (
 
 const MESSAGE_WORLD_DROP_SPAWNED: String = (
 	"world_drop_spawned"
+)
+
+const MESSAGE_WORLD_DROP_PICKUP_REQUEST: String = (
+	"world_drop_pickup_request"
+)
+
+const MESSAGE_WORLD_DROP_PICKUP_RESULT: String = (
+	"world_drop_pickup_result"
+)
+
+const MESSAGE_WORLD_DROP_REMOVED: String = (
+	"world_drop_removed"
 )
 
 # =========================================================
@@ -1454,6 +1472,182 @@ func _on_peer_packet(
 
 
 		return
+
+	if message_type == MESSAGE_WORLD_DROP_PICKUP_REQUEST:
+		_process_world_drop_pickup_request(
+			peer_id,
+			message
+		)
+
+
+		return
+
+func _process_world_drop_pickup_request(
+	peer_id: int,
+	message: Dictionary
+) -> void:
+	var data_value: Variant = message.get(
+		"data",
+		null
+	)
+
+
+	if typeof(data_value) != TYPE_DICTIONARY:
+		reject_authenticated_peer(
+			peer_id,
+			"Pickup sin datos válidos."
+		)
+
+
+		return
+
+
+	var data: Dictionary = data_value
+
+
+	var request_id := int(
+		data.get(
+			"request_id",
+			0
+		)
+	)
+
+
+	if request_id <= 0:
+		reject_authenticated_peer(
+			peer_id,
+			"Pickup sin Request ID válido."
+		)
+
+
+		return
+
+
+	var entity_id_value: Variant = data.get(
+		"entity_id",
+		null
+	)
+
+
+	if typeof(entity_id_value) != TYPE_STRING:
+		reject_authenticated_peer(
+			peer_id,
+			"Pickup sin Entity ID válido."
+		)
+
+
+		return
+
+
+	var entity_id := String(
+		entity_id_value
+	).strip_edges().to_lower()
+
+
+	if (
+		entity_id.is_empty()
+		or
+		entity_id.length() > 96
+	):
+		reject_authenticated_peer(
+			peer_id,
+			"Pickup con Entity ID inválido."
+		)
+
+
+		return
+
+
+	client_world_drop_pickup_requested.emit(
+		peer_id,
+		request_id,
+		entity_id
+	)
+
+func send_world_drop_pickup_result(
+	peer_id: int,
+	request_id: int,
+	entity_id: String,
+	accepted: bool,
+	reason: String
+) -> Error:
+	if (
+		peer_id <= 1
+		or
+		request_id <= 0
+	):
+		return ERR_INVALID_PARAMETER
+
+
+	if not authenticated_sessions.has(
+		peer_id
+	):
+		return ERR_DOES_NOT_EXIST
+
+
+	var message := {
+		"version": NETWORK_PROTOCOL_VERSION,
+
+		"type": MESSAGE_WORLD_DROP_PICKUP_RESULT,
+
+		"data": {
+			"request_id": request_id,
+
+			"entity_id": entity_id,
+
+			"accepted": accepted,
+
+			"reason": reason,
+		},
+	}
+
+
+	return (
+		multiplayer as SceneMultiplayer
+	).send_bytes(
+		JSON.stringify(
+			message
+		).to_utf8_buffer(),
+		peer_id,
+		MultiplayerPeer.TRANSFER_MODE_RELIABLE,
+		0
+	)
+
+func send_world_drop_removed(
+	peer_id: int,
+	entity_id: String
+) -> Error:
+	if peer_id <= 1:
+		return ERR_INVALID_PARAMETER
+
+
+	if not authenticated_sessions.has(
+		peer_id
+	):
+		return ERR_DOES_NOT_EXIST
+
+
+	var message := {
+		"version": NETWORK_PROTOCOL_VERSION,
+
+		"type": MESSAGE_WORLD_DROP_REMOVED,
+
+		"data": {
+			"entity_id": entity_id,
+		},
+	}
+
+
+	return (
+		multiplayer as SceneMultiplayer
+	).send_bytes(
+		JSON.stringify(
+			message
+		).to_utf8_buffer(),
+		peer_id,
+		MultiplayerPeer.TRANSFER_MODE_RELIABLE,
+		0
+	)
 
 # =========================================================
 # MOVE REQUEST

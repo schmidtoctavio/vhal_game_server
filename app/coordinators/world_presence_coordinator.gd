@@ -75,6 +75,13 @@ func setup(
 			_on_world_drop_spawned
 		)
 
+	if not world_drop_registry.world_drop_removed.is_connected(
+		_on_world_drop_removed
+	):
+		world_drop_registry.world_drop_removed.connect(
+			_on_world_drop_removed
+		)
+
 	print(
 		"WorldPresenceCoordinator | Inicializado."
 	)
@@ -511,6 +518,47 @@ func _on_world_drop_spawned(
 		normalized_entity_id,
 		" | Mapa: ",
 		normalized_map_id,
+		" | Recipients: ",
+		recipients
+	)
+
+func _on_world_drop_removed(
+	entity_id: String,
+	map_id: String
+) -> void:
+	var recipients := 0
+
+
+	for session: PlayerWorldSession in (
+		world_session_registry.get_sessions_in_map(
+			map_id
+		)
+	):
+		if session == null:
+			continue
+
+
+		var result := (
+			game_server.send_world_drop_removed(
+				session.peer_id,
+				entity_id
+			)
+		)
+
+
+		if result != OK:
+			continue
+
+
+		recipients += 1
+
+
+	print(
+		"WorldPresenceCoordinator | Drop removido replicado",
+		" | Entity: ",
+		entity_id,
+		" | Mapa: ",
+		map_id,
 		" | Recipients: ",
 		recipients
 	)

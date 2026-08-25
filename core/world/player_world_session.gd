@@ -12,6 +12,7 @@ var account_id: int = -1
 
 var character_id: int = -1
 
+var latest_world_drop_pickup_request_id: int = 0
 
 # =========================================================
 # PERSONAJE
@@ -658,3 +659,19 @@ func to_presence_snapshot() -> Dictionary:
 			"rotation_y": rotation_y,
 		},
 	}
+
+func accept_world_drop_pickup_request_id(
+	request_id: int
+) -> bool:
+	if request_id <= 0:
+		return false
+
+
+	if request_id <= latest_world_drop_pickup_request_id:
+		return false
+
+
+	latest_world_drop_pickup_request_id = request_id
+
+
+	return true

@@ -38,6 +38,25 @@ signal inventory_item_move_failed(
 	message: String
 )
 
+signal inventory_item_granted(
+	peer_id: int,
+	account_id: int,
+	character_id: int,
+	uid: String,
+	item: Dictionary,
+	idempotent: bool
+)
+
+
+signal inventory_item_grant_failed(
+	peer_id: int,
+	account_id: int,
+	character_id: int,
+	uid: String,
+	response_code: int,
+	message: String
+)
+
 # =========================================================
 # CONFIGURACIÓN
 # =========================================================
@@ -458,6 +477,406 @@ func _get_inventory_url(
 		"/inventory"
 	)
 
+func _get_inventory_items_url(
+	account_id: int,
+	character_id: int
+) -> String:
+	return (
+		_get_inventory_url(
+			account_id,
+			character_id
+		)
+		+
+		"/items"
+	)
+
+# =========================================================
+# GRANT ITEM A INVENTORY
+# =========================================================
+
+func grant_inventory_item(
+	peer_id: int,
+	account_id: int,
+	character_id: int,
+	uid: String,
+	item_id: String,
+	quantity: int,
+	grid_position: Vector2i
+) -> Error:
+	if peer_id <= 1:
+		return ERR_INVALID_PARAMETER
+
+
+	if (
+		account_id <= 0
+		or
+		character_id <= 0
+	):
+		return ERR_INVALID_PARAMETER
+
+
+	var normalized_uid := (
+		uid.strip_edges().to_lower()
+	)
+
+
+	var normalized_item_id := (
+		item_id
+		.strip_edges()
+		.to_lower()
+	)
+
+
+	if not ServerPersistentItemUidGenerator.is_valid_uuid(
+		normalized_uid
+	):
+		return ERR_INVALID_PARAMETER
+
+
+	if normalized_item_id.is_empty():
+		return ERR_INVALID_PARAMETER
+
+
+	if quantity <= 0:
+		return ERR_INVALID_PARAMETER
+
+
+	if (
+		grid_position.x < 0
+		or
+		grid_position.x >= 8
+		or
+		grid_position.y < 0
+		or
+		grid_position.y >= 8
+	):
+		return ERR_INVALID_PARAMETER
+
+
+	if not is_configured():
+		return ERR_UNAVAILABLE
+
+
+	if pending_peers.has(
+		peer_id
+	):
+		return ERR_BUSY
+
+
+	var http_request := HTTPRequest.new()
+
+
+	add_child(
+		http_request
+	)
+
+
+	pending_peers[
+		peer_id
+	] = true
+
+
+	http_request.request_completed.connect(
+		_on_grant_request_completed.bind(
+			http_request,
+			peer_id,
+			account_id,
+			character_id,
+			normalized_uid,
+			normalized_item_id,
+			quantity,
+			grid_position
+		)
+	)
+
+
+	var headers := PackedStringArray([
+		"Accept: application/json",
+		"Content-Type: application/json",
+		(
+			"X-VHAL-Game-Server-Key: "
+			+
+			internal_key
+		),
+	])
+
+
+	var request_body := JSON.stringify({
+		"uid": normalized_uid,
+
+		"item_id": normalized_item_id,
+
+		"quantity": quantity,
+
+		"grid_position": {
+			"x": grid_position.x,
+			"y": grid_position.y,
+		},
+	})
+
+
+	var request_error := http_request.request(
+		_get_inventory_items_url(
+			account_id,
+			character_id
+		),
+		headers,
+		HTTPClient.METHOD_POST,
+		request_body
+	)
+
+
+	if request_error != OK:
+		pending_peers.erase(
+			peer_id
+		)
+
+		http_request.queue_free()
+
+
+		return request_error
+
+
+	return OK
+
+func _on_grant_request_completed(
+	result: int,
+	response_code: int,
+	_headers: PackedStringArray,
+	body: PackedByteArray,
+	http_request: HTTPRequest,
+	peer_id: int,
+	requested_account_id: int,
+	requested_character_id: int,
+	requested_uid: String,
+	requested_item_id: String,
+	requested_quantity: int,
+	requested_position: Vector2i
+) -> void:
+	pending_peers.erase(
+		peer_id
+	)
+
+
+	if is_instance_valid(
+		http_request
+	):
+		http_request.queue_free()
+
+
+	if result != HTTPRequest.RESULT_SUCCESS:
+		inventory_item_grant_failed.emit(
+			peer_id,
+			requested_account_id,
+			requested_character_id,
+			requested_uid,
+			response_code,
+			"Laravel no respondió correctamente."
+		)
+
+
+		return
+
+
+	var parsed: Variant = JSON.parse_string(
+		body.get_string_from_utf8()
+	)
+
+
+	if typeof(parsed) != TYPE_DICTIONARY:
+		inventory_item_grant_failed.emit(
+			peer_id,
+			requested_account_id,
+			requested_character_id,
+			requested_uid,
+			response_code,
+			"Respuesta inválida del backend."
+		)
+
+
+		return
+
+
+	var response: Dictionary = parsed
+
+
+	if (
+		(
+			response_code != 200
+			and
+			response_code != 201
+		)
+		or
+		not bool(
+			response.get(
+				"ok",
+				false
+			)
+		)
+	):
+		inventory_item_grant_failed.emit(
+			peer_id,
+			requested_account_id,
+			requested_character_id,
+			requested_uid,
+			response_code,
+			String(
+				response.get(
+					"message",
+					"No se pudo persistir el item."
+				)
+			)
+		)
+
+
+		return
+
+
+	var data_value: Variant = response.get(
+		"data",
+		null
+	)
+
+
+	if typeof(data_value) != TYPE_DICTIONARY:
+		inventory_item_grant_failed.emit(
+			peer_id,
+			requested_account_id,
+			requested_character_id,
+			requested_uid,
+			response_code,
+			"Respuesta sin datos de Inventory."
+		)
+
+
+		return
+
+
+	var data: Dictionary = data_value
+
+
+	if (
+		int(data.get("account_id", 0))
+		!=
+		requested_account_id
+		or
+		int(data.get("character_id", 0))
+		!=
+		requested_character_id
+		or
+		String(data.get("container", ""))
+		!=
+		"inventory"
+	):
+		inventory_item_grant_failed.emit(
+			peer_id,
+			requested_account_id,
+			requested_character_id,
+			requested_uid,
+			response_code,
+			"Identidad de Inventory devuelta inválida."
+		)
+
+
+		return
+
+
+	var item_value: Variant = data.get(
+		"item",
+		null
+	)
+
+
+	if typeof(item_value) != TYPE_DICTIONARY:
+		inventory_item_grant_failed.emit(
+			peer_id,
+			requested_account_id,
+			requested_character_id,
+			requested_uid,
+			response_code,
+			"Respuesta sin item persistido."
+		)
+
+
+		return
+
+
+	var item: Dictionary = item_value
+
+	var position_value: Variant = item.get(
+		"grid_position",
+		null
+	)
+
+
+	if typeof(position_value) != TYPE_DICTIONARY:
+		inventory_item_grant_failed.emit(
+			peer_id,
+			requested_account_id,
+			requested_character_id,
+			requested_uid,
+			response_code,
+			"Item persistido sin posición."
+		)
+
+
+		return
+
+
+	var returned_position: Dictionary = (
+		position_value
+	)
+
+
+	if (
+		String(item.get("uid", "")).to_lower()
+		!=
+		requested_uid
+		or
+		String(item.get("item_id", "")).to_lower()
+		!=
+		requested_item_id
+		or
+		int(item.get("quantity", 0))
+		!=
+		requested_quantity
+		or
+		int(returned_position.get("x", -1))
+		!=
+		requested_position.x
+		or
+		int(returned_position.get("y", -1))
+		!=
+		requested_position.y
+	):
+		inventory_item_grant_failed.emit(
+			peer_id,
+			requested_account_id,
+			requested_character_id,
+			requested_uid,
+			response_code,
+			"El backend confirmó otro estado de item."
+		)
+
+
+		return
+
+
+	inventory_item_granted.emit(
+		peer_id,
+		requested_account_id,
+		requested_character_id,
+		requested_uid,
+		item.duplicate(
+			true
+		),
+		bool(
+			data.get(
+				"idempotent",
+				false
+			)
+		)
+	)
 
 # =========================================================
 # MOVER ITEM DENTRO DE INVENTORY

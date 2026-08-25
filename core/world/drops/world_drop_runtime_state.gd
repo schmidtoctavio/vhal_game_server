@@ -8,6 +8,8 @@ extends RefCounted
 
 var entity_id: String = ""
 
+var persistent_item_uid: String = ""
+
 var item_id: String = ""
 
 var quantity: int = 0
@@ -28,6 +30,7 @@ var position: Vector3 = Vector3.ZERO
 
 static func create(
 	new_entity_id: String,
+	new_persistent_item_uid: String,
 	new_item_id: String,
 	new_quantity: int,
 	new_map_id: String,
@@ -39,6 +42,11 @@ static func create(
 		.to_lower()
 	)
 
+	var normalized_persistent_item_uid := (
+		new_persistent_item_uid
+		.strip_edges()
+		.to_lower()
+	)
 
 	var normalized_item_id := (
 		new_item_id
@@ -55,6 +63,10 @@ static func create(
 	if normalized_entity_id.is_empty():
 		return null
 
+	if not ServerPersistentItemUidGenerator.is_valid_uuid(
+		normalized_persistent_item_uid
+	):
+		return null
 
 	if normalized_item_id.is_empty():
 		return null
@@ -106,6 +118,10 @@ static func create(
 
 	state.entity_id = normalized_entity_id
 
+	state.persistent_item_uid = (
+		normalized_persistent_item_uid
+	)
+
 	state.item_id = normalized_item_id
 
 	state.quantity = new_quantity
@@ -126,6 +142,10 @@ func is_valid() -> bool:
 	if entity_id.is_empty():
 		return false
 
+	if not ServerPersistentItemUidGenerator.is_valid_uuid(
+		persistent_item_uid
+	):
+		return false
 
 	if item_id.is_empty():
 		return false
