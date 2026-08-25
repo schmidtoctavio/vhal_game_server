@@ -51,3 +51,10 @@ static func create_skill_runtime() -> ServerSkillRuntimeState:
 
 
 	return skill_runtime
+
+# =========================================================
+# BASIC ATTACK RUNTIME
+# =========================================================
+
+static func create_basic_attack_runtime() -> ServerBasicAttackRuntimeState:
+	return ServerBasicAttackRuntimeState.new()

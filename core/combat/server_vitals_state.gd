@@ -114,6 +114,26 @@ func restore_hp(
 		previous_hp
 	)
 
+func apply_damage(
+	amount: int
+) -> int:
+	if amount <= 0:
+		return 0
+
+
+	var previous_hp := hp
+
+
+	set_hp(
+		hp - amount
+	)
+
+
+	return (
+		previous_hp
+		-
+		hp
+	)
 
 # =========================================================
 # MP

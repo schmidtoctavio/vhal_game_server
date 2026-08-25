@@ -85,6 +85,10 @@ func _on_client_basic_attack_requested(
 		return
 
 
+	# -----------------------------------------------------
+	# REQUEST ID
+	# -----------------------------------------------------
+
 	if not session.accept_basic_attack_request_id(
 		request_id
 	):
@@ -94,16 +98,16 @@ func _on_client_basic_attack_requested(
 			false,
 			"stale_request",
 			target,
-			{
-				"mode": "unarmed",
-				"weapon_item_id": "",
-				"weapon_uid": "",
-			}
+			_default_profile()
 		)
 
 
 		return
 
+
+	# -----------------------------------------------------
+	# CASTER VIVO
+	# -----------------------------------------------------
 
 	if session.vitals.hp <= 0:
 		_send_result(
@@ -112,16 +116,16 @@ func _on_client_basic_attack_requested(
 			false,
 			"character_not_alive",
 			target,
-			{
-				"mode": "unarmed",
-				"weapon_item_id": "",
-				"weapon_uid": "",
-			}
+			_default_profile()
 		)
 
 
 		return
 
+
+	# -----------------------------------------------------
+	# TARGET
+	# -----------------------------------------------------
 
 	var entity_id := String(
 		target.get(
@@ -180,6 +184,10 @@ func _on_client_basic_attack_requested(
 		return
 
 
+	# -----------------------------------------------------
+	# PERFIL AUTORITATIVO
+	# -----------------------------------------------------
+
 	var attack_profile := (
 		ServerBasicAttackProfileResolver.resolve(
 			session.get_equipment_snapshot()
@@ -201,8 +209,217 @@ func _on_client_basic_attack_requested(
 		return
 
 
+	var base_damage := int(
+		attack_profile.get(
+			"base_damage",
+			0
+		)
+	)
+
+
+	var attack_range := float(
+		attack_profile.get(
+			"attack_range",
+			0.0
+		)
+	)
+
+
+	var cooldown_duration_seconds := float(
+		attack_profile.get(
+			"cooldown_duration_seconds",
+			0.0
+		)
+	)
+
+
+	if (
+		base_damage <= 0
+		or
+		attack_range <= 0.0
+		or
+		cooldown_duration_seconds < 0.0
+	):
+		_send_result(
+			peer_id,
+			request_id,
+			false,
+			"invalid_attack_profile",
+			target,
+			attack_profile
+		)
+
+
+		return
+
+
+	# -----------------------------------------------------
+	# RANGO AUTORITATIVO
+	# -----------------------------------------------------
+
+	var attacker_position := Vector2(
+		session.position.x,
+		session.position.z
+	)
+
+
+	var target_position := Vector2(
+		mob.position.x,
+		mob.position.z
+	)
+
+
+	var distance := (
+		attacker_position.distance_to(
+			target_position
+		)
+	)
+
+
+	if distance > attack_range:
+		print(
+			"BasicAttackCoordinator | Fuera de rango",
+			" | Request: ",
+			request_id,
+			" | Entity: ",
+			mob.entity_id,
+			" | Distancia: ",
+			distance,
+			" | Rango: ",
+			attack_range
+		)
+
+
+		_send_result(
+			peer_id,
+			request_id,
+			false,
+			"out_of_range",
+			target,
+			attack_profile
+		)
+
+
+		return
+
+
+	# -----------------------------------------------------
+	# COOLDOWN AUTORITATIVO
+	# -----------------------------------------------------
+
+	if session.basic_attack_runtime == null:
+		_send_result(
+			peer_id,
+			request_id,
+			false,
+			"runtime_failure",
+			target,
+			attack_profile
+		)
+
+
+		return
+
+
+	var cooldown_remaining := (
+		session
+		.basic_attack_runtime
+		.get_cooldown_remaining_seconds()
+	)
+
+
+	if cooldown_remaining > 0.0:
+		print(
+			"BasicAttackCoordinator | Cooldown activo",
+			" | Request: ",
+			request_id,
+			" | Restante: ",
+			cooldown_remaining
+		)
+
+
+		_send_result(
+			peer_id,
+			request_id,
+			false,
+			"attack_cooldown_active",
+			target,
+			attack_profile
+		)
+
+
+		return
+
+
+	if not session.basic_attack_runtime.start_cooldown(
+		cooldown_duration_seconds
+	):
+		_send_result(
+			peer_id,
+			request_id,
+			false,
+			"runtime_failure",
+			target,
+			attack_profile
+		)
+
+
+		return
+
+
+	# -----------------------------------------------------
+	# DAMAGE AUTORITATIVO
+	# -----------------------------------------------------
+
+	var applied_damage := (
+		mob.apply_damage(
+			base_damage
+		)
+	)
+
+
+	if applied_damage <= 0:
+		session.basic_attack_runtime.reset()
+
+
+		_send_result(
+			peer_id,
+			request_id,
+			false,
+			"runtime_failure",
+			target,
+			attack_profile
+		)
+
+
+		return
+
+
+	# -----------------------------------------------------
+	# RESULTADO PARA EL ATACANTE
+	# -----------------------------------------------------
+
+	_send_result(
+		peer_id,
+		request_id,
+		true,
+		"ok",
+		target,
+		attack_profile
+	)
+
+
+	# -----------------------------------------------------
+	# REPLICAR NUEVO ESTADO DEL MOB
+	# -----------------------------------------------------
+
+	_broadcast_mob_state(
+		mob
+	)
+
+
 	print(
-		"BasicAttackCoordinator | Intent autoritativo validado",
+		"BasicAttackCoordinator | Ataque ejecutado",
 		" | Request: ",
 		request_id,
 		" | Peer: ",
@@ -211,39 +428,111 @@ func _on_client_basic_attack_requested(
 		session.character_name,
 		" | Entity: ",
 		mob.entity_id,
-		" | Mob HP: ",
+		" | Mode: ",
+		String(
+			attack_profile.get(
+				"mode",
+				""
+			)
+		),
+		" | Weapon: ",
+		String(
+			attack_profile.get(
+				"weapon_item_id",
+				""
+			)
+		),
+		" | Distancia: ",
+		distance,
+		" | Damage: ",
+		applied_damage,
+		" | HP restante: ",
 		mob.vitals.hp,
 		"/",
-		mob.vitals.max_hp,
-		" | Mode: ",
-		attack_profile["mode"],
-		" | Weapon: ",
-		attack_profile["weapon_item_id"]
+		mob.vitals.max_hp
 	)
 
 
-	# -----------------------------------------------------
-	# F17-D
-	#
-	# Target y perfil de ataque ya son autoritativos.
-	# El golpe/daño todavía no se ejecuta.
-	# -----------------------------------------------------
+func _broadcast_mob_state(
+	mob: WorldMobRuntimeState
+) -> void:
+	if mob == null:
+		return
 
-	_send_result(
-		peer_id,
-		request_id,
-		false,
-		"basic_attack_not_implemented",
-		target,
-		attack_profile
+
+	var snapshot := (
+		mob.to_snapshot()
+	)
+
+
+	if snapshot.is_empty():
+		return
+
+
+	var recipients := 0
+
+
+	for target_session: PlayerWorldSession in (
+		world_session_registry.get_sessions_in_map(
+			mob.map_id
+		)
+	):
+		if target_session == null:
+			continue
+
+
+		var result := (
+			game_server.send_mob_state_updated(
+				target_session.peer_id,
+				snapshot
+			)
+		)
+
+
+		if result != OK:
+			push_warning(
+				(
+					"BasicAttackCoordinator | "
+					+
+					"No se pudo replicar mob. Error: %d"
+				)
+				%
+				result
+			)
+
+
+			continue
+
+
+		recipients += 1
+
+
+	print(
+		"BasicAttackCoordinator | Estado de mob replicado",
+		" | Entity: ",
+		mob.entity_id,
+		" | Recipients: ",
+		recipients,
+		" | HP: ",
+		mob.vitals.hp,
+		"/",
+		mob.vitals.max_hp
 	)
 
 
 func _default_profile() -> Dictionary:
 	return {
 		"mode": "unarmed",
+
 		"weapon_item_id": "",
+
 		"weapon_uid": "",
+
+		"base_damage": 0,
+
+		"attack_range": 0.0,
+
+		"cooldown_duration_seconds": 0.0,
 	}
 
 

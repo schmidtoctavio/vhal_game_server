@@ -213,6 +213,10 @@ const MESSAGE_EQUIPMENT_UNEQUIP_REQUEST: String = (
 	"equipment_unequip_request"
 )
 
+const MESSAGE_MOB_STATE_UPDATED: String = (
+	"mob_state_updated"
+)
+
 # =========================================================
 # ESTADO
 # =========================================================
@@ -3755,6 +3759,65 @@ func send_basic_attack_result(
 		JSON.stringify(
 			message
 		).to_utf8_buffer(),
+		peer_id,
+		MultiplayerPeer.TRANSFER_MODE_RELIABLE,
+		0
+	)
+
+# =========================================================
+# ENVIAR ESTADO ACTUALIZADO DE MOB
+# =========================================================
+
+func send_mob_state_updated(
+	peer_id: int,
+	mob_snapshot: Dictionary
+) -> Error:
+	if peer_id <= 1:
+		return ERR_INVALID_PARAMETER
+
+
+	if not authenticated_sessions.has(
+		peer_id
+	):
+		return ERR_DOES_NOT_EXIST
+
+
+	if mob_snapshot.is_empty():
+		return ERR_INVALID_DATA
+
+
+	var scene_multiplayer := (
+		multiplayer
+		as SceneMultiplayer
+	)
+
+
+	if scene_multiplayer == null:
+		return ERR_UNAVAILABLE
+
+
+	var message := {
+		"version": NETWORK_PROTOCOL_VERSION,
+
+		"type": MESSAGE_MOB_STATE_UPDATED,
+
+		"data": {
+			"mob": mob_snapshot.duplicate(
+				true
+			),
+		},
+	}
+
+
+	var packet := (
+		JSON.stringify(
+			message
+		).to_utf8_buffer()
+	)
+
+
+	return scene_multiplayer.send_bytes(
+		packet,
 		peer_id,
 		MultiplayerPeer.TRANSFER_MODE_RELIABLE,
 		0

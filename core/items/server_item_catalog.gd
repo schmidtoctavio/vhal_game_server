@@ -31,6 +31,12 @@ const DEFINITIONS: Dictionary = {
 		"hand_equip_mode_id": "one_hand",
 
 		"basic_attack_mode_id": "melee",
+
+		"basic_attack_base_damage": 1000,
+
+		"basic_attack_range": 2.0,
+
+		"basic_attack_cooldown_seconds": 0.9,
 	},
 
 	"health_potion": {

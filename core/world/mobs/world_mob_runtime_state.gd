@@ -142,6 +142,24 @@ func is_alive() -> bool:
 		vitals.hp > 0
 	)
 
+func apply_damage(
+	amount: int
+) -> int:
+	if amount <= 0:
+		return 0
+
+
+	if not is_alive():
+		return 0
+
+
+	if vitals == null:
+		return 0
+
+
+	return vitals.apply_damage(
+		amount
+	)
 
 # =========================================================
 # TRANSFORM

@@ -9,6 +9,17 @@ const MODE_MELEE: String = "melee"
 const MODE_RANGED: String = "ranged"
 
 
+# =========================================================
+# FOUNDATION TEMPORAL — UNARMED
+# =========================================================
+
+const UNARMED_BASE_DAMAGE: int = 500
+
+const UNARMED_ATTACK_RANGE: float = 1.5
+
+const UNARMED_COOLDOWN_SECONDS: float = 1.0
+
+
 static func resolve(
 	equipment_snapshot: Dictionary
 ) -> Dictionary:
@@ -84,6 +95,18 @@ static func resolve(
 			"weapon_item_id": "",
 
 			"weapon_uid": "",
+
+			"base_damage": (
+				UNARMED_BASE_DAMAGE
+			),
+
+			"attack_range": (
+				UNARMED_ATTACK_RANGE
+			),
+
+			"cooldown_duration_seconds": (
+				UNARMED_COOLDOWN_SECONDS
+			),
 		}
 
 
@@ -151,10 +174,54 @@ static func resolve(
 		return {}
 
 
+	var base_damage := int(
+		definition.get(
+			"basic_attack_base_damage",
+			0
+		)
+	)
+
+
+	var attack_range := float(
+		definition.get(
+			"basic_attack_range",
+			0.0
+		)
+	)
+
+
+	var cooldown_duration_seconds := float(
+		definition.get(
+			"basic_attack_cooldown_seconds",
+			0.0
+		)
+	)
+
+
+	if base_damage <= 0:
+		return {}
+
+
+	if attack_range <= 0.0:
+		return {}
+
+
+	if cooldown_duration_seconds < 0.0:
+		return {}
+
+
 	return {
 		"mode": mode,
 
 		"weapon_item_id": item_id,
 
 		"weapon_uid": uid,
+
+		"base_damage": base_damage,
+
+		"attack_range": attack_range,
+
+		"cooldown_duration_seconds": (
+			cooldown_duration_seconds
+		),
 	}

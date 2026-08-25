@@ -36,6 +36,8 @@ var vitals: ServerVitalsState = null
 
 var skill_runtime: ServerSkillRuntimeState = null
 
+var basic_attack_runtime: ServerBasicAttackRuntimeState = null
+
 var latest_skill_cast_request_id: int = 0
 
 var latest_basic_attack_request_id: int = 0
@@ -540,6 +542,9 @@ func _init(
 		ServerCharacterRuntimeBootstrap.create_skill_runtime()
 	)
 
+	basic_attack_runtime = (
+		ServerCharacterRuntimeBootstrap.create_basic_attack_runtime()
+	)
 
 	map_id = (
 		p_map_id.strip_edges()
@@ -575,6 +580,10 @@ func is_valid() -> bool:
 		skill_runtime != null
 		and
 		skill_runtime.is_valid()
+		and
+		basic_attack_runtime != null
+		and
+		basic_attack_runtime.is_valid()
 	)
 
 
