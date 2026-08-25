@@ -369,11 +369,73 @@ func _on_client_basic_attack_requested(
 
 	# -----------------------------------------------------
 	# DAMAGE AUTORITATIVO
+	#
+	# La mutación del mob pasa por WorldMobRegistry para
+	# centralizar la transición alive → dead.
 	# -----------------------------------------------------
 
-	var applied_damage := (
-		mob.apply_damage(
-			base_damage
+	var damage_result := (
+		world_mob_registry.apply_damage_to_mob(
+			mob.entity_id,
+			base_damage,
+			{
+				"kind": "player_basic_attack",
+
+				"peer_id": peer_id,
+
+				"character_id": (
+					session.character_id
+				),
+
+				"request_id": request_id,
+
+				"attack_mode": String(
+					attack_profile.get(
+						"mode",
+						""
+					)
+				),
+
+				"weapon_item_id": String(
+					attack_profile.get(
+						"weapon_item_id",
+						""
+					)
+				),
+			}
+		)
+	)
+
+
+	if damage_result.is_empty():
+		session.basic_attack_runtime.reset()
+
+
+		_send_result(
+			peer_id,
+			request_id,
+			false,
+			"runtime_failure",
+			target,
+			attack_profile
+		)
+
+
+		return
+
+
+	var applied_damage := int(
+		damage_result.get(
+			"applied_damage",
+			0
+		)
+	)
+
+
+	var target_died := bool(
+		damage_result.get(
+			"died",
+			false
 		)
 	)
 
@@ -449,7 +511,9 @@ func _on_client_basic_attack_requested(
 		" | HP restante: ",
 		mob.vitals.hp,
 		"/",
-		mob.vitals.max_hp
+		mob.vitals.max_hp,
+		" | Killed: ",
+		target_died
 	)
 
 

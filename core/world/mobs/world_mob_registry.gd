@@ -3,6 +3,17 @@ extends Node
 
 
 # =========================================================
+# SIGNALS
+# =========================================================
+
+signal mob_died(
+	entity_id: String,
+	map_id: String,
+	source: Dictionary,
+	mob_snapshot: Dictionary
+)
+
+# =========================================================
 # DEFINICIONES
 # =========================================================
 
@@ -227,6 +238,121 @@ func get_mob(
 		as WorldMobRuntimeState
 	)
 
+# =========================================================
+# DAMAGE AUTORITATIVO DE MOB
+# =========================================================
+
+func apply_damage_to_mob(
+	entity_id: String,
+	amount: int,
+	source: Dictionary
+) -> Dictionary:
+	if amount <= 0:
+		return {}
+
+
+	var mob := (
+		get_mob(
+			entity_id
+		)
+	)
+
+
+	if mob == null:
+		return {}
+
+
+	if not mob.is_alive():
+		return {
+			"applied_damage": 0,
+
+			"died": false,
+		}
+
+
+	var was_alive := (
+		mob.is_alive()
+	)
+
+
+	var applied_damage := (
+		mob.apply_damage(
+			amount
+		)
+	)
+
+
+	if applied_damage <= 0:
+		return {}
+
+
+	var died := (
+		was_alive
+		and
+		not mob.is_alive()
+	)
+
+
+	# -----------------------------------------------------
+	# TRANSICIÓN ALIVE → DEAD
+	#
+	# Este bloque sólo puede ocurrir una vez durante esta
+	# vida del mob porque, luego de llegar a HP 0,
+	# is_alive() será false.
+	# -----------------------------------------------------
+
+	if died:
+		var mob_snapshot := (
+			mob.to_snapshot()
+		)
+
+
+		var normalized_source := (
+			source.duplicate(
+				true
+			)
+		)
+
+
+		print(
+			"WorldMobRegistry | Muerte autoritativa confirmada",
+			" | Entity: ",
+			mob.entity_id,
+			" | Type: ",
+			mob.definition.mob_type_id,
+			" | Mapa: ",
+			mob.map_id,
+			" | Source: ",
+			String(
+				normalized_source.get(
+					"kind",
+					"unknown"
+				)
+			),
+			" | HP: ",
+			mob.vitals.hp,
+			"/",
+			mob.vitals.max_hp
+		)
+
+
+		mob_died.emit(
+			mob.entity_id,
+			mob.map_id,
+			normalized_source,
+			mob_snapshot.duplicate(
+				true
+			)
+		)
+
+
+	return {
+		"applied_damage": (
+			applied_damage
+		),
+
+		"died": died,
+	}
 
 # =========================================================
 # MOBS DE MAPA
