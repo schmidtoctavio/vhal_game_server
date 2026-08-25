@@ -27,6 +27,14 @@ var level: int = 1
 var experience: int = 0
 
 # =========================================================
+# RUNTIME DURABLE
+# =========================================================
+
+var runtime_revision: int = 0
+
+var runtime_bootstrap_valid: bool = true
+
+# =========================================================
 # VITALES AUTORITATIVOS
 # =========================================================
 
@@ -564,6 +572,237 @@ func _init(
 
 	rotation_y = p_rotation_y
 
+	_apply_persisted_runtime(
+		character_data
+	)
+
+# =========================================================
+# RESTAURAR RUNTIME DURABLE
+# =========================================================
+
+func _apply_persisted_runtime(
+	character_data: Dictionary
+) -> void:
+	var runtime_value: Variant = (
+		character_data.get(
+			"runtime",
+			null
+		)
+	)
+
+
+	# -----------------------------------------------------
+	# Sin checkpoint durable.
+	#
+	# Es un personaje nuevo o todavía nunca fue guardado.
+	#
+	# Conservamos:
+	# - mapa foundation
+	# - spawn foundation
+	# - Vitals foundation
+	# -----------------------------------------------------
+
+	if runtime_value == null:
+		runtime_revision = 0
+
+		return
+
+
+	if typeof(runtime_value) != TYPE_DICTIONARY:
+		runtime_bootstrap_valid = false
+
+		return
+
+
+	var runtime: Dictionary = (
+		runtime_value
+	)
+
+
+	var revision := int(
+		runtime.get(
+			"revision",
+			0
+		)
+	)
+
+
+	if revision <= 0:
+		runtime_bootstrap_valid = false
+
+		return
+
+
+	# =====================================================
+	# WORLD
+	# =====================================================
+
+	var world_value: Variant = (
+		runtime.get(
+			"world",
+			null
+		)
+	)
+
+
+	if typeof(world_value) != TYPE_DICTIONARY:
+		runtime_bootstrap_valid = false
+
+		return
+
+
+	var world: Dictionary = (
+		world_value
+	)
+
+
+	var persisted_map_id := String(
+		world.get(
+			"map_id",
+			""
+		)
+	).strip_edges()
+
+
+	if persisted_map_id.is_empty():
+		runtime_bootstrap_valid = false
+
+		return
+
+
+	var position_value: Variant = (
+		world.get(
+			"position",
+			null
+		)
+	)
+
+
+	if typeof(position_value) != TYPE_DICTIONARY:
+		runtime_bootstrap_valid = false
+
+		return
+
+
+	var persisted_position: Dictionary = (
+		position_value
+	)
+
+
+	var restored_position := Vector3(
+		float(
+			persisted_position.get(
+				"x",
+				0.0
+			)
+		),
+		float(
+			persisted_position.get(
+				"y",
+				0.0
+			)
+		),
+		float(
+			persisted_position.get(
+				"z",
+				0.0
+			)
+		)
+	)
+
+
+	var restored_rotation_y := float(
+		world.get(
+			"rotation_y",
+			0.0
+		)
+	)
+
+
+	# =====================================================
+	# VITALS
+	# =====================================================
+
+	var vitals_value: Variant = (
+		runtime.get(
+			"vitals",
+			null
+		)
+	)
+
+
+	if typeof(vitals_value) != TYPE_DICTIONARY:
+		runtime_bootstrap_valid = false
+
+		return
+
+
+	var persisted_vitals: Dictionary = (
+		vitals_value
+	)
+
+
+	var restored_hp := int(
+		persisted_vitals.get(
+			"hp",
+			-1
+		)
+	)
+
+
+	var restored_mp := int(
+		persisted_vitals.get(
+			"mp",
+			-1
+		)
+	)
+
+
+	if (
+		restored_hp < 0
+		or
+		restored_mp < 0
+	):
+		runtime_bootstrap_valid = false
+
+		return
+
+
+	if vitals == null:
+		runtime_bootstrap_valid = false
+
+		return
+
+
+	# -----------------------------------------------------
+	# Aplicar estado.
+	#
+	# set_hp / set_mp realizan clamp contra los máximos
+	# calculados actualmente por el Game Server.
+	#
+	# Eso es intencional:
+	#
+	# si en el futuro cambian stats/equipment/max vitals,
+	# un checkpoint viejo nunca podrá restaurar HP/MP por
+	# encima de los máximos actuales.
+	# -----------------------------------------------------
+
+	runtime_revision = revision
+
+	map_id = persisted_map_id
+
+	position = restored_position
+
+	rotation_y = restored_rotation_y
+
+
+	vitals.set_hp(
+		restored_hp
+	)
+
+	vitals.set_mp(
+		restored_mp
+	)
 
 # =========================================================
 # VALIDACIÓN
@@ -599,6 +838,8 @@ func is_valid() -> bool:
 		basic_attack_runtime != null
 		and
 		basic_attack_runtime.is_valid()
+		and
+		runtime_bootstrap_valid
 	)
 
 

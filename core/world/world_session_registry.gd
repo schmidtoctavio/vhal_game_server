@@ -109,6 +109,8 @@ func create_session(
 		ServerCharacterProgressionRules.get_experience_required(
 			session.level
 		),
+		" | Runtime revision: ",
+		session.runtime_revision,
 	)
 
 
