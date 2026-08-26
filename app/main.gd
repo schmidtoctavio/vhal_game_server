@@ -123,6 +123,10 @@ extends Node
 	$CharacterRuntimeStateCoordinator
 )
 
+@onready var backend_character_skill_learning_repository: BackendCharacterSkillLearningRepository = (
+	$BackendCharacterSkillLearningRepository
+)
+
 # =========================================================
 # START
 # =========================================================
@@ -286,6 +290,43 @@ func _ready() -> void:
 		get_tree().quit(
 			34
 		)
+
+		return
+
+	if backend_character_skill_learning_repository == null:
+		push_error(
+			(
+				"ServerMain | No existe "
+				+
+				"BackendCharacterSkillLearningRepository."
+			)
+		)
+
+
+		get_tree().quit(
+			37
+		)
+
+
+		return
+
+
+	if not backend_character_skill_learning_repository.is_configured():
+		push_error(
+			(
+				"ServerMain | "
+				+
+				"BackendCharacterSkillLearningRepository "
+				+
+				"no configurado."
+			)
+		)
+
+
+		get_tree().quit(
+			37
+		)
+
 
 		return
 

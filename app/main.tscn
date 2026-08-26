@@ -13,6 +13,7 @@
 [ext_resource type="Script" uid="uid://bedirh2722dus" path="res://core/backend/backend_vault_repository.gd" id="8_o47ap"]
 [ext_resource type="Script" uid="uid://cmhauam2nd5yb" path="res://core/backend/backend_character_equipment_repository.gd" id="9_equipment"]
 [ext_resource type="Script" uid="uid://blxhgwxdsxl3m" path="res://core/backend/backend_character_runtime_state_repository.gd" id="9_la0cc"]
+[ext_resource type="Script" uid="uid://bcadk6k6h0uxp" path="res://core/backend/backend_character_skill_learning_repository.gd" id="10_1r7p3"]
 [ext_resource type="Script" uid="uid://ddwh4hsgnvk48" path="res://app/coordinators/character_progression_coordinator.gd" id="10_gtjuo"]
 [ext_resource type="Script" uid="uid://dd3y0681dsjyn" path="res://app/coordinators/character_item_state_coordinator.gd" id="10_item_state"]
 [ext_resource type="Script" uid="uid://bcf8hxcjbtj3j" path="res://app/coordinators/equipment_coordinator.gd" id="11_equipment_coordinator"]
@@ -57,6 +58,9 @@ script = ExtResource("8_fggjv")
 
 [node name="BackendCharacterRuntimeStateRepository" type="Node" parent="." unique_id=1838142115]
 script = ExtResource("9_la0cc")
+
+[node name="BackendCharacterSkillLearningRepository" type="Node" parent="." unique_id=192265308]
+script = ExtResource("10_1r7p3")
 
 [node name="CharacterItemStateCoordinator" type="Node" parent="." unique_id=413501555]
 script = ExtResource("10_item_state")
