@@ -1,6 +1,21 @@
 class_name ServerItemCatalog
 extends RefCounted
 
+# =========================================================
+# IDS
+# =========================================================
+
+const SKILL_SCROLL_FIRE_BALL_ID: String = (
+	"skill_scroll_fire_ball"
+)
+
+const SKILL_SCROLL_POISON_ID: String = (
+	"skill_scroll_poison"
+)
+
+const SKILL_SCROLL_HEAL_ID: String = (
+	"skill_scroll_heal"
+)
 
 # =========================================================
 # DEFINICIONES AUTORITATIVAS
@@ -55,6 +70,36 @@ const DEFINITIONS: Dictionary = {
 		"max_stack": 1,
 
 		"equipment_category_id": "head",
+		"hand_equip_mode_id": "none",
+		"basic_attack_mode_id": "none",
+	},
+
+	SKILL_SCROLL_FIRE_BALL_ID: {
+		"grid_width": 1,
+		"grid_height": 2,
+		"max_stack": 1,
+
+		"equipment_category_id": "none",
+		"hand_equip_mode_id": "none",
+		"basic_attack_mode_id": "none",
+	},
+
+	SKILL_SCROLL_POISON_ID: {
+		"grid_width": 1,
+		"grid_height": 2,
+		"max_stack": 1,
+
+		"equipment_category_id": "none",
+		"hand_equip_mode_id": "none",
+		"basic_attack_mode_id": "none",
+	},
+
+	SKILL_SCROLL_HEAL_ID: {
+		"grid_width": 1,
+		"grid_height": 2,
+		"max_stack": 1,
+
+		"equipment_category_id": "none",
 		"hand_equip_mode_id": "none",
 		"basic_attack_mode_id": "none",
 	},

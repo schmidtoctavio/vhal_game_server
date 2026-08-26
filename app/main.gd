@@ -416,6 +416,30 @@ func _ready() -> void:
 
 		return
 
+	var skill_learning_catalog_contract_error := (
+		ServerSkillLearningCatalog.validate_contract()
+	)
+
+
+	if not skill_learning_catalog_contract_error.is_empty():
+		push_error(
+			(
+				"ServerMain | "
+				+
+				"Skill Learning Catalog Contract inválido: "
+				+
+				skill_learning_catalog_contract_error
+			)
+		)
+
+
+		get_tree().quit(
+			36
+		)
+
+
+		return
+
 	var mob_drop_catalog_contract_error := (
 		ServerMobDropCatalog.validate_contract()
 	)
@@ -447,6 +471,9 @@ func _ready() -> void:
 		"ServerMain | Skill Catalog Contract validado."
 	)
 
+	print(
+		"ServerMain | Skill Learning Catalog Contract validado."
+	)
 
 	print(
 		"ServerMain | Equipment Domain Contract validado."
