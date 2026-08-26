@@ -3,11 +3,9 @@ extends RefCounted
 
 
 # =========================================================
-# DEFAULTS TEMPORALES F16
+# DEFAULTS TEMPORALES DE VITALS
 #
-# Estos valores mantienen paridad con DebugPlayerStateFactory
-# del cliente.
-#
+# Estos valores todavía representan Foundation.
 # NO representan balance definitivo.
 # =========================================================
 
@@ -30,20 +28,25 @@ static func create_vitals() -> ServerVitalsState:
 # =========================================================
 # SKILLS
 #
-# Temporalmente todos los personajes reciben las tres
-# skills que ya existen en el cliente.
+# Desde F21 el ownership ya NO nace del catálogo completo.
 #
-# Más adelante la propiedad real de skills vendrá de
-# progresión/persistencia.
+# learned_skill_ids proviene del ownership durable del
+# personaje almacenado en Laravel/MySQL y transportado
+# mediante el game-session ticket.
+#
+# El Game Server sigue validando semánticamente cada ID
+# contra ServerSkillCatalog.
 # =========================================================
 
-static func create_skill_runtime() -> ServerSkillRuntimeState:
+static func create_skill_runtime(
+	learned_skill_ids: PackedStringArray = PackedStringArray()
+) -> ServerSkillRuntimeState:
 	var skill_runtime := (
 		ServerSkillRuntimeState.new()
 	)
 
 
-	for skill_id: String in ServerSkillCatalog.get_all_skill_ids():
+	for skill_id: String in learned_skill_ids:
 		if not skill_runtime.learn_skill(
 			skill_id
 		):
@@ -51,6 +54,7 @@ static func create_skill_runtime() -> ServerSkillRuntimeState:
 
 
 	return skill_runtime
+
 
 # =========================================================
 # BASIC ATTACK RUNTIME

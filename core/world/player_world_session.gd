@@ -557,7 +557,9 @@ func _init(
 
 
 	skill_runtime = (
-		ServerCharacterRuntimeBootstrap.create_skill_runtime()
+		_create_skill_runtime_from_character_data(
+			character_data
+		)
 	)
 
 	basic_attack_runtime = (
@@ -574,6 +576,88 @@ func _init(
 
 	_apply_persisted_runtime(
 		character_data
+	)
+
+# =========================================================
+# RESTAURAR SKILL OWNERSHIP DURABLE
+# =========================================================
+
+func _create_skill_runtime_from_character_data(
+	character_data: Dictionary
+) -> ServerSkillRuntimeState:
+	var skills_value: Variant = (
+		character_data.get(
+			"skills",
+			null
+		)
+	)
+
+
+	if typeof(skills_value) != TYPE_DICTIONARY:
+		return null
+
+
+	var skills: Dictionary = (
+		skills_value
+	)
+
+
+	var learned_skill_ids_value: Variant = (
+		skills.get(
+			"learned_skill_ids",
+			null
+		)
+	)
+
+
+	if typeof(learned_skill_ids_value) != TYPE_ARRAY:
+		return null
+
+
+	var learned_skill_ids := (
+		PackedStringArray()
+	)
+
+	var seen_skill_ids: Dictionary = {}
+
+
+	for skill_id_value: Variant in (
+		learned_skill_ids_value
+		as Array
+	):
+		if typeof(skill_id_value) != TYPE_STRING:
+			return null
+
+
+		var skill_id := String(
+			skill_id_value
+		).strip_edges().to_lower()
+
+
+		if skill_id.is_empty():
+			return null
+
+
+		if seen_skill_ids.has(
+			skill_id
+		):
+			return null
+
+
+		seen_skill_ids[
+			skill_id
+		] = true
+
+
+		learned_skill_ids.append(
+			skill_id
+		)
+
+
+	return (
+		ServerCharacterRuntimeBootstrap.create_skill_runtime(
+			learned_skill_ids
+		)
 	)
 
 # =========================================================
