@@ -155,6 +155,10 @@ const MESSAGE_SKILL_LEARNING_RESULT: String = (
 	"skill_learning_result"
 )
 
+const MESSAGE_SKILL_TRAINER_OFFERS: String = (
+	"skill_trainer_offers"
+)
+
 const MESSAGE_BASIC_ATTACK_REQUEST: String = (
 	"basic_attack_request"
 )
@@ -1271,6 +1275,140 @@ func send_skill_learning_result(
 
 			"idempotent": idempotent,
 		},
+	}
+
+
+	return scene_multiplayer.send_bytes(
+		JSON.stringify(
+			message
+		).to_utf8_buffer(),
+		peer_id,
+		MultiplayerPeer.TRANSFER_MODE_RELIABLE,
+		0
+	)
+
+# =========================================================
+# ENVIAR OFERTAS AUTORITATIVAS DEL SKILL TRAINER
+# =========================================================
+
+func send_skill_trainer_offers(
+	peer_id: int,
+	snapshot: Dictionary
+) -> Error:
+	if peer_id <= 1:
+		return ERR_INVALID_PARAMETER
+
+
+	if not authenticated_sessions.has(
+		peer_id
+	):
+		return ERR_DOES_NOT_EXIST
+
+
+	var contract_error := (
+		ServerSkillTrainerOfferBuilder.validate_snapshot(
+			snapshot
+		)
+	)
+
+
+	if not contract_error.is_empty():
+		push_warning(
+			(
+				"GameServer | "
+				+
+				"Trainer Offers inválidas: %s"
+			)
+			%
+			contract_error
+		)
+
+
+		return ERR_INVALID_DATA
+
+
+	# -----------------------------------------------------
+	# EL SNAPSHOT DEBE PERTENECER AL PERSONAJE
+	# AUTENTICADO EN ESTE PEER.
+	# -----------------------------------------------------
+
+	var authenticated_value: Variant = (
+		authenticated_sessions[
+			peer_id
+		]
+	)
+
+
+	if typeof(authenticated_value) != TYPE_DICTIONARY:
+		return ERR_INVALID_DATA
+
+
+	var authenticated: Dictionary = (
+		authenticated_value as Dictionary
+	)
+
+
+	var character_value: Variant = (
+		authenticated.get(
+			"character",
+			null
+		)
+	)
+
+
+	if typeof(character_value) != TYPE_DICTIONARY:
+		return ERR_INVALID_DATA
+
+
+	var character: Dictionary = (
+		character_value as Dictionary
+	)
+
+
+	var authenticated_character_id := int(
+		character.get(
+			"id",
+			0
+		)
+	)
+
+
+	var snapshot_character_id := int(
+		snapshot.get(
+			"character_id",
+			0
+		)
+	)
+
+
+	if (
+		authenticated_character_id <= 0
+		or
+		snapshot_character_id
+		!=
+		authenticated_character_id
+	):
+		return ERR_INVALID_DATA
+
+
+	var scene_multiplayer := (
+		multiplayer
+		as SceneMultiplayer
+	)
+
+
+	if scene_multiplayer == null:
+		return ERR_UNAVAILABLE
+
+
+	var message := {
+		"version": NETWORK_PROTOCOL_VERSION,
+
+		"type": MESSAGE_SKILL_TRAINER_OFFERS,
+
+		"data": snapshot.duplicate(
+			true
+		),
 	}
 
 

@@ -1271,6 +1271,49 @@ func _on_npc_service_authorized(
 		offers_value as Array
 	)
 
+	var send_result := (
+		game_server.send_skill_trainer_offers(
+			peer_id,
+			snapshot
+		)
+	)
+
+
+	if send_result != OK:
+		push_warning(
+			(
+				"SkillLearningCoordinator | "
+				+
+				"No se pudieron enviar las ofertas "
+				+
+				"del Skill Trainer al peer %d. Error: %d"
+			)
+			%
+			[
+				peer_id,
+				send_result,
+			]
+		)
+
+
+		return
+
+
+	print(
+		"SkillLearningCoordinator | "
+		+
+		"Ofertas autoritativas del Skill Trainer enviadas",
+		" | Peer: ",
+		peer_id,
+		" | Personaje: ",
+		session.character_name,
+		" | Character ID: ",
+		session.character_id,
+		" | NPC: ",
+		session.active_npc_id,
+		" | Ofertas: ",
+		offers.size()
+	)
 
 	print(
 		"SkillLearningCoordinator | "

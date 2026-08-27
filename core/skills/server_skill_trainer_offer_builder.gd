@@ -306,3 +306,386 @@ static func _resolve_unavailable_reason(
 
 
 	return "ok"
+
+
+# =========================================================
+# VALIDAR SNAPSHOT DE OFERTAS
+#
+# Se utiliza antes de cruzar el boundary de networking.
+# El Builder es dueño del contrato de las ofertas.
+# =========================================================
+
+static func validate_snapshot(
+	snapshot: Dictionary
+) -> String:
+	if snapshot.is_empty():
+		return "El snapshot de Trainer Offers está vacío."
+
+
+	var character_id := int(
+		snapshot.get(
+			"character_id",
+			0
+		)
+	)
+
+
+	if character_id <= 0:
+		return "El character_id de Trainer Offers es inválido."
+
+
+	var npc_id := String(
+		snapshot.get(
+			"npc_id",
+			""
+		)
+	).strip_edges().to_lower()
+
+
+	if (
+		npc_id.is_empty()
+		or
+		npc_id.length() > 64
+	):
+		return "El npc_id de Trainer Offers es inválido."
+
+
+	var service_id := String(
+		snapshot.get(
+			"service_id",
+			""
+		)
+	).strip_edges().to_lower()
+
+
+	if (
+		service_id
+		!=
+		ServerSkillLearningCatalog.SKILL_TRAINER_SERVICE_ID
+	):
+		return "El servicio de Trainer Offers no es skill_trainer."
+
+
+	var class_id := String(
+		snapshot.get(
+			"class_id",
+			""
+		)
+	).strip_edges().to_lower()
+
+
+	if (
+		class_id.is_empty()
+		or
+		class_id.length() > 64
+	):
+		return "El class_id de Trainer Offers es inválido."
+
+
+	var level := int(
+		snapshot.get(
+			"level",
+			0
+		)
+	)
+
+
+	if level <= 0:
+		return "El nivel de Trainer Offers es inválido."
+
+
+	var offers_value: Variant = (
+		snapshot.get(
+			"offers",
+			null
+		)
+	)
+
+
+	if typeof(offers_value) != TYPE_ARRAY:
+		return "Trainer Offers no contiene un Array de ofertas."
+
+
+	var seen_skill_ids: Dictionary = {}
+
+
+	for offer_value: Variant in (
+		offers_value as Array
+	):
+		if typeof(offer_value) != TYPE_DICTIONARY:
+			return "Trainer Offers contiene una oferta inválida."
+
+
+		var offer: Dictionary = (
+			offer_value as Dictionary
+		)
+
+
+		var skill_id := String(
+			offer.get(
+				"skill_id",
+				""
+			)
+		).strip_edges().to_lower()
+
+
+		if (
+			skill_id.is_empty()
+			or
+			skill_id.length() > 64
+		):
+			return "Trainer Offer contiene un skill_id inválido."
+
+
+		if seen_skill_ids.has(
+			skill_id
+		):
+			return (
+				"Trainer Offer duplicada para Skill: "
+				+
+				skill_id
+			)
+
+
+		seen_skill_ids[
+			skill_id
+		] = true
+
+
+		var definition := (
+			ServerSkillLearningCatalog.get_definition(
+				skill_id
+			)
+		)
+
+
+		if definition == null:
+			return (
+				"Trainer Offer referencia una Skill desconocida: "
+				+
+				skill_id
+			)
+
+
+		if not definition.is_trainer_service_compatible(
+			service_id
+		):
+			return (
+				"Trainer Offer incompatible con el servicio: "
+				+
+				skill_id
+			)
+
+
+		if not definition.is_class_allowed(
+			class_id
+		):
+			return (
+				"Trainer Offer incompatible con la clase: "
+				+
+				skill_id
+			)
+
+
+		var scroll_item_id := String(
+			offer.get(
+				"scroll_item_id",
+				""
+			)
+		).strip_edges().to_lower()
+
+
+		if (
+			scroll_item_id
+			!=
+			definition.scroll_item_id
+		):
+			return (
+				"Trainer Offer posee un Scroll incorrecto: "
+				+
+				skill_id
+			)
+
+
+		var scroll_uid := String(
+			offer.get(
+				"scroll_uid",
+				""
+			)
+		).strip_edges().to_lower()
+
+
+		if scroll_uid.length() > 64:
+			return (
+				"Trainer Offer posee un Scroll UID inválido: "
+				+
+				skill_id
+			)
+
+
+		var minimum_level := int(
+			offer.get(
+				"minimum_level",
+				0
+			)
+		)
+
+
+		if (
+			minimum_level
+			!=
+			definition.minimum_level
+		):
+			return (
+				"Trainer Offer posee un nivel mínimo incorrecto: "
+				+
+				skill_id
+			)
+
+
+		if typeof(
+			offer.get(
+				"already_learned",
+				null
+			)
+		) != TYPE_BOOL:
+			return (
+				"Trainer Offer posee already_learned inválido: "
+				+
+				skill_id
+			)
+
+
+		if typeof(
+			offer.get(
+				"level_requirement_met",
+				null
+			)
+		) != TYPE_BOOL:
+			return (
+				"Trainer Offer posee level_requirement_met inválido: "
+				+
+				skill_id
+			)
+
+
+		if typeof(
+			offer.get(
+				"has_scroll",
+				null
+			)
+		) != TYPE_BOOL:
+			return (
+				"Trainer Offer posee has_scroll inválido: "
+				+
+				skill_id
+			)
+
+
+		if typeof(
+			offer.get(
+				"can_learn",
+				null
+			)
+		) != TYPE_BOOL:
+			return (
+				"Trainer Offer posee can_learn inválido: "
+				+
+				skill_id
+			)
+
+
+		var already_learned := bool(
+			offer["already_learned"]
+		)
+
+
+		var level_requirement_met := bool(
+			offer["level_requirement_met"]
+		)
+
+
+		var has_scroll := bool(
+			offer["has_scroll"]
+		)
+
+
+		var can_learn := bool(
+			offer["can_learn"]
+		)
+
+
+		if (
+			has_scroll
+			!=
+			not scroll_uid.is_empty()
+		):
+			return (
+				"Trainer Offer posee estado de Scroll inconsistente: "
+				+
+				skill_id
+			)
+
+
+		var expected_level_requirement_met := (
+			definition.meets_level_requirement(
+				level
+			)
+		)
+
+
+		if (
+			level_requirement_met
+			!=
+			expected_level_requirement_met
+		):
+			return (
+				"Trainer Offer posee estado de nivel inconsistente: "
+				+
+				skill_id
+			)
+
+
+		var expected_can_learn := (
+			not already_learned
+			and
+			level_requirement_met
+			and
+			has_scroll
+		)
+
+
+		if can_learn != expected_can_learn:
+			return (
+				"Trainer Offer posee can_learn inconsistente: "
+				+
+				skill_id
+			)
+
+
+		var reason := String(
+			offer.get(
+				"reason",
+				""
+			)
+		).strip_edges().to_lower()
+
+
+		var expected_reason := (
+			_resolve_unavailable_reason(
+				already_learned,
+				level_requirement_met,
+				has_scroll
+			)
+		)
+
+
+		if reason != expected_reason:
+			return (
+				"Trainer Offer posee reason inconsistente: "
+				+
+				skill_id
+			)
+
+
+	return ""
