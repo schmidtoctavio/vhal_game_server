@@ -38,6 +38,27 @@ func initialize() -> Error:
 	):
 		return ERR_INVALID_DATA
 
+	var skill_trainer := (
+		WorldNpcDefinition.create(
+			"skill_trainer",
+			ServerSkillLearningCatalog.SKILL_TRAINER_SERVICE_ID,
+			"test_town",
+			Vector3(
+				3.0,
+				0.0,
+				-3.0
+			),
+			0.0,
+			2.5
+		)
+	)
+
+
+	if not _register_definition(
+		skill_trainer
+	):
+		return ERR_INVALID_DATA
+
 
 	print(
 		"WorldNpcRegistry | Inicializado",
