@@ -48,6 +48,7 @@ var character_item_state_coordinator: CharacterItemStateCoordinator = null
 
 var configured: bool = false
 
+var pending_request_by_peer: Dictionary = {}
 
 # =========================================================
 # SETUP
@@ -90,6 +91,8 @@ func setup(
 	)
 
 
+	_bind_game_server_signals()
+
 	_bind_repository_signals()
 
 
@@ -103,6 +106,17 @@ func setup(
 
 	return true
 
+# =========================================================
+# BIND GAME SERVER
+# =========================================================
+
+func _bind_game_server_signals() -> void:
+	if not game_server.client_skill_learning_requested.is_connected(
+		_on_client_skill_learning_requested
+	):
+		game_server.client_skill_learning_requested.connect(
+			_on_client_skill_learning_requested
+		)
 
 # =========================================================
 # BIND BACKEND
@@ -125,11 +139,68 @@ func _bind_repository_signals() -> void:
 		)
 
 # =========================================================
+# INTENCIÓN DE APRENDIZAJE DEL CLIENTE
+# =========================================================
+
+func _on_client_skill_learning_requested(
+	peer_id: int,
+	request_id: int,
+	skill_id: String,
+	scroll_uid: String
+) -> void:
+	var session := (
+		world_session_registry.get_session(
+			peer_id
+		)
+	)
+
+
+	if session == null:
+		game_server.reject_authenticated_peer(
+			peer_id,
+			(
+				"No existe una sesión de mundo "
+				+
+				"para aprender la Skill."
+			)
+		)
+
+
+		return
+
+
+	if not session.accept_skill_learning_request_id(
+		request_id
+	):
+		_send_learning_result(
+			peer_id,
+			request_id,
+			skill_id,
+			scroll_uid,
+			false,
+			"stale_request",
+			session,
+			false
+		)
+
+
+		return
+
+
+	request_learning(
+		peer_id,
+		request_id,
+		skill_id,
+		scroll_uid
+	)
+
+# =========================================================
 # REQUEST DE APRENDIZAJE
 # =========================================================
 
 func request_learning(
 	peer_id: int,
+	request_id: int,
 	skill_id: String,
 	scroll_uid: String
 ) -> Error:
@@ -154,16 +225,14 @@ func request_learning(
 	if (
 		peer_id <= 1
 		or
+		request_id <= 0
+		or
 		normalized_skill_id.is_empty()
 		or
 		normalized_scroll_uid.is_empty()
 	):
 		return ERR_INVALID_PARAMETER
 
-
-	# -----------------------------------------------------
-	# SESIÓN
-	# -----------------------------------------------------
 
 	var session := (
 		world_session_registry.get_session(
@@ -176,10 +245,6 @@ func request_learning(
 		return ERR_DOES_NOT_EXIST
 
 
-	# -----------------------------------------------------
-	# SKILL EXISTENTE
-	# -----------------------------------------------------
-
 	var learning_definition := (
 		ServerSkillLearningCatalog.get_definition(
 			normalized_skill_id
@@ -188,120 +253,89 @@ func request_learning(
 
 
 	if learning_definition == null:
-		_log_rejection(
+		return _reject_learning_request(
 			session,
+			request_id,
 			normalized_skill_id,
 			normalized_scroll_uid,
-			"unknown_skill"
+			"unknown_skill",
+			ERR_INVALID_DATA
 		)
 
-
-		return ERR_INVALID_DATA
-
-
-	# -----------------------------------------------------
-	# RUNTIME DE SKILLS VÁLIDO
-	# -----------------------------------------------------
 
 	if session.skill_runtime == null:
-		_log_rejection(
+		return _reject_learning_request(
 			session,
+			request_id,
 			normalized_skill_id,
 			normalized_scroll_uid,
-			"skill_runtime_unavailable"
+			"skill_runtime_unavailable",
+			ERR_UNAVAILABLE
 		)
 
-
-		return ERR_UNAVAILABLE
-
-
-	# -----------------------------------------------------
-	# YA APRENDIDA
-	# -----------------------------------------------------
 
 	if session.skill_runtime.has_learned_skill(
 		normalized_skill_id
 	):
-		_log_rejection(
+		return _reject_learning_request(
 			session,
+			request_id,
 			normalized_skill_id,
 			normalized_scroll_uid,
-			"skill_already_learned"
+			"skill_already_learned",
+			ERR_ALREADY_EXISTS
 		)
 
-
-		return ERR_ALREADY_EXISTS
-
-
-	# -----------------------------------------------------
-	# CLASE
-	# -----------------------------------------------------
 
 	if not learning_definition.is_class_allowed(
 		session.class_id
 	):
-		_log_rejection(
+		return _reject_learning_request(
 			session,
+			request_id,
 			normalized_skill_id,
 			normalized_scroll_uid,
-			"class_requirement_not_met"
+			"class_requirement_not_met",
+			ERR_UNAUTHORIZED
 		)
 
-
-		return ERR_UNAUTHORIZED
-
-
-	# -----------------------------------------------------
-	# LEVEL
-	# -----------------------------------------------------
 
 	if not learning_definition.meets_level_requirement(
 		session.level
 	):
-		_log_rejection(
+		return _reject_learning_request(
 			session,
+			request_id,
 			normalized_skill_id,
 			normalized_scroll_uid,
-			"level_requirement_not_met"
+			"level_requirement_not_met",
+			ERR_UNAUTHORIZED
 		)
 
-
-		return ERR_UNAUTHORIZED
-
-
-	# -----------------------------------------------------
-	# TRAINER / SERVICIO NPC
-	# -----------------------------------------------------
 
 	if not session.has_active_npc_service():
-		_log_rejection(
+		return _reject_learning_request(
 			session,
+			request_id,
 			normalized_skill_id,
 			normalized_scroll_uid,
-			"trainer_service_required"
+			"trainer_service_required",
+			ERR_UNAUTHORIZED
 		)
-
-
-		return ERR_UNAUTHORIZED
 
 
 	if not learning_definition.is_trainer_service_compatible(
 		session.active_service_id
 	):
-		_log_rejection(
+		return _reject_learning_request(
 			session,
+			request_id,
 			normalized_skill_id,
 			normalized_scroll_uid,
-			"incompatible_trainer_service"
+			"incompatible_trainer_service",
+			ERR_UNAUTHORIZED
 		)
 
-
-		return ERR_UNAUTHORIZED
-
-
-	# -----------------------------------------------------
-	# INVENTORY AUTORITATIVO
-	# -----------------------------------------------------
 
 	var inventory_snapshot := (
 		session.get_inventory_snapshot()
@@ -309,15 +343,14 @@ func request_learning(
 
 
 	if inventory_snapshot.is_empty():
-		_log_rejection(
+		return _reject_learning_request(
 			session,
+			request_id,
 			normalized_skill_id,
 			normalized_scroll_uid,
-			"inventory_unavailable"
+			"inventory_unavailable",
+			ERR_UNAVAILABLE
 		)
-
-
-		return ERR_UNAVAILABLE
 
 
 	var scroll_item := (
@@ -329,15 +362,14 @@ func request_learning(
 
 
 	if scroll_item.is_empty():
-		_log_rejection(
+		return _reject_learning_request(
 			session,
+			request_id,
 			normalized_skill_id,
 			normalized_scroll_uid,
-			"scroll_not_found"
+			"scroll_not_found",
+			ERR_DOES_NOT_EXIST
 		)
-
-
-		return ERR_DOES_NOT_EXIST
 
 
 	var actual_item_id := String(
@@ -353,15 +385,14 @@ func request_learning(
 		!=
 		learning_definition.scroll_item_id
 	):
-		_log_rejection(
+		return _reject_learning_request(
 			session,
+			request_id,
 			normalized_skill_id,
 			normalized_scroll_uid,
-			"scroll_item_mismatch"
+			"scroll_item_mismatch",
+			ERR_INVALID_DATA
 		)
-
-
-		return ERR_INVALID_DATA
 
 
 	var quantity := int(
@@ -373,23 +404,43 @@ func request_learning(
 
 
 	if quantity <= 0:
-		_log_rejection(
+		return _reject_learning_request(
 			session,
+			request_id,
 			normalized_skill_id,
 			normalized_scroll_uid,
-			"invalid_scroll_quantity"
+			"invalid_scroll_quantity",
+			ERR_INVALID_DATA
 		)
 
 
-		return ERR_INVALID_DATA
+	if pending_request_by_peer.has(
+		peer_id
+	):
+		return _reject_learning_request(
+			session,
+			request_id,
+			normalized_skill_id,
+			normalized_scroll_uid,
+			"learning_busy",
+			ERR_BUSY
+		)
 
 
-	# -----------------------------------------------------
-	# PERSISTENCIA DURABLE
-	#
-	# Recién llegamos aquí después de TODAS las reglas
-	# autoritativas del Game Server.
-	# -----------------------------------------------------
+	pending_request_by_peer[
+		peer_id
+	] = {
+		"request_id": request_id,
+
+		"skill_id": normalized_skill_id,
+
+		"scroll_uid": normalized_scroll_uid,
+
+		"scroll_item_id": (
+			learning_definition.scroll_item_id
+		),
+	}
+
 
 	var persist_result := (
 		backend_repository.persist_learning(
@@ -404,30 +455,39 @@ func request_learning(
 
 
 	if persist_result != OK:
-		print(
-			"SkillLearningCoordinator | "
-			+
-			"No se pudo iniciar persistencia",
-			" | Peer: ",
-			peer_id,
-			" | Personaje: ",
-			session.character_name,
-			" | Skill: ",
-			normalized_skill_id,
-			" | Scroll UID: ",
-			normalized_scroll_uid,
-			" | Error: ",
-			persist_result
+		pending_request_by_peer.erase(
+			peer_id
 		)
 
 
-		return persist_result
+		var failure_reason := (
+			"persist_request_failed"
+		)
+
+
+		if persist_result == ERR_BUSY:
+			failure_reason = "learning_busy"
+
+		elif persist_result == ERR_UNAVAILABLE:
+			failure_reason = "backend_unavailable"
+
+
+		return _reject_learning_request(
+			session,
+			request_id,
+			normalized_skill_id,
+			normalized_scroll_uid,
+			failure_reason,
+			persist_result
+		)
 
 
 	print(
 		"SkillLearningCoordinator | "
 		+
 		"Aprendizaje autorizado para persistencia",
+		" | Request: ",
+		request_id,
 		" | Peer: ",
 		peer_id,
 		" | Personaje: ",
@@ -470,6 +530,19 @@ func _on_skill_learning_persisted(
 		)
 	)
 
+	var pending_request := (
+		_take_pending_request(
+			peer_id
+		)
+	)
+
+
+	var request_id := int(
+		pending_request.get(
+			"request_id",
+			0
+		)
+	)
 
 	# -----------------------------------------------------
 	# El peer pudo desconectarse mientras Laravel
@@ -613,6 +686,18 @@ func _on_skill_learning_persisted(
 		idempotent
 	)
 
+	if request_id > 0:
+		_send_learning_result(
+			peer_id,
+			request_id,
+			skill_id,
+			scroll_uid,
+			true,
+			"ok",
+			session,
+			idempotent
+		)
+
 
 	skill_learning_committed.emit(
 		peer_id,
@@ -673,6 +758,116 @@ func _find_inventory_item_by_uid(
 
 	return {}
 
+# =========================================================
+# RECHAZAR REQUEST DE APRENDIZAJE
+# =========================================================
+
+func _reject_learning_request(
+	session: PlayerWorldSession,
+	request_id: int,
+	skill_id: String,
+	scroll_uid: String,
+	reason: String,
+	error: Error
+) -> Error:
+	_log_rejection(
+		session,
+		skill_id,
+		scroll_uid,
+		reason
+	)
+
+
+	_send_learning_result(
+		session.peer_id,
+		request_id,
+		skill_id,
+		scroll_uid,
+		false,
+		reason,
+		session,
+		false
+	)
+
+
+	return error
+
+# =========================================================
+# ENVIAR RESULTADO DE APRENDIZAJE
+# =========================================================
+
+func _send_learning_result(
+	peer_id: int,
+	request_id: int,
+	skill_id: String,
+	scroll_uid: String,
+	accepted: bool,
+	reason: String,
+	session: PlayerWorldSession,
+	idempotent: bool
+) -> void:
+	if session == null:
+		return
+
+
+	var learned_skill_ids := PackedStringArray()
+
+
+	if session.skill_runtime != null:
+		learned_skill_ids = (
+			session.skill_runtime.get_learned_skill_ids()
+		)
+
+
+	var result := (
+		game_server.send_skill_learning_result(
+			peer_id,
+			request_id,
+			skill_id,
+			scroll_uid,
+			accepted,
+			reason,
+			learned_skill_ids,
+			idempotent
+		)
+	)
+
+
+	if result != OK:
+		push_warning(
+			(
+				"SkillLearningCoordinator | "
+				+
+				"No se pudo enviar resultado de aprendizaje "
+				+
+				"al peer %d. Error: %d"
+			)
+			%
+			[
+				peer_id,
+				result,
+			]
+		)
+
+
+		return
+
+
+	print(
+		"SkillLearningCoordinator | Resultado enviado",
+		" | Request: ",
+		request_id,
+		" | Skill: ",
+		skill_id,
+		" | Accepted: ",
+		accepted,
+		" | Reason: ",
+		reason,
+		" | Learned: ",
+		learned_skill_ids,
+		" | Idempotent: ",
+		idempotent
+	)
 
 # =========================================================
 # LOG DE RECHAZO
@@ -742,6 +937,20 @@ func _on_skill_learning_persist_failed(
 	):
 		return
 
+	var pending_request := (
+		_take_pending_request(
+			peer_id
+		)
+	)
+
+
+	var request_id := int(
+		pending_request.get(
+			"request_id",
+			0
+		)
+	)
+
 
 	# -----------------------------------------------------
 	# MUY IMPORTANTE:
@@ -771,6 +980,18 @@ func _on_skill_learning_persist_failed(
 		" | Mensaje: ",
 		message
 	)
+
+	if request_id > 0:
+		_send_learning_result(
+			peer_id,
+			request_id,
+			skill_id,
+			scroll_uid,
+			false,
+			reason,
+			session,
+			false
+		)
 
 
 	skill_learning_failed.emit(
@@ -836,4 +1057,40 @@ func _reject_after_durable_commit(
 			+
 			"el estado durable del personaje."
 		)
+	)
+
+
+# =========================================================
+# TOMAR REQUEST PENDIENTE
+# =========================================================
+
+func _take_pending_request(
+	peer_id: int
+) -> Dictionary:
+	if not pending_request_by_peer.has(
+		peer_id
+	):
+		return {}
+
+
+	var value: Variant = (
+		pending_request_by_peer[
+			peer_id
+		]
+	)
+
+
+	pending_request_by_peer.erase(
+		peer_id
+	)
+
+
+	if typeof(value) != TYPE_DICTIONARY:
+		return {}
+
+
+	return (
+		value as Dictionary
+	).duplicate(
+		true
 	)

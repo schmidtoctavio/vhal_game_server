@@ -47,6 +47,13 @@ signal client_skill_cast_requested(
 	target: Dictionary
 )
 
+signal client_skill_learning_requested(
+	peer_id: int,
+	request_id: int,
+	skill_id: String,
+	scroll_uid: String
+)
+
 signal client_basic_attack_requested(
 	peer_id: int,
 	request_id: int,
@@ -138,6 +145,14 @@ const MESSAGE_SKILL_CAST_REQUEST: String = (
 
 const MESSAGE_SKILL_CAST_RESULT: String = (
 	"skill_cast_result"
+)
+
+const MESSAGE_SKILL_LEARNING_REQUEST: String = (
+	"skill_learning_request"
+)
+
+const MESSAGE_SKILL_LEARNING_RESULT: String = (
+	"skill_learning_result"
 )
 
 const MESSAGE_BASIC_ATTACK_REQUEST: String = (
@@ -1112,6 +1127,163 @@ func send_movement_decision(
 	)
 
 # =========================================================
+# ENVIAR RESULTADO DE APRENDIZAJE DE SKILL
+# =========================================================
+
+func send_skill_learning_result(
+	peer_id: int,
+	request_id: int,
+	skill_id: String,
+	scroll_uid: String,
+	accepted: bool,
+	reason: String,
+	learned_skill_ids: PackedStringArray,
+	idempotent: bool = false
+) -> Error:
+	if (
+		peer_id <= 1
+		or
+		request_id <= 0
+	):
+		return ERR_INVALID_PARAMETER
+
+
+	if not authenticated_sessions.has(
+		peer_id
+	):
+		return ERR_DOES_NOT_EXIST
+
+
+	var normalized_skill_id := (
+		skill_id
+		.strip_edges()
+		.to_lower()
+	)
+
+
+	var normalized_scroll_uid := (
+		scroll_uid
+		.strip_edges()
+		.to_lower()
+	)
+
+
+	var normalized_reason := (
+		reason.strip_edges()
+	)
+
+
+	if (
+		normalized_skill_id.is_empty()
+		or
+		normalized_skill_id.length() > 64
+	):
+		return ERR_INVALID_PARAMETER
+
+
+	if (
+		normalized_scroll_uid.is_empty()
+		or
+		normalized_scroll_uid.length() > 64
+	):
+		return ERR_INVALID_PARAMETER
+
+
+	if normalized_reason.is_empty():
+		return ERR_INVALID_PARAMETER
+
+
+	var normalized_learned_skill_ids: Array[String] = []
+
+	var seen_skill_ids: Dictionary = {}
+
+
+	for learned_skill_id_value: String in learned_skill_ids:
+		var learned_skill_id := (
+			learned_skill_id_value
+			.strip_edges()
+			.to_lower()
+		)
+
+
+		if (
+			learned_skill_id.is_empty()
+			or
+			learned_skill_id.length() > 64
+		):
+			return ERR_INVALID_DATA
+
+
+		if not ServerSkillCatalog.has_definition(
+			learned_skill_id
+		):
+			return ERR_INVALID_DATA
+
+
+		if seen_skill_ids.has(
+			learned_skill_id
+		):
+			return ERR_INVALID_DATA
+
+
+		seen_skill_ids[
+			learned_skill_id
+		] = true
+
+
+		normalized_learned_skill_ids.append(
+			learned_skill_id
+		)
+
+
+	normalized_learned_skill_ids.sort()
+
+
+	var scene_multiplayer := (
+		multiplayer
+		as SceneMultiplayer
+	)
+
+
+	if scene_multiplayer == null:
+		return ERR_UNAVAILABLE
+
+
+	var message := {
+		"version": NETWORK_PROTOCOL_VERSION,
+
+		"type": MESSAGE_SKILL_LEARNING_RESULT,
+
+		"data": {
+			"request_id": request_id,
+
+			"skill_id": normalized_skill_id,
+
+			"scroll_uid": normalized_scroll_uid,
+
+			"accepted": accepted,
+
+			"reason": normalized_reason,
+
+			"learned_skill_ids": (
+				normalized_learned_skill_ids
+			),
+
+			"idempotent": idempotent,
+		},
+	}
+
+
+	return scene_multiplayer.send_bytes(
+		JSON.stringify(
+			message
+		).to_utf8_buffer(),
+		peer_id,
+		MultiplayerPeer.TRANSFER_MODE_RELIABLE,
+		0
+	)
+
+# =========================================================
 # ENVIAR RESULTADO DE SKILL CAST
 # =========================================================
 
@@ -1398,6 +1570,15 @@ func _on_peer_packet(
 
 	if message_type == MESSAGE_SKILL_CAST_REQUEST:
 		_process_skill_cast_request(
+			peer_id,
+			message
+		)
+
+
+		return
+
+	if message_type == MESSAGE_SKILL_LEARNING_REQUEST:
+		_process_skill_learning_request(
 			peer_id,
 			message
 		)
@@ -2051,6 +2232,148 @@ func _process_skill_cast_request(
 		request_id,
 		skill_id,
 		normalized_target
+	)
+
+# =========================================================
+# SKILL LEARNING REQUEST
+# =========================================================
+
+func _process_skill_learning_request(
+	peer_id: int,
+	message: Dictionary
+) -> void:
+	var data_value: Variant = (
+		message.get(
+			"data",
+			null
+		)
+	)
+
+
+	if typeof(data_value) != TYPE_DICTIONARY:
+		reject_authenticated_peer(
+			peer_id,
+			"Aprendizaje de Skill sin datos válidos."
+		)
+
+
+		return
+
+
+	var data: Dictionary = (
+		data_value
+	)
+
+
+	# -----------------------------------------------------
+	# REQUEST ID
+	# -----------------------------------------------------
+
+	var request_id := int(
+		data.get(
+			"request_id",
+			0
+		)
+	)
+
+
+	if request_id <= 0:
+		reject_authenticated_peer(
+			peer_id,
+			"Aprendizaje de Skill sin Request ID válido."
+		)
+
+
+		return
+
+
+	# -----------------------------------------------------
+	# SKILL ID
+	# -----------------------------------------------------
+
+	var skill_id_value: Variant = (
+		data.get(
+			"skill_id",
+			null
+		)
+	)
+
+
+	if typeof(skill_id_value) != TYPE_STRING:
+		reject_authenticated_peer(
+			peer_id,
+			"Aprendizaje de Skill sin Skill ID válido."
+		)
+
+
+		return
+
+
+	var skill_id := String(
+		skill_id_value
+	).strip_edges().to_lower()
+
+
+	if (
+		skill_id.is_empty()
+		or
+		skill_id.length() > 64
+	):
+		reject_authenticated_peer(
+			peer_id,
+			"Aprendizaje con Skill ID inválido."
+		)
+
+
+		return
+
+
+	# -----------------------------------------------------
+	# SCROLL UID
+	# -----------------------------------------------------
+
+	var scroll_uid_value: Variant = (
+		data.get(
+			"scroll_uid",
+			null
+		)
+	)
+
+
+	if typeof(scroll_uid_value) != TYPE_STRING:
+		reject_authenticated_peer(
+			peer_id,
+			"Aprendizaje de Skill sin Scroll UID válido."
+		)
+
+
+		return
+
+
+	var scroll_uid := String(
+		scroll_uid_value
+	).strip_edges().to_lower()
+
+
+	if (
+		scroll_uid.is_empty()
+		or
+		scroll_uid.length() > 64
+	):
+		reject_authenticated_peer(
+			peer_id,
+			"Aprendizaje con Scroll UID inválido."
+		)
+
+
+		return
+
+
+	client_skill_learning_requested.emit(
+		peer_id,
+		request_id,
+		skill_id,
+		scroll_uid
 	)
 
 # =========================================================
