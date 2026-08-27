@@ -3,13 +3,44 @@ extends Node
 
 
 # =========================================================
+# SIGNALS
+# =========================================================
+
+signal skill_learning_committed(
+	peer_id: int,
+	account_id: int,
+	character_id: int,
+	skill_id: String,
+	scroll_uid: String,
+	scroll_item_id: String,
+	learned_skill_ids: PackedStringArray,
+	idempotent: bool
+)
+
+
+signal skill_learning_failed(
+	peer_id: int,
+	account_id: int,
+	character_id: int,
+	skill_id: String,
+	scroll_uid: String,
+	scroll_item_id: String,
+	reason: String,
+	message: String,
+	context: Dictionary
+)
+
+# =========================================================
 # DEPENDENCIAS
 # =========================================================
+
+var game_server: GameServer = null
 
 var world_session_registry: WorldSessionRegistry = null
 
 var backend_repository: BackendCharacterSkillLearningRepository = null
 
+var character_item_state_coordinator: CharacterItemStateCoordinator = null
 
 # =========================================================
 # ESTADO
@@ -23,11 +54,17 @@ var configured: bool = false
 # =========================================================
 
 func setup(
+	p_game_server: GameServer,
 	p_world_session_registry: WorldSessionRegistry,
-	p_backend_repository: BackendCharacterSkillLearningRepository
+	p_backend_repository: BackendCharacterSkillLearningRepository,
+	p_character_item_state_coordinator: CharacterItemStateCoordinator
 ) -> bool:
 	if configured:
 		return true
+
+
+	if p_game_server == null:
+		return false
 
 
 	if p_world_session_registry == null:
@@ -38,9 +75,22 @@ func setup(
 		return false
 
 
+	if p_character_item_state_coordinator == null:
+		return false
+
+
+	game_server = p_game_server
+
 	world_session_registry = p_world_session_registry
 
 	backend_repository = p_backend_repository
+
+	character_item_state_coordinator = (
+		p_character_item_state_coordinator
+	)
+
+
+	_bind_repository_signals()
 
 
 	configured = true
@@ -53,6 +103,26 @@ func setup(
 
 	return true
 
+
+# =========================================================
+# BIND BACKEND
+# =========================================================
+
+func _bind_repository_signals() -> void:
+	if not backend_repository.skill_learning_persisted.is_connected(
+		_on_skill_learning_persisted
+	):
+		backend_repository.skill_learning_persisted.connect(
+			_on_skill_learning_persisted
+		)
+
+
+	if not backend_repository.skill_learning_persist_failed.is_connected(
+		_on_skill_learning_persist_failed
+	):
+		backend_repository.skill_learning_persist_failed.connect(
+			_on_skill_learning_persist_failed
+		)
 
 # =========================================================
 # REQUEST DE APRENDIZAJE
@@ -381,6 +451,179 @@ func request_learning(
 
 	return OK
 
+# =========================================================
+# APRENDIZAJE PERSISTIDO
+# =========================================================
+
+func _on_skill_learning_persisted(
+	peer_id: int,
+	account_id: int,
+	character_id: int,
+	skill_id: String,
+	scroll_uid: String,
+	scroll_item_id: String,
+	idempotent: bool
+) -> void:
+	var session := (
+		world_session_registry.get_session(
+			peer_id
+		)
+	)
+
+
+	# -----------------------------------------------------
+	# El peer pudo desconectarse mientras Laravel
+	# procesaba la operación.
+	#
+	# El ownership durable igualmente quedó correcto.
+	# El próximo login lo reconstruirá desde el ticket.
+	# -----------------------------------------------------
+
+	if session == null:
+		print(
+			"SkillLearningCoordinator | "
+			+
+			"Aprendizaje durable confirmado sin sesión activa",
+			" | Peer: ",
+			peer_id,
+			" | Character ID: ",
+			character_id,
+			" | Skill: ",
+			skill_id
+		)
+
+
+		return
+
+
+	# -----------------------------------------------------
+	# NO MUTAR OTRA SESIÓN
+	# -----------------------------------------------------
+
+	if (
+		session.account_id != account_id
+		or
+		session.character_id != character_id
+	):
+		push_warning(
+			(
+				"SkillLearningCoordinator | "
+				+
+				"Confirmación durable pertenece a otra sesión"
+				+
+				" | Peer: %d"
+				+
+				" | Account esperado: %d"
+				+
+				" | Account actual: %d"
+				+
+				" | Character esperado: %d"
+				+
+				" | Character actual: %d"
+			)
+			%
+			[
+				peer_id,
+				account_id,
+				session.account_id,
+				character_id,
+				session.character_id,
+			]
+		)
+
+
+		return
+
+
+	if session.skill_runtime == null:
+		_reject_after_durable_commit(
+			session,
+			(
+				"Skill Runtime no disponible "
+				+
+				"después del COMMIT durable."
+			)
+		)
+
+
+		return
+
+
+	# -----------------------------------------------------
+	# DURABLE PRIMERO → RUNTIME DESPUÉS
+	# -----------------------------------------------------
+
+	if not session.skill_runtime.learn_skill(
+		skill_id
+	):
+		_reject_after_durable_commit(
+			session,
+			(
+				"No se pudo aplicar la Skill durable "
+				+
+				"al runtime."
+			)
+		)
+
+
+		return
+
+
+	# -----------------------------------------------------
+	# REFRESCAR INVENTORY
+	#
+	# Laravel consumió el Scroll dentro del mismo COMMIT.
+	# El snapshot actual del GS ahora está stale.
+	# -----------------------------------------------------
+
+	var reload_result := (
+		character_item_state_coordinator.reload_inventory_snapshot(
+			peer_id,
+			"skill_learning_committed"
+		)
+	)
+
+
+	if reload_result != OK:
+		# CharacterItemStateCoordinator ya fuerza
+		# desconexión para evitar continuar stale.
+		return
+
+
+	var learned_skill_ids := (
+		session.skill_runtime.get_learned_skill_ids()
+	)
+
+
+	print(
+		"SkillLearningCoordinator | "
+		+
+		"Aprendizaje durable aplicado al runtime",
+		" | Peer: ",
+		peer_id,
+		" | Personaje: ",
+		session.character_name,
+		" | Skill: ",
+		skill_id,
+		" | Learned: ",
+		learned_skill_ids,
+		" | Scroll UID: ",
+		scroll_uid,
+		" | Idempotent: ",
+		idempotent
+	)
+
+
+	skill_learning_committed.emit(
+		peer_id,
+		account_id,
+		character_id,
+		skill_id,
+		scroll_uid,
+		scroll_item_id,
+		learned_skill_ids,
+		idempotent
+	)
 
 # =========================================================
 # BUSCAR ITEM POR UID
@@ -463,4 +706,134 @@ func _log_rejection(
 		scroll_uid,
 		" | Motivo: ",
 		reason
+	)
+
+# =========================================================
+# APRENDIZAJE NO PERSISTIDO
+# =========================================================
+
+func _on_skill_learning_persist_failed(
+	peer_id: int,
+	account_id: int,
+	character_id: int,
+	skill_id: String,
+	scroll_uid: String,
+	scroll_item_id: String,
+	response_code: int,
+	reason: String,
+	message: String,
+	context: Dictionary
+) -> void:
+	var session := (
+		world_session_registry.get_session(
+			peer_id
+		)
+	)
+
+
+	if session == null:
+		return
+
+
+	if (
+		session.account_id != account_id
+		or
+		session.character_id != character_id
+	):
+		return
+
+
+	# -----------------------------------------------------
+	# MUY IMPORTANTE:
+	#
+	# Si Backend rechazó, NO:
+	# - learn_skill()
+	# - modificamos Inventory
+	# - hacemos optimismo local
+	# -----------------------------------------------------
+
+	print(
+		"SkillLearningCoordinator | "
+		+
+		"Persistencia de aprendizaje rechazada",
+		" | Peer: ",
+		peer_id,
+		" | Personaje: ",
+		session.character_name,
+		" | Skill: ",
+		skill_id,
+		" | Scroll UID: ",
+		scroll_uid,
+		" | HTTP: ",
+		response_code,
+		" | Motivo: ",
+		reason,
+		" | Mensaje: ",
+		message
+	)
+
+
+	skill_learning_failed.emit(
+		peer_id,
+		account_id,
+		character_id,
+		skill_id,
+		scroll_uid,
+		scroll_item_id,
+		reason,
+		message,
+		context.duplicate(
+			true
+		)
+	)
+
+
+# =========================================================
+# FALLA DESPUÉS DE COMMIT DURABLE
+# =========================================================
+
+func _reject_after_durable_commit(
+	session: PlayerWorldSession,
+	message: String
+) -> void:
+	if session == null:
+		return
+
+
+	push_error(
+		"SkillLearningCoordinator | "
+		+
+		"Estado runtime inconsistente después de COMMIT"
+		+
+		" | Peer: "
+		+
+		str(
+			session.peer_id
+		)
+		+
+		" | Personaje: "
+		+
+		session.character_name
+		+
+		" | Motivo: "
+		+
+		message
+	)
+
+
+	# -----------------------------------------------------
+	# Laravel ya es durable.
+	#
+	# No intentamos hacer rollback desde Game Server.
+	# Forzamos reconnect y el ticket reconstruirá la
+	# verdad durable.
+	# -----------------------------------------------------
+
+	game_server.reject_authenticated_peer(
+		session.peer_id,
+		(
+			"Se requiere resincronizar "
+			+
+			"el estado durable del personaje."
+		)
 	)

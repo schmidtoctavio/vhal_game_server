@@ -214,6 +214,80 @@ func load_initial_snapshots(
 
 
 # =========================================================
+# RELOAD AUTORITATIVO DE INVENTORY
+# =========================================================
+
+func reload_inventory_snapshot(
+	peer_id: int,
+	reason: String
+) -> Error:
+	if not configured:
+		return ERR_UNAVAILABLE
+
+
+	var session := (
+		world_session_registry.get_session(
+			peer_id
+		)
+	)
+
+
+	if session == null:
+		return ERR_DOES_NOT_EXIST
+
+
+	var inventory_result := (
+		inventory_repository.load_inventory(
+			peer_id,
+			session.account_id,
+			session.character_id
+		)
+	)
+
+
+	if inventory_result == OK:
+		return OK
+
+
+	push_error(
+		(
+			"CharacterItemStateCoordinator | "
+			+
+			"No se pudo recargar Inventory"
+			+
+			" | Peer: %d"
+			+
+			" | Reason: %s"
+			+
+			" | Error: %d"
+		)
+		%
+		[
+			peer_id,
+			reason,
+			inventory_result,
+		]
+	)
+
+
+	# -----------------------------------------------------
+	# Si Laravel ya confirmó una mutación durable,
+	# continuar con un Inventory stale no es aceptable.
+	# -----------------------------------------------------
+
+	game_server.reject_authenticated_peer(
+		peer_id,
+		(
+			"No se pudo resincronizar "
+			+
+			"el Inventory persistente del personaje."
+		)
+	)
+
+
+	return inventory_result
+
+# =========================================================
 # RELOAD AUTORITATIVO INVENTORY + EQUIPMENT
 # =========================================================
 
