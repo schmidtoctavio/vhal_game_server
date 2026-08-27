@@ -42,6 +42,8 @@ var backend_repository: BackendCharacterSkillLearningRepository = null
 
 var character_item_state_coordinator: CharacterItemStateCoordinator = null
 
+var npc_service_coordinator: NpcServiceCoordinator = null
+
 # =========================================================
 # ESTADO
 # =========================================================
@@ -57,6 +59,7 @@ var pending_request_by_peer: Dictionary = {}
 func setup(
 	p_game_server: GameServer,
 	p_world_session_registry: WorldSessionRegistry,
+	p_npc_service_coordinator: NpcServiceCoordinator,
 	p_backend_repository: BackendCharacterSkillLearningRepository,
 	p_character_item_state_coordinator: CharacterItemStateCoordinator
 ) -> bool:
@@ -71,6 +74,8 @@ func setup(
 	if p_world_session_registry == null:
 		return false
 
+	if p_npc_service_coordinator == null:
+		return false
 
 	if p_backend_repository == null:
 		return false
@@ -90,6 +95,11 @@ func setup(
 		p_character_item_state_coordinator
 	)
 
+	npc_service_coordinator = (
+		p_npc_service_coordinator
+	)
+
+	_bind_npc_service_signals()
 
 	_bind_game_server_signals()
 
@@ -105,6 +115,18 @@ func setup(
 
 
 	return true
+
+# =========================================================
+# BIND NPC SERVICE
+# =========================================================
+
+func _bind_npc_service_signals() -> void:
+	if not npc_service_coordinator.npc_service_authorized.is_connected(
+		_on_npc_service_authorized
+	):
+		npc_service_coordinator.npc_service_authorized.connect(
+			_on_npc_service_authorized
+		)
 
 # =========================================================
 # BIND GAME SERVER
@@ -1094,3 +1116,207 @@ func _take_pending_request(
 	).duplicate(
 		true
 	)
+
+
+# =========================================================
+# SNAPSHOT DE OFERTAS DEL SKILL TRAINER
+# =========================================================
+
+func build_active_trainer_offers_snapshot(
+	peer_id: int
+) -> Dictionary:
+	if not configured:
+		return {}
+
+
+	var session := (
+		world_session_registry.get_session(
+			peer_id
+		)
+	)
+
+
+	if session == null:
+		return {}
+
+
+	if not session.has_active_npc_service():
+		return {}
+
+
+	if (
+		session.active_service_id
+		!=
+		ServerSkillLearningCatalog.SKILL_TRAINER_SERVICE_ID
+	):
+		return {}
+
+
+	if session.skill_runtime == null:
+		return {}
+
+
+	var inventory_snapshot := (
+		session.get_inventory_snapshot()
+	)
+
+
+	if inventory_snapshot.is_empty():
+		return {}
+
+
+	var offers := (
+		ServerSkillTrainerOfferBuilder.build_offers(
+			session.class_id,
+			session.level,
+			session.skill_runtime.get_learned_skill_ids(),
+			inventory_snapshot,
+			session.active_service_id
+		)
+	)
+
+
+	return {
+		"character_id": session.character_id,
+
+		"npc_id": session.active_npc_id,
+
+		"service_id": session.active_service_id,
+
+		"class_id": session.class_id,
+
+		"level": session.level,
+
+		"offers": offers,
+	}
+
+
+# =========================================================
+# SKILL TRAINER AUTORIZADO
+# =========================================================
+
+func _on_npc_service_authorized(
+	peer_id: int,
+	npc_id: String,
+	service_id: String
+) -> void:
+	var normalized_service_id := (
+		service_id
+		.strip_edges()
+		.to_lower()
+	)
+
+
+	if (
+		normalized_service_id
+		!=
+		ServerSkillLearningCatalog.SKILL_TRAINER_SERVICE_ID
+	):
+		return
+
+
+	var session := (
+		world_session_registry.get_session(
+			peer_id
+		)
+	)
+
+
+	if session == null:
+		return
+
+
+	if not session.is_using_npc_service(
+		npc_id,
+		normalized_service_id
+	):
+		return
+
+
+	var snapshot := (
+		build_active_trainer_offers_snapshot(
+			peer_id
+		)
+	)
+
+
+	if snapshot.is_empty():
+		push_warning(
+			(
+				"SkillLearningCoordinator | "
+				+
+				"No se pudieron construir las ofertas "
+				+
+				"del Skill Trainer."
+			)
+		)
+
+
+		return
+
+
+	var offers_value: Variant = (
+		snapshot.get(
+			"offers",
+			null
+		)
+	)
+
+
+	if typeof(offers_value) != TYPE_ARRAY:
+		return
+
+
+	var offers: Array = (
+		offers_value as Array
+	)
+
+
+	print(
+		"SkillLearningCoordinator | "
+		+
+		"Ofertas autoritativas del Skill Trainer preparadas",
+		" | Peer: ",
+		peer_id,
+		" | Personaje: ",
+		session.character_name,
+		" | Clase: ",
+		session.class_id,
+		" | Nivel: ",
+		session.level,
+		" | NPC: ",
+		session.active_npc_id,
+		" | Ofertas: ",
+		offers.size()
+	)
+
+
+	for offer_value: Variant in offers:
+		if typeof(offer_value) != TYPE_DICTIONARY:
+			continue
+
+
+		var offer: Dictionary = (
+			offer_value as Dictionary
+		)
+
+
+		print(
+			"SkillLearningCoordinator | Trainer Offer",
+			" | Skill: ",
+			offer.get("skill_id", ""),
+			" | Scroll: ",
+			offer.get("scroll_item_id", ""),
+			" | Scroll UID: ",
+			offer.get("scroll_uid", ""),
+			" | Nivel mínimo: ",
+			offer.get("minimum_level", 0),
+			" | Learned: ",
+			offer.get("already_learned", false),
+			" | Has Scroll: ",
+			offer.get("has_scroll", false),
+			" | Can Learn: ",
+			offer.get("can_learn", false),
+			" | Reason: ",
+			offer.get("reason", "")
+		)

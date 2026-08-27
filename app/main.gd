@@ -351,6 +351,7 @@ func _ready() -> void:
 	if not skill_learning_coordinator.setup(
 		game_server,
 		world_session_registry,
+		npc_service_coordinator,
 		backend_character_skill_learning_repository,
 		character_item_state_coordinator
 	):

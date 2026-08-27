@@ -3,6 +3,16 @@ extends Node
 
 
 # =========================================================
+# SIGNALS
+# =========================================================
+
+signal npc_service_authorized(
+	peer_id: int,
+	npc_id: String,
+	service_id: String
+)
+
+# =========================================================
 # DEPENDENCIAS
 # =========================================================
 
@@ -349,6 +359,11 @@ func _on_client_npc_interaction_requested(
 		npc_definition.interaction_range
 	)
 
+	npc_service_authorized.emit(
+		peer_id,
+		npc_definition.npc_id,
+		npc_definition.service_id
+	)
 
 	# -----------------------------------------------------
 	# SERVICIO WAREHOUSE
