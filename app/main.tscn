@@ -28,6 +28,7 @@
 [ext_resource type="Script" uid="uid://cmi1h5d5q7pym" path="res://app/coordinators/authentication_coordinator.gd" id="18_authentication_coordinator"]
 [ext_resource type="Script" uid="uid://bysm6u42usta" path="res://app/coordinators/basic_attack_coordinator.gd" id="18_j6djv"]
 [ext_resource type="Script" uid="uid://biw3o53jd2vvc" path="res://core/world/mobs/world_mob_registry.gd" id="22_m3sc2"]
+[ext_resource type="Script" uid="uid://dxb260jaww74i" path="res://app/coordinators/skill_learning_coordinator.gd" id="23_hd2o6"]
 [ext_resource type="Script" uid="uid://dk1r4smoh7clq" path="res://app/coordinators/world_drop_coordinator.gd" id="24_5bd50"]
 [ext_resource type="Script" uid="uid://bsy1a01fqswxd" path="res://core/world/drops/world_drop_registry.gd" id="25_jypu3"]
 [ext_resource type="Script" uid="uid://bygy0mdr2yo0" path="res://app/coordinators/world_drop_pickup_coordinator.gd" id="26_jypu3"]
@@ -97,6 +98,9 @@ script = ExtResource("18_authentication_coordinator")
 
 [node name="SkillCastCoordinator" type="Node" parent="." unique_id=725125116]
 script = ExtResource("17_i2r8w")
+
+[node name="SkillLearningCoordinator" type="Node" parent="." unique_id=1302434097]
+script = ExtResource("23_hd2o6")
 
 [node name="BasicAttackCoordinator" type="Node" parent="." unique_id=1821583171]
 script = ExtResource("18_j6djv")

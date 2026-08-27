@@ -127,6 +127,10 @@ extends Node
 	$BackendCharacterSkillLearningRepository
 )
 
+@onready var skill_learning_coordinator: SkillLearningCoordinator = (
+	$SkillLearningCoordinator
+)
+
 # =========================================================
 # START
 # =========================================================
@@ -329,6 +333,37 @@ func _ready() -> void:
 
 
 		return
+
+	if skill_learning_coordinator == null:
+		push_error(
+			"ServerMain | No existe SkillLearningCoordinator."
+		)
+
+
+		get_tree().quit(
+			38
+		)
+
+
+		return
+
+
+	if not skill_learning_coordinator.setup(
+		world_session_registry,
+		backend_character_skill_learning_repository
+	):
+		push_error(
+			"ServerMain | No se pudo inicializar SkillLearningCoordinator."
+		)
+
+
+		get_tree().quit(
+			38
+		)
+
+
+		return
+
 
 	if backend_character_equipment_repository == null:
 		push_error(
