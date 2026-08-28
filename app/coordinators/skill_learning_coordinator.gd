@@ -221,6 +221,12 @@ func _on_client_skill_learning_requested(
 		)
 
 
+		_refresh_active_trainer_offers_after_rejection(
+			session,
+			"stale_request"
+		)
+
+
 		return
 
 
@@ -827,6 +833,12 @@ func _reject_learning_request(
 	)
 
 
+	_refresh_active_trainer_offers_after_rejection(
+		session,
+		reason
+	)
+
+
 	return error
 
 # =========================================================
@@ -1028,6 +1040,12 @@ func _on_skill_learning_persist_failed(
 			reason,
 			session,
 			false
+		)
+
+
+		_refresh_active_trainer_offers_after_rejection(
+			session,
+			reason
 		)
 
 
@@ -1264,6 +1282,7 @@ func _on_inventory_snapshot_applied(
 		session.character_name
 	)
 
+
 # =========================================================
 # ENVIAR OFERTAS DEL TRAINER ACTIVO
 # =========================================================
@@ -1417,6 +1436,62 @@ func _send_active_trainer_offers(
 
 
 	return true
+
+# =========================================================
+# REFRESCAR TRAINER DESPUÉS DE RECHAZO
+# =========================================================
+
+func _refresh_active_trainer_offers_after_rejection(
+	session: PlayerWorldSession,
+	reason: String
+) -> void:
+	if session == null:
+		return
+
+
+	# -----------------------------------------------------
+	# SI EL TRAINER YA SE CERRÓ, NO HAY UI QUE RESTAURAR.
+	# -----------------------------------------------------
+
+	if not session.has_active_npc_service():
+		return
+
+
+	if (
+		session.active_service_id
+		!=
+		ServerSkillLearningCatalog.SKILL_TRAINER_SERVICE_ID
+	):
+		return
+
+
+	# -----------------------------------------------------
+	# REENVIAR VERDAD AUTORITATIVA ACTUAL.
+	#
+	# No interpretamos el rechazo en el cliente.
+	# La UI simplemente vuelve a renderizar las ofertas
+	# construidas por el Game Server.
+	# -----------------------------------------------------
+
+	if not _send_active_trainer_offers(
+		session.peer_id
+	):
+		return
+
+
+	print(
+		"SkillLearningCoordinator | "
+		+
+		"Ofertas del Skill Trainer refrescadas "
+		+
+		"tras rechazo de aprendizaje",
+		" | Peer: ",
+		session.peer_id,
+		" | Personaje: ",
+		session.character_name,
+		" | Reason: ",
+		reason
+	)
 
 # =========================================================
 # SKILL TRAINER AUTORIZADO

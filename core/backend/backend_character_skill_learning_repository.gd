@@ -321,10 +321,64 @@ func _on_request_completed(
 		return
 
 
-	var parsed: Variant = (
-		JSON.parse_string(
-			body.get_string_from_utf8()
+	var body_text := (
+		body.get_string_from_utf8()
+	)
+
+
+	var json := JSON.new()
+
+	var parse_error := (
+		json.parse(
+			body_text
 		)
+	)
+
+
+	if parse_error != OK:
+		var failure_reason := (
+			"invalid_backend_response"
+		)
+
+		var failure_message := (
+			"Respuesta inválida del backend."
+		)
+
+
+		# -------------------------------------------------
+		# Un 5xx no-JSON suele significar que el proxy
+		# respondió mientras Laravel estaba indisponible.
+		# -------------------------------------------------
+
+		if response_code >= 500:
+			failure_reason = (
+				"backend_unavailable"
+			)
+
+			failure_message = (
+				"Backend no disponible."
+			)
+
+
+		_emit_failure(
+			peer_id,
+			account_id,
+			character_id,
+			skill_id,
+			scroll_uid,
+			scroll_item_id,
+			response_code,
+			failure_reason,
+			failure_message,
+			{}
+		)
+
+
+		return
+
+
+	var parsed: Variant = (
+		json.data
 	)
 
 
@@ -346,7 +400,9 @@ func _on_request_completed(
 		return
 
 
-	var response: Dictionary = parsed
+	var response: Dictionary = (
+		parsed as Dictionary
+	)
 
 
 	var ok := bool(
