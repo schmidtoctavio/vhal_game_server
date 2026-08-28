@@ -135,6 +135,10 @@ extends Node
 	$PrimaryStatAllocationCoordinator
 )
 
+@onready var backend_character_stats_repository: BackendCharacterStatsRepository = (
+	$BackendCharacterStatsRepository
+)
+
 # =========================================================
 # START
 # =========================================================
@@ -273,6 +277,43 @@ func _ready() -> void:
 
 		get_tree().quit(
 			32
+		)
+
+
+		return
+
+	if backend_character_stats_repository == null:
+		push_error(
+			(
+				"ServerMain | No existe "
+				+
+				"BackendCharacterStatsRepository."
+			)
+		)
+
+
+		get_tree().quit(
+			41
+		)
+
+
+		return
+
+
+	if not backend_character_stats_repository.is_configured():
+		push_error(
+			(
+				"ServerMain | "
+				+
+				"BackendCharacterStatsRepository "
+				+
+				"no configurado."
+			)
+		)
+
+
+		get_tree().quit(
+			41
 		)
 
 
