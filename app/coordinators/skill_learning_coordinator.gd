@@ -101,6 +101,8 @@ func setup(
 
 	_bind_npc_service_signals()
 
+	_bind_character_item_state_signals()
+
 	_bind_game_server_signals()
 
 	_bind_repository_signals()
@@ -115,6 +117,19 @@ func setup(
 
 
 	return true
+
+
+# =========================================================
+# BIND CHARACTER ITEM STATE
+# =========================================================
+
+func _bind_character_item_state_signals() -> void:
+	if not character_item_state_coordinator.inventory_snapshot_applied.is_connected(
+		_on_inventory_snapshot_applied
+	):
+		character_item_state_coordinator.inventory_snapshot_applied.connect(
+			_on_inventory_snapshot_applied
+		)
 
 # =========================================================
 # BIND NPC SERVICE
@@ -1192,29 +1207,14 @@ func build_active_trainer_offers_snapshot(
 
 
 # =========================================================
-# SKILL TRAINER AUTORIZADO
+# INVENTORY AUTORITATIVO ACTUALIZADO
 # =========================================================
 
-func _on_npc_service_authorized(
+func _on_inventory_snapshot_applied(
 	peer_id: int,
-	npc_id: String,
-	service_id: String
+	account_id: int,
+	character_id: int
 ) -> void:
-	var normalized_service_id := (
-		service_id
-		.strip_edges()
-		.to_lower()
-	)
-
-
-	if (
-		normalized_service_id
-		!=
-		ServerSkillLearningCatalog.SKILL_TRAINER_SERVICE_ID
-	):
-		return
-
-
 	var session := (
 		world_session_registry.get_session(
 			peer_id
@@ -1226,11 +1226,60 @@ func _on_npc_service_authorized(
 		return
 
 
-	if not session.is_using_npc_service(
-		npc_id,
-		normalized_service_id
+	if session.account_id != account_id:
+		return
+
+
+	if session.character_id != character_id:
+		return
+
+
+	if not session.has_active_npc_service():
+		return
+
+
+	if (
+		session.active_service_id
+		!=
+		ServerSkillLearningCatalog.SKILL_TRAINER_SERVICE_ID
 	):
 		return
+
+
+	if not _send_active_trainer_offers(
+		peer_id
+	):
+		return
+
+
+	print(
+		"SkillLearningCoordinator | "
+		+
+		"Ofertas del Skill Trainer refrescadas "
+		+
+		"tras actualización de Inventory",
+		" | Peer: ",
+		peer_id,
+		" | Personaje: ",
+		session.character_name
+	)
+
+# =========================================================
+# ENVIAR OFERTAS DEL TRAINER ACTIVO
+# =========================================================
+
+func _send_active_trainer_offers(
+	peer_id: int
+) -> bool:
+	var session := (
+		world_session_registry.get_session(
+			peer_id
+		)
+	)
+
+
+	if session == null:
+		return false
 
 
 	var snapshot := (
@@ -1252,7 +1301,7 @@ func _on_npc_service_authorized(
 		)
 
 
-		return
+		return false
 
 
 	var offers_value: Variant = (
@@ -1264,12 +1313,13 @@ func _on_npc_service_authorized(
 
 
 	if typeof(offers_value) != TYPE_ARRAY:
-		return
+		return false
 
 
 	var offers: Array = (
 		offers_value as Array
 	)
+
 
 	var send_result := (
 		game_server.send_skill_trainer_offers(
@@ -1296,7 +1346,7 @@ func _on_npc_service_authorized(
 		)
 
 
-		return
+		return false
 
 
 	print(
@@ -1314,6 +1364,7 @@ func _on_npc_service_authorized(
 		" | Ofertas: ",
 		offers.size()
 	)
+
 
 	print(
 		"SkillLearningCoordinator | "
@@ -1363,3 +1414,75 @@ func _on_npc_service_authorized(
 			" | Reason: ",
 			offer.get("reason", "")
 		)
+
+
+	return true
+
+# =========================================================
+# SKILL TRAINER AUTORIZADO
+# =========================================================
+
+func _on_npc_service_authorized(
+	peer_id: int,
+	npc_id: String,
+	service_id: String
+) -> void:
+	var normalized_service_id := (
+		service_id
+		.strip_edges()
+		.to_lower()
+	)
+
+
+	# -----------------------------------------------------
+	# ESTE COORDINATOR SÓLO REACCIONA AL SKILL TRAINER
+	# -----------------------------------------------------
+
+	if (
+		normalized_service_id
+		!=
+		ServerSkillLearningCatalog.SKILL_TRAINER_SERVICE_ID
+	):
+		return
+
+
+	# -----------------------------------------------------
+	# SESIÓN AUTORITATIVA
+	# -----------------------------------------------------
+
+	var session := (
+		world_session_registry.get_session(
+			peer_id
+		)
+	)
+
+
+	if session == null:
+		return
+
+
+	# -----------------------------------------------------
+	# CONFIRMAR QUE EL SERVICIO SIGUE ACTIVO
+	#
+	# No alcanza con recibir la señal: verificamos contra
+	# el estado autoritativo actual de la sesión.
+	# -----------------------------------------------------
+
+	if not session.is_using_npc_service(
+		npc_id,
+		normalized_service_id
+	):
+		return
+
+
+	# -----------------------------------------------------
+	# CONSTRUIR + ENVIAR OFERTAS AUTORITATIVAS
+	#
+	# El mismo helper será reutilizado después de aprender
+	# una Skill y refrescar el Inventory.
+	# -----------------------------------------------------
+
+	if not _send_active_trainer_offers(
+		peer_id
+	):
+		return

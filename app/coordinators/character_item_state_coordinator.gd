@@ -3,6 +3,16 @@ extends Node
 
 
 # =========================================================
+# SIGNALS
+# =========================================================
+
+signal inventory_snapshot_applied(
+	peer_id: int,
+	account_id: int,
+	character_id: int
+)
+
+# =========================================================
 # DEPENDENCIAS
 # =========================================================
 
@@ -604,6 +614,11 @@ func _on_inventory_loaded(
 		items.size()
 	)
 
+	inventory_snapshot_applied.emit(
+		peer_id,
+		account_id,
+		character_id
+	)
 
 # =========================================================
 # INVENTORY LOAD FAILED
