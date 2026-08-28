@@ -131,6 +131,10 @@ extends Node
 	$SkillLearningCoordinator
 )
 
+@onready var primary_stat_allocation_coordinator: PrimaryStatAllocationCoordinator = (
+	$PrimaryStatAllocationCoordinator
+)
+
 # =========================================================
 # START
 # =========================================================
@@ -698,6 +702,40 @@ func _ready() -> void:
 
 		get_tree().quit(
 			25
+		)
+
+
+		return
+
+	if primary_stat_allocation_coordinator == null:
+		push_error(
+			"ServerMain | No existe PrimaryStatAllocationCoordinator."
+		)
+
+
+		get_tree().quit(
+			40
+		)
+
+
+		return
+
+
+	if not primary_stat_allocation_coordinator.setup(
+		game_server,
+		world_session_registry
+	):
+		push_error(
+			(
+				"ServerMain | No se pudo inicializar "
+				+
+				"PrimaryStatAllocationCoordinator."
+			)
+		)
+
+
+		get_tree().quit(
+			40
 		)
 
 

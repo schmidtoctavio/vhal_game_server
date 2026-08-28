@@ -119,6 +119,13 @@ signal client_world_drop_pickup_requested(
 	entity_id: String
 )
 
+signal client_primary_stat_allocation_requested(
+	peer_id: int,
+	request_id: int,
+	stat_id: String,
+	points: int
+)
+
 # =========================================================
 # CONFIGURACIÓN
 # =========================================================
@@ -260,6 +267,14 @@ const MESSAGE_WORLD_DROP_REMOVED: String = (
 
 const MESSAGE_CHARACTER_PROGRESSION_UPDATED: String = (
 	"character_progression_updated"
+)
+
+const MESSAGE_PRIMARY_STAT_ALLOCATION_REQUEST: String = (
+	"primary_stat_allocation_request"
+)
+
+const MESSAGE_PRIMARY_STAT_ALLOCATION_RESULT: String = (
+	"primary_stat_allocation_result"
 )
 
 # =========================================================
@@ -1805,6 +1820,19 @@ func _on_peer_packet(
 
 		return
 
+	if (
+		message_type
+		==
+		MESSAGE_PRIMARY_STAT_ALLOCATION_REQUEST
+	):
+		_process_primary_stat_allocation_request(
+			peer_id,
+			message
+		)
+
+
+		return
+
 func _process_world_drop_pickup_request(
 	peer_id: int,
 	message: Dictionary
@@ -1885,6 +1913,231 @@ func _process_world_drop_pickup_request(
 		peer_id,
 		request_id,
 		entity_id
+	)
+
+# =========================================================
+# PRIMARY STAT ALLOCATION REQUEST
+# =========================================================
+
+func _process_primary_stat_allocation_request(
+	peer_id: int,
+	message: Dictionary
+) -> void:
+	var data_value: Variant = (
+		message.get(
+			"data",
+			null
+		)
+	)
+
+
+	if typeof(data_value) != TYPE_DICTIONARY:
+		reject_authenticated_peer(
+			peer_id,
+			"Stat Allocation sin datos válidos."
+		)
+
+
+		return
+
+
+	var data: Dictionary = (
+		data_value
+	)
+
+
+	var request_id := int(
+		data.get(
+			"request_id",
+			0
+		)
+	)
+
+
+	if request_id <= 0:
+		reject_authenticated_peer(
+			peer_id,
+			"Stat Allocation sin Request ID válido."
+		)
+
+
+		return
+
+
+	var stat_id_value: Variant = (
+		data.get(
+			"stat_id",
+			null
+		)
+	)
+
+
+	if typeof(stat_id_value) != TYPE_STRING:
+		reject_authenticated_peer(
+			peer_id,
+			"Stat Allocation sin Stat ID válido."
+		)
+
+
+		return
+
+
+	var stat_id := String(
+		stat_id_value
+	).strip_edges().to_lower()
+
+
+	if (
+		stat_id.is_empty()
+		or
+		stat_id.length() > 32
+	):
+		reject_authenticated_peer(
+			peer_id,
+			"Stat Allocation con Stat ID inválido."
+		)
+
+
+		return
+
+
+	var points_value: Variant = (
+		data.get(
+			"points",
+			null
+		)
+	)
+
+
+	if (
+		typeof(points_value) != TYPE_INT
+		and
+		typeof(points_value) != TYPE_FLOAT
+	):
+		reject_authenticated_peer(
+			peer_id,
+			"Stat Allocation con Points inválidos."
+		)
+
+
+		return
+
+
+	var points := int(
+		points_value
+	)
+
+
+	client_primary_stat_allocation_requested.emit(
+		peer_id,
+		request_id,
+		stat_id,
+		points
+	)
+
+# =========================================================
+# PRIMARY STAT ALLOCATION RESULT
+# =========================================================
+
+func send_primary_stat_allocation_result(
+	peer_id: int,
+	request_id: int,
+	stat_id: String,
+	points: int,
+	accepted: bool,
+	reason: String,
+	primary_stats_snapshot: Dictionary
+) -> Error:
+	if (
+		peer_id <= 1
+		or
+		request_id <= 0
+	):
+		return ERR_INVALID_PARAMETER
+
+
+	if not authenticated_sessions.has(
+		peer_id
+	):
+		return ERR_DOES_NOT_EXIST
+
+
+	var normalized_stat_id := (
+		stat_id
+		.strip_edges()
+		.to_lower()
+	)
+
+
+	var normalized_reason := (
+		reason.strip_edges()
+	)
+
+
+	if (
+		normalized_stat_id.is_empty()
+		or
+		normalized_stat_id.length() > 32
+	):
+		return ERR_INVALID_PARAMETER
+
+
+	if points <= 0:
+		return ERR_INVALID_PARAMETER
+
+
+	if normalized_reason.is_empty():
+		return ERR_INVALID_PARAMETER
+
+
+	if primary_stats_snapshot.is_empty():
+		return ERR_INVALID_DATA
+
+
+	var scene_multiplayer := (
+		multiplayer
+		as SceneMultiplayer
+	)
+
+
+	if scene_multiplayer == null:
+		return ERR_UNAVAILABLE
+
+
+	var message := {
+		"version": NETWORK_PROTOCOL_VERSION,
+
+		"type": (
+			MESSAGE_PRIMARY_STAT_ALLOCATION_RESULT
+		),
+
+		"data": {
+			"request_id": request_id,
+
+			"stat_id": normalized_stat_id,
+
+			"points": points,
+
+			"accepted": accepted,
+
+			"reason": normalized_reason,
+
+			"primary_stats": (
+				primary_stats_snapshot.duplicate(
+					true
+				)
+			),
+		},
+	}
+
+
+	return scene_multiplayer.send_bytes(
+		JSON.stringify(
+			message
+		).to_utf8_buffer(),
+		peer_id,
+		MultiplayerPeer.TRANSFER_MODE_RELIABLE,
+		0
 	)
 
 func send_world_drop_pickup_result(

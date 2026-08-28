@@ -32,6 +32,7 @@
 [ext_resource type="Script" uid="uid://dk1r4smoh7clq" path="res://app/coordinators/world_drop_coordinator.gd" id="24_5bd50"]
 [ext_resource type="Script" uid="uid://bsy1a01fqswxd" path="res://core/world/drops/world_drop_registry.gd" id="25_jypu3"]
 [ext_resource type="Script" uid="uid://bygy0mdr2yo0" path="res://app/coordinators/world_drop_pickup_coordinator.gd" id="26_jypu3"]
+[ext_resource type="Script" uid="uid://chbo3flc73n4e" path="res://app/coordinators/primary_stat_allocation_coordinator.gd" id="33_8ggac"]
 
 [node name="ServerMain" type="Node" unique_id=1483147024]
 script = ExtResource("1_s58fy")
@@ -129,3 +130,6 @@ script = ExtResource("25_jypu3")
 
 [node name="WorldDropPickupCoordinator" type="Node" parent="." unique_id=1400320390]
 script = ExtResource("26_jypu3")
+
+[node name="PrimaryStatAllocationCoordinator" type="Node" parent="." unique_id=982678198]
+script = ExtResource("33_8ggac")
