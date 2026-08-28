@@ -473,6 +473,30 @@ func _ready() -> void:
 
 		return
 
+	var class_stats_catalog_contract_error := (
+		ServerClassStatsCatalog.validate_contract()
+	)
+
+
+	if not class_stats_catalog_contract_error.is_empty():
+		push_error(
+			(
+				"ServerMain | "
+				+
+				"Class Stats Catalog Contract inválido: "
+				+
+				class_stats_catalog_contract_error
+			)
+		)
+
+
+		get_tree().quit(
+			39
+		)
+
+
+		return
+
 	var skill_catalog_contract_error := (
 		ServerSkillCatalog.validate_contract()
 	)
@@ -544,6 +568,10 @@ func _ready() -> void:
 
 	print(
 		"ServerMain | Mob Drop Catalog Contract validado."
+	)
+
+	print(
+		"ServerMain | Class Stats Catalog Contract validado."
 	)
 
 	print(
