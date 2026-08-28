@@ -1055,6 +1055,10 @@ func to_snapshot() -> Dictionary:
 			),
 		},
 
+		"primary_stats": (
+			primary_stats.to_snapshot()
+		),
+
 		"skills": {
 			"learned_skill_ids": Array(
 				skill_runtime.get_learned_skill_ids()
