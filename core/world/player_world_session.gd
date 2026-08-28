@@ -26,6 +26,15 @@ var level: int = 1
 
 var experience: int = 0
 
+var reset_count: int = 0
+
+
+# =========================================================
+# PRIMARY STATS AUTORITATIVOS
+# =========================================================
+
+var primary_stats: ServerCharacterPrimaryStatsState = null
+
 # =========================================================
 # RUNTIME DURABLE
 # =========================================================
@@ -553,7 +562,7 @@ func _init(
 			"class_id",
 			""
 		)
-	)
+	).strip_edges().to_lower()
 
 
 	level = int(
@@ -567,6 +576,21 @@ func _init(
 		character_data.get(
 			"experience",
 			0
+		)
+	)
+
+	reset_count = int(
+		character_data.get(
+			"reset_count",
+			-1
+		)
+	)
+
+
+	primary_stats = (
+		ServerCharacterPrimaryStatsBootstrap
+		.create_from_character_data(
+			character_data
 		)
 	)
 
@@ -931,6 +955,18 @@ func is_valid() -> bool:
 		)
 		and
 		not class_id.is_empty()
+		and
+		reset_count >= 0
+		and
+		primary_stats != null
+		and
+		primary_stats.is_valid()
+		and
+		primary_stats.class_id == class_id
+		and
+		primary_stats.level == level
+		and
+		primary_stats.reset_count == reset_count
 		and
 		not map_id.is_empty()
 		and
