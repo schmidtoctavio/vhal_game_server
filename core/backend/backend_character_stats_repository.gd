@@ -653,7 +653,7 @@ func _normalize_allocated(
 	)
 
 
-	var required_keys := [
+	var required_keys: Array[String] = [
 		"strength",
 		"agility",
 		"vitality",
@@ -678,7 +678,11 @@ func _normalize_allocated(
 		)
 
 
-		if typeof(stat_value) != TYPE_INT:
+		if (
+			typeof(stat_value) != TYPE_INT
+			and
+			typeof(stat_value) != TYPE_FLOAT
+		):
 			return {}
 
 
@@ -688,6 +692,20 @@ func _normalize_allocated(
 
 
 		if stat < 0:
+			return {}
+
+
+		# -------------------------------------------------
+		# No aceptar decimales disfrazados de Number JSON.
+		# -------------------------------------------------
+
+		if (
+			typeof(stat_value) == TYPE_FLOAT
+			and
+			float(stat)
+			!=
+			float(stat_value)
+		):
 			return {}
 
 

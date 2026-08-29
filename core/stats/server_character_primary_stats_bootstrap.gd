@@ -3,6 +3,36 @@ extends RefCounted
 
 
 # =========================================================
+# CREAR DESDE SNAPSHOT AUTORITATIVO
+# =========================================================
+
+static func create_from_snapshot(
+	class_id: String,
+	level: int,
+	reset_count: int,
+	stats_snapshot: Dictionary
+) -> ServerCharacterPrimaryStatsState:
+	if stats_snapshot.is_empty():
+		return null
+
+
+	return create_from_character_data({
+		"class_id": (
+			class_id
+			.strip_edges()
+			.to_lower()
+		),
+
+		"level": level,
+
+		"reset_count": reset_count,
+
+		"stats": stats_snapshot.duplicate(
+			true
+		),
+	})
+
+# =========================================================
 # CREAR DESDE GAME SESSION TICKET
 # =========================================================
 

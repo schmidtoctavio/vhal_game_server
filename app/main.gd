@@ -764,7 +764,8 @@ func _ready() -> void:
 
 	if not primary_stat_allocation_coordinator.setup(
 		game_server,
-		world_session_registry
+		world_session_registry,
+		backend_character_stats_repository
 	):
 		push_error(
 			(
