@@ -283,6 +283,31 @@ func _on_client_basic_attack_requested(
 
 		return
 
+	# -----------------------------------------------------
+	# ATTACK SPEED AUTORITATIVO
+	# -----------------------------------------------------
+
+	var effective_cooldown_duration_seconds := (
+		ServerBasicAttackSpeedRules
+		.calculate_effective_cooldown_seconds(
+			cooldown_duration_seconds,
+			session.derived_stats.attack_speed_multiplier
+		)
+	)
+
+
+	if effective_cooldown_duration_seconds < 0.0:
+		_send_result(
+			peer_id,
+			request_id,
+			false,
+			"runtime_failure",
+			target,
+			attack_profile
+		)
+
+
+		return
 
 	var pre_critical_damage := (
 		ServerBasicAttackDamageRules
@@ -441,7 +466,7 @@ func _on_client_basic_attack_requested(
 
 
 	if not session.basic_attack_runtime.start_cooldown(
-		cooldown_duration_seconds
+		effective_cooldown_duration_seconds
 	):
 		_send_result(
 			peer_id,
@@ -670,6 +695,12 @@ func _on_client_basic_attack_requested(
 				""
 			)
 		),
+		" | Base Cooldown: ",
+		cooldown_duration_seconds,
+		" | Attack Speed: ",
+		session.derived_stats.attack_speed_multiplier,
+		" | Effective Cooldown: ",
+		effective_cooldown_duration_seconds,
 		" | Distancia: ",
 		distance,
 		" | Base Damage: ",

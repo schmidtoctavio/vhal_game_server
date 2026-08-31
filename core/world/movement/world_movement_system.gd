@@ -22,8 +22,6 @@ signal movement_state_sampled(
 # CONFIGURACIÓN
 # =========================================================
 
-const MOVE_SPEED: float = 4.0
-
 const WAYPOINT_REACHED_DISTANCE: float = 0.001
 
 const MIN_DIRECTION_LENGTH_SQUARED: float = 0.000001
@@ -63,8 +61,7 @@ func setup(
 
 	print(
 		"WorldMovementSystem | Inicializado",
-		" | Velocidad: ",
-		MOVE_SPEED
+		" | Velocidad: Derived Stats por sesión"
 	)
 
 
@@ -163,9 +160,30 @@ func _advance_session(
 
 		return
 
+	if session.derived_stats == null:
+		session.clear_move_request()
+
+		return
+
+
+	if not session.derived_stats.is_valid():
+		session.clear_move_request()
+
+		return
+
+
+	var movement_speed := (
+		session.derived_stats.movement_speed
+	)
+
+
+	if movement_speed <= 0.0:
+		session.clear_move_request()
+
+		return
 
 	var remaining_distance := (
-		MOVE_SPEED
+		movement_speed
 		*
 		delta
 	)

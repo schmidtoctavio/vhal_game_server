@@ -421,6 +421,8 @@ func _on_client_move_requested(
 		target,
 		" | Autorizado: ",
 		session.authorized_move_target,
+		" | Movement Speed: ",
+		session.derived_stats.movement_speed,
 		" | Path points: ",
 		int(
 			resolution.get(
