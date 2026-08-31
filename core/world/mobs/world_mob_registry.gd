@@ -68,7 +68,8 @@ func initialize() -> Error:
 			1,
 			5_000,
 			50,
-			3.0
+			3.0,
+			100
 		)
 	)
 
@@ -130,7 +131,9 @@ func initialize() -> Error:
 		" | HP: ",
 		first_goblin.vitals.hp,
 		"/",
-		first_goblin.vitals.max_hp
+		first_goblin.vitals.max_hp,
+		" | Base Armor: ",
+		first_goblin.definition.base_armor_rating
 	)
 
 
