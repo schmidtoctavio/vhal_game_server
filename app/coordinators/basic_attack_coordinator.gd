@@ -306,6 +306,64 @@ func _on_client_basic_attack_requested(
 
 		return
 
+	# -----------------------------------------------------
+	# ARMOR FÍSICO DEL TARGET
+	# -----------------------------------------------------
+
+	if mob.definition == null:
+		_send_result(
+			peer_id,
+			request_id,
+			false,
+			"runtime_failure",
+			target,
+			attack_profile
+		)
+
+
+		return
+
+
+	if not mob.definition.is_valid():
+		_send_result(
+			peer_id,
+			request_id,
+			false,
+			"runtime_failure",
+			target,
+			attack_profile
+		)
+
+
+		return
+
+
+	var armor_rating := (
+		mob.definition.base_armor_rating
+	)
+
+
+	var post_mitigation_damage := (
+		ServerPhysicalDamageMitigationRules
+		.calculate_post_mitigation_damage(
+			pre_mitigation_damage,
+			armor_rating
+		)
+	)
+
+
+	if post_mitigation_damage <= 0:
+		_send_result(
+			peer_id,
+			request_id,
+			false,
+			"runtime_failure",
+			target,
+			attack_profile
+		)
+
+
+		return
 
 	# -----------------------------------------------------
 	# RANGO AUTORITATIVO
@@ -431,7 +489,7 @@ func _on_client_basic_attack_requested(
 	var damage_result := (
 		world_mob_registry.apply_damage_to_mob(
 			mob.entity_id,
-			pre_mitigation_damage,
+			post_mitigation_damage,
 			{
 				"kind": "player_basic_attack",
 
@@ -566,6 +624,10 @@ func _on_client_basic_attack_requested(
 		session.derived_stats.physical_power,
 		" | Pre-Mitigation: ",
 		pre_mitigation_damage,
+		" | Armor: ",
+		armor_rating,
+		" | Post-Mitigation: ",
+		post_mitigation_damage,
 		" | Damage: ",
 		applied_damage,
 		" | HP restante: ",
