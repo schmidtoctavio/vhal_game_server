@@ -61,6 +61,14 @@ var critical_strike_chance: float = 0.0
 var critical_damage_multiplier: float = 1.5
 
 # =========================================================
+# SPEED DERIVADO
+# =========================================================
+
+var attack_speed_multiplier: float = 1.0
+
+var movement_speed: float = 4.0
+
+# =========================================================
 # CONSTRUCTOR
 # =========================================================
 
@@ -77,7 +85,9 @@ func _init(
 	p_magic_power: int,
 	p_healing_power: int,
 	p_critical_strike_chance: float,
-	p_critical_damage_multiplier: float
+	p_critical_damage_multiplier: float,
+	p_attack_speed_multiplier: float,
+	p_movement_speed: float
 ) -> void:
 	class_id = (
 		p_class_id
@@ -116,6 +126,14 @@ func _init(
 
 	critical_damage_multiplier = (
 		p_critical_damage_multiplier
+	)
+
+	attack_speed_multiplier = (
+		p_attack_speed_multiplier
+	)
+
+	movement_speed = (
+		p_movement_speed
 	)
 
 # =========================================================
@@ -177,6 +195,13 @@ func is_valid() -> bool:
 	if critical_damage_multiplier < 1.0:
 		return false
 
+	if attack_speed_multiplier <= 0.0:
+		return false
+
+
+	if movement_speed <= 0.0:
+		return false
+
 	return true
 
 
@@ -227,6 +252,16 @@ func to_snapshot() -> Dictionary:
 
 			"damage_multiplier": (
 				critical_damage_multiplier
+			),
+		},
+
+		"speed": {
+			"attack_multiplier": (
+				attack_speed_multiplier
+			),
+
+			"movement": (
+				movement_speed
 			),
 		},
 	}

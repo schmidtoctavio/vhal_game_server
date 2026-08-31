@@ -159,6 +159,10 @@ func create_session(
 		session.derived_stats.critical_strike_chance,
 		"/",
 		session.derived_stats.critical_damage_multiplier,
+		" | Derived Speed Attack/Move: ",
+		session.derived_stats.attack_speed_multiplier,
+		"/",
+		session.derived_stats.movement_speed,
 		" | Runtime revision: ",
 		session.runtime_revision,
 	)

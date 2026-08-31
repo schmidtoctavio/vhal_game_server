@@ -46,6 +46,27 @@ const FOUNDATION_CRITICAL_STRIKE_CHANCE: float = 0.0
 const FOUNDATION_CRITICAL_DAMAGE_MULTIPLIER: float = 1.5
 
 # =========================================================
+# SPEED FOUNDATION
+#
+# F22-H1-A
+#
+# Attack Speed todavía NO recibe aporte real de:
+#
+# - AGI
+# - Class
+# - Equipment
+# - Buffs
+#
+# Movement Speed tampoco recibe aporte de Primary Stats.
+#
+# Estos valores preservan exactamente el gameplay actual.
+# =========================================================
+
+const FOUNDATION_ATTACK_SPEED_MULTIPLIER: float = 1.0
+
+const FOUNDATION_MOVEMENT_SPEED: float = 4.0
+
+# =========================================================
 # MAX HP
 # =========================================================
 
@@ -395,6 +416,74 @@ static func calculate_critical_damage_multiplier(
 	return FOUNDATION_CRITICAL_DAMAGE_MULTIPLIER
 
 # =========================================================
+# ATTACK SPEED MULTIPLIER
+# =========================================================
+
+static func calculate_attack_speed_multiplier(
+	primary_stats: ServerCharacterPrimaryStatsState,
+	class_definition: ServerClassStatsDefinition
+) -> float:
+	if primary_stats == null:
+		return -1.0
+
+
+	if class_definition == null:
+		return -1.0
+
+
+	if not primary_stats.is_valid():
+		return -1.0
+
+
+	if not class_definition.is_valid():
+		return -1.0
+
+
+	if (
+		primary_stats.class_id
+		!=
+		class_definition.class_id
+	):
+		return -1.0
+
+
+	return FOUNDATION_ATTACK_SPEED_MULTIPLIER
+
+# =========================================================
+# MOVEMENT SPEED
+# =========================================================
+
+static func calculate_movement_speed(
+	primary_stats: ServerCharacterPrimaryStatsState,
+	class_definition: ServerClassStatsDefinition
+) -> float:
+	if primary_stats == null:
+		return -1.0
+
+
+	if class_definition == null:
+		return -1.0
+
+
+	if not primary_stats.is_valid():
+		return -1.0
+
+
+	if not class_definition.is_valid():
+		return -1.0
+
+
+	if (
+		primary_stats.class_id
+		!=
+		class_definition.class_id
+	):
+		return -1.0
+
+
+	return FOUNDATION_MOVEMENT_SPEED
+
+# =========================================================
 # RESOLVER DERIVED STATS
 # =========================================================
 
@@ -473,6 +562,21 @@ static func build_foundation_values(
 		)
 	)
 
+	var attack_speed_multiplier := (
+		calculate_attack_speed_multiplier(
+			primary_stats,
+			class_definition
+		)
+	)
+
+
+	var movement_speed := (
+		calculate_movement_speed(
+			primary_stats,
+			class_definition
+		)
+	)
+
 	if max_hp <= 0:
 		return {}
 
@@ -500,6 +604,13 @@ static func build_foundation_values(
 
 
 	if critical_damage_multiplier < 1.0:
+		return {}
+
+	if attack_speed_multiplier <= 0.0:
+		return {}
+
+
+	if movement_speed <= 0.0:
 		return {}
 
 	return {
@@ -533,5 +644,13 @@ static func build_foundation_values(
 
 		"critical_damage_multiplier": (
 			critical_damage_multiplier
+		),
+
+		"attack_speed_multiplier": (
+			attack_speed_multiplier
+		),
+
+		"movement_speed": (
+			movement_speed
 		),
 	}

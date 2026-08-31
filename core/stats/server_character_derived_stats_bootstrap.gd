@@ -88,6 +88,18 @@ static func create_from_primary_stats(
 					"critical_damage_multiplier",
 					-1.0
 				)
+			),
+			float(
+				values.get(
+					"attack_speed_multiplier",
+					-1.0
+				)
+			),
+			float(
+				values.get(
+					"movement_speed",
+					-1.0
+				)
 			)
 		)
 	)
