@@ -68,7 +68,9 @@ static func get_definition(
 				1,
 				0,
 				0,
-				1
+				1,
+				0.35,
+				300.0
 			)
 
 
@@ -95,7 +97,9 @@ static func get_definition(
 				2,
 				10,
 				1,
-				2
+				2,
+				0.25,
+				350.0
 			)
 
 
@@ -122,7 +126,9 @@ static func get_definition(
 				1,
 				0,
 				0,
-				1
+				1,
+				0.60,
+				250.0
 			)
 
 

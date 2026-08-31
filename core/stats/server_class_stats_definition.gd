@@ -72,6 +72,14 @@ var healing_power_per_level: int = 0
 var healing_power_per_energy: int = 0
 
 # =========================================================
+# DERIVED ATTACK SPEED — BALANCE DE CLASE
+# =========================================================
+
+var attack_speed_max_bonus: float = 0.0
+
+var attack_speed_agility_half_saturation: float = 0.0
+
+# =========================================================
 # CONSTRUCTOR
 # =========================================================
 
@@ -97,7 +105,9 @@ func _init(
 	p_magic_power_per_energy: int = 0,
 	p_base_healing_power: int = 0,
 	p_healing_power_per_level: int = 0,
-	p_healing_power_per_energy: int = 0
+	p_healing_power_per_energy: int = 0,
+	p_attack_speed_max_bonus: float = 0.0,
+	p_attack_speed_agility_half_saturation: float = 0.0
 ) -> void:
 	class_id = (
 		p_class_id
@@ -197,6 +207,15 @@ func _init(
 		p_healing_power_per_energy
 	)
 
+	attack_speed_max_bonus = (
+		p_attack_speed_max_bonus
+	)
+
+
+	attack_speed_agility_half_saturation = (
+		p_attack_speed_agility_half_saturation
+	)
+
 # =========================================================
 # TOTAL DE STATS BASE
 # =========================================================
@@ -290,4 +309,10 @@ func is_valid() -> bool:
 
 		and
 		healing_power_per_energy > 0
+
+		and
+		attack_speed_max_bonus >= 0.0
+
+		and
+		attack_speed_agility_half_saturation > 0.0
 	)
