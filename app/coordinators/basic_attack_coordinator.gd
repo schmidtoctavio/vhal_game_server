@@ -284,7 +284,7 @@ func _on_client_basic_attack_requested(
 		return
 
 
-	var pre_mitigation_damage := (
+	var pre_critical_damage := (
 		ServerBasicAttackDamageRules
 		.calculate_pre_mitigation_damage(
 			attack_profile,
@@ -293,7 +293,7 @@ func _on_client_basic_attack_requested(
 	)
 
 
-	if pre_mitigation_damage <= 0:
+	if pre_critical_damage <= 0:
 		_send_result(
 			peer_id,
 			request_id,
@@ -341,29 +341,6 @@ func _on_client_basic_attack_requested(
 	var armor_rating := (
 		mob.definition.base_armor_rating
 	)
-
-
-	var post_mitigation_damage := (
-		ServerPhysicalDamageMitigationRules
-		.calculate_post_mitigation_damage(
-			pre_mitigation_damage,
-			armor_rating
-		)
-	)
-
-
-	if post_mitigation_damage <= 0:
-		_send_result(
-			peer_id,
-			request_id,
-			false,
-			"runtime_failure",
-			target,
-			attack_profile
-		)
-
-
-		return
 
 	# -----------------------------------------------------
 	# RANGO AUTORITATIVO
@@ -478,6 +455,83 @@ func _on_client_basic_attack_requested(
 
 		return
 
+	# -----------------------------------------------------
+	# CRITICAL STRIKE AUTORITATIVO
+	#
+	# El roll ocurre sólo después de que:
+	#
+	# - target fue validado
+	# - rango fue validado
+	# - cooldown fue aceptado
+	#
+	# Requests inválidos no consumen Critical Rolls.
+	# -----------------------------------------------------
+
+	var critical_roll := randf()
+
+
+	var is_critical := (
+		ServerCriticalStrikeRules.is_critical_roll(
+			session.derived_stats.critical_strike_chance,
+			critical_roll
+		)
+	)
+
+
+	var pre_mitigation_damage := (
+		ServerCriticalStrikeRules.calculate_critical_damage(
+			pre_critical_damage,
+			is_critical,
+			session.derived_stats.critical_damage_multiplier
+		)
+	)
+
+
+	if pre_mitigation_damage <= 0:
+		session.basic_attack_runtime.reset()
+
+
+		_send_result(
+			peer_id,
+			request_id,
+			false,
+			"runtime_failure",
+			target,
+			attack_profile
+		)
+
+
+		return
+
+
+	# -----------------------------------------------------
+	# PHYSICAL ARMOR MITIGATION
+	# -----------------------------------------------------
+
+	var post_mitigation_damage := (
+		ServerPhysicalDamageMitigationRules
+		.calculate_post_mitigation_damage(
+			pre_mitigation_damage,
+			armor_rating
+		)
+	)
+
+
+	if post_mitigation_damage <= 0:
+		session.basic_attack_runtime.reset()
+
+
+		_send_result(
+			peer_id,
+			request_id,
+			false,
+			"runtime_failure",
+			target,
+			attack_profile
+		)
+
+
+		return
 
 	# -----------------------------------------------------
 	# DAMAGE AUTORITATIVO
@@ -622,6 +676,16 @@ func _on_client_basic_attack_requested(
 		base_damage,
 		" | Physical Power: ",
 		session.derived_stats.physical_power,
+		" | Pre-Crit: ",
+		pre_critical_damage,
+		" | Crit Chance: ",
+		session.derived_stats.critical_strike_chance,
+		" | Crit Roll: ",
+		critical_roll,
+		" | Critical: ",
+		is_critical,
+		" | Crit Multiplier: ",
+		session.derived_stats.critical_damage_multiplier,
 		" | Pre-Mitigation: ",
 		pre_mitigation_damage,
 		" | Armor: ",
