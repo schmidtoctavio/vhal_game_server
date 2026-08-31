@@ -3,19 +3,16 @@ extends RefCounted
 
 
 # =========================================================
-# FOUNDATION / TESTING
-# =========================================================
-#
-# Curva temporal para validar el sistema:
-#
-# cada nivel requiere 100 EXP.
-#
-# NO es balance final.
+# PROGRESIÓN FOUNDATION
 # =========================================================
 
-const TEST_EXPERIENCE_REQUIRED_PER_LEVEL: int = 100
+const MAX_LEVEL: int = 400
 
-const MAX_LEVEL: int = 65_535
+const BASE_EXPERIENCE_REQUIRED: int = 50
+
+const LINEAR_EXPERIENCE_FACTOR: int = 15
+
+const QUADRATIC_EXPERIENCE_FACTOR: int = 2
 
 
 # =========================================================
@@ -33,7 +30,30 @@ static func get_experience_required(
 		return 0
 
 
-	return TEST_EXPERIENCE_REQUIRED_PER_LEVEL
+	var level_offset := (
+		level
+		-
+		1
+	)
+
+
+	return (
+		BASE_EXPERIENCE_REQUIRED
+		+
+		(
+			LINEAR_EXPERIENCE_FACTOR
+			*
+			level_offset
+		)
+		+
+		(
+			QUADRATIC_EXPERIENCE_FACTOR
+			*
+			level_offset
+			*
+			level_offset
+		)
+	)
 
 
 # =========================================================
@@ -123,6 +143,13 @@ static func apply_experience(
 
 	# -----------------------------------------------------
 	# MAX LEVEL FOUNDATION
+	#
+	# El comportamiento final de EXP en Level 400 se
+	# resolverá explícitamente en F22-E5.
+	#
+	# Por ahora preservamos la semántica segura existente:
+	# el personaje no supera MAX_LEVEL y EXP se mantiene
+	# dentro de un estado válido.
 	# -----------------------------------------------------
 
 	if next_level >= MAX_LEVEL:
