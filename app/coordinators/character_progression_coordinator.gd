@@ -482,6 +482,9 @@ func _on_progression_persisted(
 			session.primary_stats
 		)
 
+		var next_derived_stats := (
+			session.derived_stats
+		)
 
 		# -------------------------------------------------
 		# LEVEL UP → REBUILD DE BUDGET
@@ -522,6 +525,37 @@ func _on_progression_persisted(
 
 				return
 
+			next_derived_stats = (
+				ServerCharacterDerivedStatsBootstrap
+				.create_from_primary_stats(
+					next_primary_stats
+				)
+			)
+
+
+			if next_derived_stats == null:
+				push_error(
+					(
+						"CharacterProgressionCoordinator | "
+						+
+						"No se pudieron reconstruir "
+						+
+						"Derived Stats después del Level Up."
+					)
+				)
+
+
+				game_server.reject_authenticated_peer(
+					peer_id,
+					(
+						"No se pudo reconstruir "
+						+
+						"el estado de Derived Stats."
+					)
+				)
+
+
+				return
 
 		session.level = level
 
@@ -533,6 +567,34 @@ func _on_progression_persisted(
 				next_primary_stats
 			)
 
+			session.derived_stats = (
+				next_derived_stats
+			)
+
+		if level_changed:
+			print(
+				(
+					"CharacterProgressionCoordinator | "
+					+
+					"Derived Stats reconstruidos post Level Up"
+				),
+				" | Character ID: ",
+				character_id,
+				" | Source revision: ",
+				session.derived_stats.source_primary_stats_revision,
+				" | Level: ",
+				session.derived_stats.level,
+				" | Max HP/MP: ",
+				session.derived_stats.max_hp,
+				"/",
+				session.derived_stats.max_mp,
+				" | Power P/M/H: ",
+				session.derived_stats.physical_power,
+				"/",
+				session.derived_stats.magic_power,
+				"/",
+				session.derived_stats.healing_power
+			)
 
 		var experience_required := (
 			ServerCharacterProgressionRules

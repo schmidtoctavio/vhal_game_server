@@ -483,7 +483,38 @@ func _on_primary_stats_persisted(
 		return
 
 
+	var next_derived_stats := (
+		ServerCharacterDerivedStatsBootstrap
+		.create_from_primary_stats(
+			next_state
+		)
+	)
+
+
+	if next_derived_stats == null:
+		pending_by_peer.erase(
+			peer_id
+		)
+
+
+		game_server.reject_authenticated_peer(
+			peer_id,
+			(
+				"No se pudieron reconstruir "
+				+
+				"Derived Stats después de allocation."
+			)
+		)
+
+
+		return
+
+
 	session.primary_stats = next_state
+
+	session.derived_stats = (
+		next_derived_stats
+	)
 
 
 	var request_id := int(
@@ -512,6 +543,29 @@ func _on_primary_stats_persisted(
 		peer_id
 	)
 
+	print(
+		(
+			"PrimaryStatAllocationCoordinator | "
+			+
+			"Derived Stats reconstruidos post allocation"
+		),
+		" | Character ID: ",
+		character_id,
+		" | Source revision: ",
+		session.derived_stats.source_primary_stats_revision,
+		" | Level: ",
+		session.derived_stats.level,
+		" | Max HP/MP: ",
+		session.derived_stats.max_hp,
+		"/",
+		session.derived_stats.max_mp,
+		" | Power P/M/H: ",
+		session.derived_stats.physical_power,
+		"/",
+		session.derived_stats.magic_power,
+		"/",
+		session.derived_stats.healing_power
+	)
 
 	print(
 		"PrimaryStatAllocationCoordinator | "
@@ -731,9 +785,33 @@ func _on_primary_stats_persist_failed(
 
 			return
 
+		var current_derived_stats := (
+			ServerCharacterDerivedStatsBootstrap
+			.create_from_primary_stats(
+				current_state
+			)
+		)
+
+
+		if current_derived_stats == null:
+			game_server.reject_authenticated_peer(
+				peer_id,
+				(
+					"No se pudieron resincronizar "
+					+
+					"Derived Stats después de stale_revision."
+				)
+			)
+
+
+			return
 
 		session.primary_stats = (
 			current_state
+		)
+
+		session.derived_stats = (
+			current_derived_stats
 		)
 
 
