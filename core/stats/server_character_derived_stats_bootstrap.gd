@@ -76,6 +76,18 @@ static func create_from_primary_stats(
 					"healing_power",
 					-1
 				)
+			),
+			float(
+				values.get(
+					"critical_strike_chance",
+					-1.0
+				)
+			),
+			float(
+				values.get(
+					"critical_damage_multiplier",
+					-1.0
+				)
 			)
 		)
 	)

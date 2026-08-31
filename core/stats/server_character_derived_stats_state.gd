@@ -52,6 +52,13 @@ var magic_power: int = 0
 
 var healing_power: int = 0
 
+# =========================================================
+# CRITICAL DERIVADO
+# =========================================================
+
+var critical_strike_chance: float = 0.0
+
+var critical_damage_multiplier: float = 1.5
 
 # =========================================================
 # CONSTRUCTOR
@@ -68,7 +75,9 @@ func _init(
 	p_mp_regeneration: int,
 	p_physical_power: int,
 	p_magic_power: int,
-	p_healing_power: int
+	p_healing_power: int,
+	p_critical_strike_chance: float,
+	p_critical_damage_multiplier: float
 ) -> void:
 	class_id = (
 		p_class_id
@@ -101,6 +110,13 @@ func _init(
 
 	healing_power = p_healing_power
 
+	critical_strike_chance = (
+		p_critical_strike_chance
+	)
+
+	critical_damage_multiplier = (
+		p_critical_damage_multiplier
+	)
 
 # =========================================================
 # VALIDACIÓN
@@ -150,6 +166,16 @@ func is_valid() -> bool:
 	if healing_power < 0:
 		return false
 
+	if critical_strike_chance < 0.0:
+		return false
+
+
+	if critical_strike_chance > 1.0:
+		return false
+
+
+	if critical_damage_multiplier < 1.0:
+		return false
 
 	return true
 
@@ -192,5 +218,15 @@ func to_snapshot() -> Dictionary:
 			"magic": magic_power,
 
 			"healing": healing_power,
+		},
+
+		"critical": {
+			"strike_chance": (
+				critical_strike_chance
+			),
+
+			"damage_multiplier": (
+				critical_damage_multiplier
+			),
 		},
 	}

@@ -23,6 +23,27 @@ const FOUNDATION_HP_REGENERATION: int = 0
 
 const FOUNDATION_MP_REGENERATION: int = 0
 
+# =========================================================
+# CRITICAL FOUNDATION
+#
+# F22-G2-A
+#
+# Todavía NO existe una fuente real de Critical Chance.
+#
+# No asumimos:
+#
+# - AGI
+# - Class
+# - Equipment
+# - Buffs
+#
+# El multiplier define solamente la semántica base
+# de un Critical Strike futuro.
+# =========================================================
+
+const FOUNDATION_CRITICAL_STRIKE_CHANCE: float = 0.0
+
+const FOUNDATION_CRITICAL_DAMAGE_MULTIPLIER: float = 1.5
 
 # =========================================================
 # MAX HP
@@ -305,6 +326,75 @@ static func calculate_healing_power(
 	)
 
 # =========================================================
+# CRITICAL STRIKE CHANCE
+# =========================================================
+
+static func calculate_critical_strike_chance(
+	primary_stats: ServerCharacterPrimaryStatsState,
+	class_definition: ServerClassStatsDefinition
+) -> float:
+	if primary_stats == null:
+		return -1.0
+
+
+	if class_definition == null:
+		return -1.0
+
+
+	if not primary_stats.is_valid():
+		return -1.0
+
+
+	if not class_definition.is_valid():
+		return -1.0
+
+
+	if (
+		primary_stats.class_id
+		!=
+		class_definition.class_id
+	):
+		return -1.0
+
+
+	return FOUNDATION_CRITICAL_STRIKE_CHANCE
+
+
+# =========================================================
+# CRITICAL DAMAGE MULTIPLIER
+# =========================================================
+
+static func calculate_critical_damage_multiplier(
+	primary_stats: ServerCharacterPrimaryStatsState,
+	class_definition: ServerClassStatsDefinition
+) -> float:
+	if primary_stats == null:
+		return -1.0
+
+
+	if class_definition == null:
+		return -1.0
+
+
+	if not primary_stats.is_valid():
+		return -1.0
+
+
+	if not class_definition.is_valid():
+		return -1.0
+
+
+	if (
+		primary_stats.class_id
+		!=
+		class_definition.class_id
+	):
+		return -1.0
+
+
+	return FOUNDATION_CRITICAL_DAMAGE_MULTIPLIER
+
+# =========================================================
 # RESOLVER DERIVED STATS
 # =========================================================
 
@@ -368,6 +458,21 @@ static func build_foundation_values(
 		)
 	)
 
+	var critical_strike_chance := (
+		calculate_critical_strike_chance(
+			primary_stats,
+			class_definition
+		)
+	)
+
+
+	var critical_damage_multiplier := (
+		calculate_critical_damage_multiplier(
+			primary_stats,
+			class_definition
+		)
+	)
+
 	if max_hp <= 0:
 		return {}
 
@@ -384,6 +489,17 @@ static func build_foundation_values(
 
 
 	if healing_power < 0:
+		return {}
+
+	if critical_strike_chance < 0.0:
+		return {}
+
+
+	if critical_strike_chance > 1.0:
+		return {}
+
+
+	if critical_damage_multiplier < 1.0:
 		return {}
 
 	return {
@@ -409,5 +525,13 @@ static func build_foundation_values(
 
 		"healing_power": (
 			healing_power
+		),
+
+		"critical_strike_chance": (
+			critical_strike_chance
+		),
+
+		"critical_damage_multiplier": (
+			critical_damage_multiplier
 		),
 	}

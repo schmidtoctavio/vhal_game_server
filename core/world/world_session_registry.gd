@@ -155,6 +155,10 @@ func create_session(
 		session.derived_stats.magic_power,
 		"/",
 		session.derived_stats.healing_power,
+		" | Derived Crit Chance/Multiplier: ",
+		session.derived_stats.critical_strike_chance,
+		"/",
+		session.derived_stats.critical_damage_multiplier,
 		" | Runtime revision: ",
 		session.runtime_revision,
 	)
