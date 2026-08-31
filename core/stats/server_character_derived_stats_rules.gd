@@ -447,7 +447,57 @@ static func calculate_attack_speed_multiplier(
 		return -1.0
 
 
-	return FOUNDATION_ATTACK_SPEED_MULTIPLIER
+	var permanent_agility := float(
+		primary_stats.permanent_agility
+	)
+
+
+	var half_saturation := (
+		class_definition
+		.attack_speed_agility_half_saturation
+	)
+
+
+	var max_bonus := (
+		class_definition.attack_speed_max_bonus
+	)
+
+
+	if permanent_agility < 0.0:
+		return -1.0
+
+
+	if half_saturation <= 0.0:
+		return -1.0
+
+
+	if max_bonus < 0.0:
+		return -1.0
+
+
+	var agility_ratio := (
+		permanent_agility
+		/
+		(
+			permanent_agility
+			+
+			half_saturation
+		)
+	)
+
+
+	var attack_speed_bonus := (
+		max_bonus
+		*
+		agility_ratio
+	)
+
+
+	return (
+		FOUNDATION_ATTACK_SPEED_MULTIPLIER
+		+
+		attack_speed_bonus
+	)
 
 # =========================================================
 # MOVEMENT SPEED
