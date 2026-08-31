@@ -151,6 +151,8 @@ func _on_mob_died(
 	if session == null:
 		return
 
+	if session.level >= ServerCharacterProgressionRules.MAX_LEVEL:
+		return
 
 	if session.character_id != character_id:
 		return

@@ -105,6 +105,22 @@ static func apply_experience(
 	):
 		return {}
 
+	if level >= MAX_LEVEL:
+		return {
+			"level": MAX_LEVEL,
+
+			"experience": 0,
+
+			"experience_required": (
+				get_experience_required(
+					MAX_LEVEL
+				)
+			),
+
+			"experience_gained": 0,
+
+			"levels_gained": 0,
+		}
 
 	var next_level := level
 
@@ -153,17 +169,9 @@ static func apply_experience(
 	# -----------------------------------------------------
 
 	if next_level >= MAX_LEVEL:
-		var required_at_max := (
-			get_experience_required(
-				MAX_LEVEL
-			)
-		)
+		next_level = MAX_LEVEL
 
-
-		next_experience = mini(
-			next_experience,
-			required_at_max - 1
-		)
+		next_experience = 0
 
 
 	return {
