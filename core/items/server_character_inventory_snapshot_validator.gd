@@ -154,6 +154,25 @@ static func validate(
 				enhancement_state_error
 			)
 
+		var modifier_source_error := (
+			ServerEquipmentModifierSourceRules
+			.validate_item_instance(
+				item,
+				definition
+			)
+		)
+
+
+		if not modifier_source_error.is_empty():
+			return (
+				"modifiers de instancia inválidos: "
+				+
+				uid
+				+
+				" | "
+				+
+				modifier_source_error
+			)
 
 		var quantity := int(
 			item.get(

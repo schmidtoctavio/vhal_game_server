@@ -55,6 +55,19 @@ static func validate_contract() -> String:
 			stat_modifier_contract_error
 		)
 
+	var modifier_source_contract_error := (
+		ServerEquipmentModifierSourceRules
+		.validate_contract()
+	)
+
+
+	if not modifier_source_contract_error.is_empty():
+		return (
+			"Equipment Modifier Source Contract inválido: "
+			+
+			modifier_source_contract_error
+		)
+
 	# -----------------------------------------------------
 	# ONE HAND
 	# -----------------------------------------------------

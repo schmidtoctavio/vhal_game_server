@@ -174,6 +174,26 @@ static func validate(
 				enhancement_state_error
 			)
 
+		var modifier_source_error := (
+			ServerEquipmentModifierSourceRules
+			.validate_item_instance(
+				item,
+				definition
+			)
+		)
+
+
+		if not modifier_source_error.is_empty():
+			return (
+				"Equipment modifiers inválidos: "
+				+
+				uid
+				+
+				" | "
+				+
+				modifier_source_error
+			)
+
 		# -------------------------------------------------
 		# QUANTITY
 		# -------------------------------------------------

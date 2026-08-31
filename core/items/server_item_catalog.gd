@@ -60,6 +60,8 @@ const DEFINITIONS: Dictionary = {
 			"one_hand_weapon_v1"
 		),
 
+		"fixed_modifiers": [],
+
 		"basic_attack_mode_id": "melee",
 
 		"basic_attack_base_damage": 1000,
@@ -103,6 +105,14 @@ const DEFINITIONS: Dictionary = {
 		"enhancement_profile_id": (
 			"light_armor_v1"
 		),
+
+		"fixed_modifiers": [
+			{
+				"stat_id": "super_strength",
+				"operation_id": "flat_add",
+				"value": 5,
+			},
+		],
 
 		"base_armor_rating": 20,
 
