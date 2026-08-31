@@ -12,20 +12,16 @@ extends RefCounted
 # - Permanent Vitality
 # - Permanent Energy
 #
-# Regeneration y Power continúan temporalmente en 0.
+# Regeneration continúa temporalmente en 0.
+#
+# F22-F3 resuelve Physical / Magic / Healing Power
+# desde el balance autoritativo de cada Class.
 # Serán reemplazados en etapas posteriores.
 # =========================================================
 
 const FOUNDATION_HP_REGENERATION: int = 0
 
 const FOUNDATION_MP_REGENERATION: int = 0
-
-
-const FOUNDATION_PHYSICAL_POWER: int = 0
-
-const FOUNDATION_MAGIC_POWER: int = 0
-
-const FOUNDATION_HEALING_POWER: int = 0
 
 
 # =========================================================
@@ -137,6 +133,176 @@ static func calculate_max_mp(
 		energy_growth
 	)
 
+# =========================================================
+# PHYSICAL POWER
+# =========================================================
+
+static func calculate_physical_power(
+	primary_stats: ServerCharacterPrimaryStatsState,
+	class_definition: ServerClassStatsDefinition
+) -> int:
+	if primary_stats == null:
+		return -1
+
+
+	if class_definition == null:
+		return -1
+
+
+	if not primary_stats.is_valid():
+		return -1
+
+
+	if not class_definition.is_valid():
+		return -1
+
+
+	if (
+		primary_stats.class_id
+		!=
+		class_definition.class_id
+	):
+		return -1
+
+
+	var level_growth := (
+		(primary_stats.level - 1)
+		*
+		class_definition.physical_power_per_level
+	)
+
+
+	var strength_growth := (
+		primary_stats.permanent_strength
+		*
+		class_definition.physical_power_per_strength
+	)
+
+
+	var agility_growth := (
+		primary_stats.permanent_agility
+		*
+		class_definition.physical_power_per_agility
+	)
+
+
+	return (
+		class_definition.base_physical_power
+		+
+		level_growth
+		+
+		strength_growth
+		+
+		agility_growth
+	)
+
+# =========================================================
+# MAGIC POWER
+# =========================================================
+
+static func calculate_magic_power(
+	primary_stats: ServerCharacterPrimaryStatsState,
+	class_definition: ServerClassStatsDefinition
+) -> int:
+	if primary_stats == null:
+		return -1
+
+
+	if class_definition == null:
+		return -1
+
+
+	if not primary_stats.is_valid():
+		return -1
+
+
+	if not class_definition.is_valid():
+		return -1
+
+
+	if (
+		primary_stats.class_id
+		!=
+		class_definition.class_id
+	):
+		return -1
+
+
+	var level_growth := (
+		(primary_stats.level - 1)
+		*
+		class_definition.magic_power_per_level
+	)
+
+
+	var energy_growth := (
+		primary_stats.permanent_energy
+		*
+		class_definition.magic_power_per_energy
+	)
+
+
+	return (
+		class_definition.base_magic_power
+		+
+		level_growth
+		+
+		energy_growth
+	)
+
+# =========================================================
+# HEALING POWER
+# =========================================================
+
+static func calculate_healing_power(
+	primary_stats: ServerCharacterPrimaryStatsState,
+	class_definition: ServerClassStatsDefinition
+) -> int:
+	if primary_stats == null:
+		return -1
+
+
+	if class_definition == null:
+		return -1
+
+
+	if not primary_stats.is_valid():
+		return -1
+
+
+	if not class_definition.is_valid():
+		return -1
+
+
+	if (
+		primary_stats.class_id
+		!=
+		class_definition.class_id
+	):
+		return -1
+
+
+	var level_growth := (
+		(primary_stats.level - 1)
+		*
+		class_definition.healing_power_per_level
+	)
+
+
+	var energy_growth := (
+		primary_stats.permanent_energy
+		*
+		class_definition.healing_power_per_energy
+	)
+
+
+	return (
+		class_definition.base_healing_power
+		+
+		level_growth
+		+
+		energy_growth
+	)
 
 # =========================================================
 # RESOLVER DERIVED STATS
@@ -179,6 +345,28 @@ static func build_foundation_values(
 		class_definition
 	)
 
+	var physical_power := (
+		calculate_physical_power(
+			primary_stats,
+			class_definition
+		)
+	)
+
+
+	var magic_power := (
+		calculate_magic_power(
+			primary_stats,
+			class_definition
+		)
+	)
+
+
+	var healing_power := (
+		calculate_healing_power(
+			primary_stats,
+			class_definition
+		)
+	)
 
 	if max_hp <= 0:
 		return {}
@@ -187,6 +375,16 @@ static func build_foundation_values(
 	if max_mp < 0:
 		return {}
 
+	if physical_power < 0:
+		return {}
+
+
+	if magic_power < 0:
+		return {}
+
+
+	if healing_power < 0:
+		return {}
 
 	return {
 		"max_hp": max_hp,
@@ -202,14 +400,14 @@ static func build_foundation_values(
 		),
 
 		"physical_power": (
-			FOUNDATION_PHYSICAL_POWER
+			physical_power
 		),
 
 		"magic_power": (
-			FOUNDATION_MAGIC_POWER
+			magic_power
 		),
 
 		"healing_power": (
-			FOUNDATION_HEALING_POWER
+			healing_power
 		),
 	}
