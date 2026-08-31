@@ -18,6 +18,17 @@ static func validate_contract() -> String:
 	if not ServerEquipmentSlotCatalog.validate_catalog():
 		return "Equipment Slot Catalog inválido"
 
+	var usage_contract_error := (
+		ServerEquipmentUsageRules.validate_contract()
+	)
+
+
+	if not usage_contract_error.is_empty():
+		return (
+			"Equipment Usage Contract inválido: "
+			+
+			usage_contract_error
+		)
 
 	# -----------------------------------------------------
 	# ONE HAND

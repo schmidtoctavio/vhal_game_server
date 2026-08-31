@@ -44,7 +44,17 @@ const DEFINITIONS: Dictionary = {
 
 		"equipment_category_id": "weapon",
 		"hand_equip_mode_id": "one_hand",
+		"allowed_class_ids": [
+			"warrior",
+		],
 
+		"base_requirements": {
+			"level": 1,
+			"strength": 15,
+			"agility": 0,
+			"vitality": 0,
+			"energy": 0,
+		},
 		"basic_attack_mode_id": "melee",
 
 		"basic_attack_base_damage": 1000,
@@ -71,6 +81,20 @@ const DEFINITIONS: Dictionary = {
 
 		"equipment_category_id": "head",
 		"hand_equip_mode_id": "none",
+
+		"allowed_class_ids": [
+			"warrior",
+			"archer",
+		],
+
+		"base_requirements": {
+			"level": 1,
+			"strength": 15,
+			"agility": 15,
+			"vitality": 0,
+			"energy": 0,
+		},
+
 		"basic_attack_mode_id": "none",
 	},
 
