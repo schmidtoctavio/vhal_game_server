@@ -616,9 +616,6 @@ func _on_progression_persisted(
 
 		session.experience = experience
 
-		session.primary_stats = next_primary_stats
-		session.derived_stats = next_derived_stats
-
 		if level_changed:
 			session.primary_stats = (
 				next_primary_stats
