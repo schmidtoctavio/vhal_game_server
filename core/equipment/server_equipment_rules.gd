@@ -30,6 +30,18 @@ static func validate_contract() -> String:
 			usage_contract_error
 		)
 
+	var enhancement_contract_error := (
+		ServerEquipmentEnhancementRules.validate_contract()
+	)
+
+
+	if not enhancement_contract_error.is_empty():
+		return (
+			"Equipment Enhancement Contract inválido: "
+			+
+			enhancement_contract_error
+		)
+
 	# -----------------------------------------------------
 	# ONE HAND
 	# -----------------------------------------------------

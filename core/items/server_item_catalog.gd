@@ -55,6 +55,11 @@ const DEFINITIONS: Dictionary = {
 			"vitality": 0,
 			"energy": 0,
 		},
+
+		"enhancement_profile_id": (
+			"one_hand_weapon_v1"
+		),
+
 		"basic_attack_mode_id": "melee",
 
 		"basic_attack_base_damage": 1000,
@@ -94,6 +99,12 @@ const DEFINITIONS: Dictionary = {
 			"vitality": 0,
 			"energy": 0,
 		},
+
+		"enhancement_profile_id": (
+			"light_armor_v1"
+		),
+
+		"base_armor_rating": 20,
 
 		"basic_attack_mode_id": "none",
 	},
