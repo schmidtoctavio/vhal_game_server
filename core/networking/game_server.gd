@@ -269,6 +269,10 @@ const MESSAGE_CHARACTER_PROGRESSION_UPDATED: String = (
 	"character_progression_updated"
 )
 
+const MESSAGE_CHARACTER_VITALS_UPDATED: String = (
+	"character_vitals_updated"
+)
+
 const MESSAGE_PRIMARY_STAT_ALLOCATION_REQUEST: String = (
 	"primary_stat_allocation_request"
 )
@@ -2233,6 +2237,156 @@ func send_primary_stats_updated(
 
 			"primary_stats": (
 				primary_stats_snapshot.duplicate(
+					true
+				)
+			),
+		},
+	}
+
+
+	return scene_multiplayer.send_bytes(
+		JSON.stringify(
+			message
+		).to_utf8_buffer(),
+		peer_id,
+		MultiplayerPeer.TRANSFER_MODE_RELIABLE,
+		0
+	)
+
+# =========================================================
+# CHARACTER VITALS UPDATED
+# =========================================================
+
+func send_character_vitals_updated(
+	peer_id: int,
+	character_id: int,
+	vitals_snapshot: Dictionary
+) -> Error:
+	if (
+		peer_id <= 1
+		or
+		character_id <= 0
+	):
+		return ERR_INVALID_PARAMETER
+
+
+	if not authenticated_sessions.has(
+		peer_id
+	):
+		return ERR_DOES_NOT_EXIST
+
+
+	if vitals_snapshot.is_empty():
+		return ERR_INVALID_DATA
+
+
+	var hp := int(
+		vitals_snapshot.get(
+			"hp",
+			-1
+		)
+	)
+
+	var max_hp := int(
+		vitals_snapshot.get(
+			"max_hp",
+			0
+		)
+	)
+
+	var mp := int(
+		vitals_snapshot.get(
+			"mp",
+			-1
+		)
+	)
+
+	var max_mp := int(
+		vitals_snapshot.get(
+			"max_mp",
+			0
+		)
+	)
+
+
+	if (
+		max_hp <= 0
+		or
+		hp < 0
+		or
+		hp > max_hp
+		or
+		max_mp <= 0
+		or
+		mp < 0
+		or
+		mp > max_mp
+	):
+		return ERR_INVALID_DATA
+
+
+	var authenticated_value: Variant = (
+		authenticated_sessions[
+			peer_id
+		]
+	)
+
+
+	if typeof(authenticated_value) != TYPE_DICTIONARY:
+		return ERR_INVALID_DATA
+
+
+	var authenticated: Dictionary = (
+		authenticated_value
+	)
+
+
+	var character_value: Variant = (
+		authenticated.get(
+			"character",
+			null
+		)
+	)
+
+
+	if typeof(character_value) != TYPE_DICTIONARY:
+		return ERR_INVALID_DATA
+
+
+	var character: Dictionary = (
+		character_value
+	)
+
+
+	if int(
+		character.get(
+			"id",
+			0
+		)
+	) != character_id:
+		return ERR_INVALID_DATA
+
+
+	var scene_multiplayer := (
+		multiplayer
+		as SceneMultiplayer
+	)
+
+
+	if scene_multiplayer == null:
+		return ERR_UNAVAILABLE
+
+
+	var message := {
+		"version": NETWORK_PROTOCOL_VERSION,
+
+		"type": MESSAGE_CHARACTER_VITALS_UPDATED,
+
+		"data": {
+			"character_id": character_id,
+
+			"vitals": (
+				vitals_snapshot.duplicate(
 					true
 				)
 			),
