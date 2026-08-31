@@ -46,6 +46,32 @@ var mp_per_level: int = 0
 var mp_per_energy: int = 0
 
 # =========================================================
+# DERIVED POWER — BALANCE DE CLASE
+# =========================================================
+
+var base_physical_power: int = 0
+
+var physical_power_per_level: int = 0
+
+var physical_power_per_strength: int = 0
+
+var physical_power_per_agility: int = 0
+
+
+var base_magic_power: int = 0
+
+var magic_power_per_level: int = 0
+
+var magic_power_per_energy: int = 0
+
+
+var base_healing_power: int = 0
+
+var healing_power_per_level: int = 0
+
+var healing_power_per_energy: int = 0
+
+# =========================================================
 # CONSTRUCTOR
 # =========================================================
 
@@ -61,7 +87,17 @@ func _init(
 	p_hp_per_vitality: int = 0,
 	p_base_max_mp: int = 0,
 	p_mp_per_level: int = 0,
-	p_mp_per_energy: int = 0
+	p_mp_per_energy: int = 0,
+	p_base_physical_power: int = 0,
+	p_physical_power_per_level: int = 0,
+	p_physical_power_per_strength: int = 0,
+	p_physical_power_per_agility: int = 0,
+	p_base_magic_power: int = 0,
+	p_magic_power_per_level: int = 0,
+	p_magic_power_per_energy: int = 0,
+	p_base_healing_power: int = 0,
+	p_healing_power_per_level: int = 0,
+	p_healing_power_per_energy: int = 0
 ) -> void:
 	class_id = (
 		p_class_id
@@ -117,6 +153,48 @@ func _init(
 
 	mp_per_energy = (
 		p_mp_per_energy
+	)
+
+	base_physical_power = (
+		p_base_physical_power
+	)
+
+	physical_power_per_level = (
+		p_physical_power_per_level
+	)
+
+	physical_power_per_strength = (
+		p_physical_power_per_strength
+	)
+
+	physical_power_per_agility = (
+		p_physical_power_per_agility
+	)
+
+
+	base_magic_power = (
+		p_base_magic_power
+	)
+
+	magic_power_per_level = (
+		p_magic_power_per_level
+	)
+
+	magic_power_per_energy = (
+		p_magic_power_per_energy
+	)
+
+
+	base_healing_power = (
+		p_base_healing_power
+	)
+
+	healing_power_per_level = (
+		p_healing_power_per_level
+	)
+
+	healing_power_per_energy = (
+		p_healing_power_per_energy
 	)
 
 # =========================================================
@@ -175,4 +253,41 @@ func is_valid() -> bool:
 
 		and
 		mp_per_energy > 0
+
+		and
+		base_physical_power >= 0
+
+		and
+		physical_power_per_level >= 0
+
+		and
+		physical_power_per_strength >= 0
+
+		and
+		physical_power_per_agility >= 0
+
+		and
+		(
+			physical_power_per_strength > 0
+			or
+			physical_power_per_agility > 0
+		)
+
+		and
+		base_magic_power >= 0
+
+		and
+		magic_power_per_level >= 0
+
+		and
+		magic_power_per_energy > 0
+
+		and
+		base_healing_power >= 0
+
+		and
+		healing_power_per_level >= 0
+
+		and
+		healing_power_per_energy > 0
 	)
