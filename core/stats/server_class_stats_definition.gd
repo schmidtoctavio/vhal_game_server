@@ -28,6 +28,22 @@ var starting_energy: int = 0
 
 var stat_points_per_level: int = 0
 
+# =========================================================
+# DERIVED VITALS — BALANCE DE CLASE
+# =========================================================
+
+var base_max_hp: int = 0
+
+var hp_per_level: int = 0
+
+var hp_per_vitality: int = 0
+
+
+var base_max_mp: int = 0
+
+var mp_per_level: int = 0
+
+var mp_per_energy: int = 0
 
 # =========================================================
 # CONSTRUCTOR
@@ -39,7 +55,13 @@ func _init(
 	p_starting_agility: int = 0,
 	p_starting_vitality: int = 0,
 	p_starting_energy: int = 0,
-	p_stat_points_per_level: int = 0
+	p_stat_points_per_level: int = 0,
+	p_base_max_hp: int = 0,
+	p_hp_per_level: int = 0,
+	p_hp_per_vitality: int = 0,
+	p_base_max_mp: int = 0,
+	p_mp_per_level: int = 0,
+	p_mp_per_energy: int = 0
 ) -> void:
 	class_id = (
 		p_class_id
@@ -72,6 +94,30 @@ func _init(
 		p_stat_points_per_level
 	)
 
+	base_max_hp = (
+		p_base_max_hp
+	)
+
+	hp_per_level = (
+		p_hp_per_level
+	)
+
+	hp_per_vitality = (
+		p_hp_per_vitality
+	)
+
+
+	base_max_mp = (
+		p_base_max_mp
+	)
+
+	mp_per_level = (
+		p_mp_per_level
+	)
+
+	mp_per_energy = (
+		p_mp_per_energy
+	)
 
 # =========================================================
 # TOTAL DE STATS BASE
@@ -111,4 +157,22 @@ func is_valid() -> bool:
 
 		and
 		stat_points_per_level > 0
+
+		and
+		base_max_hp > 0
+
+		and
+		hp_per_level >= 0
+
+		and
+		hp_per_vitality > 0
+
+		and
+		base_max_mp >= 0
+
+		and
+		mp_per_level >= 0
+
+		and
+		mp_per_energy > 0
 	)

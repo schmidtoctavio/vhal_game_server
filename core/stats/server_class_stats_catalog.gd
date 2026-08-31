@@ -52,7 +52,13 @@ static func get_definition(
 				15,
 				25,
 				10,
-				5
+				5,
+				100,
+				8,
+				4,
+				30,
+				1,
+				3
 			)
 
 
@@ -63,6 +69,12 @@ static func get_definition(
 				15,
 				15,
 				35,
+				5,
+				70,
+				5,
+				3,
+				120,
+				4,
 				5
 			)
 
@@ -74,7 +86,13 @@ static func get_definition(
 				30,
 				15,
 				15,
-				5
+				5,
+				85,
+				6,
+				3,
+				70,
+				2,
+				4
 			)
 
 
