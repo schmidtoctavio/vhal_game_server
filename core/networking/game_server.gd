@@ -136,7 +136,7 @@ const DEFAULT_MAX_CLIENTS: int = 100
 
 const AUTH_TIMEOUT_SECONDS: float = 10.0
 
-const NETWORK_PROTOCOL_VERSION: int = 1
+const NETWORK_PROTOCOL_VERSION: int = 2
 
 const MESSAGE_WORLD_SNAPSHOT: String = (
 	"world_snapshot"
@@ -1079,6 +1079,7 @@ func send_movement_decision(
 	accepted: bool,
 	authoritative_position: Vector3,
 	authoritative_rotation_y: float,
+	movement_speed: float,
 	authorized_target: Vector3 = Vector3.ZERO,
 	reason: String = ""
 ) -> Error:
@@ -1087,6 +1088,10 @@ func send_movement_decision(
 
 
 	if request_id <= 0:
+		return ERR_INVALID_PARAMETER
+
+
+	if movement_speed <= 0.0:
 		return ERR_INVALID_PARAMETER
 
 
@@ -1126,6 +1131,10 @@ func send_movement_decision(
 
 			"authoritative_rotation_y": (
 				authoritative_rotation_y
+			),
+
+			"movement_speed": (
+				movement_speed
 			),
 
 			"authorized_target": {
@@ -1461,10 +1470,8 @@ func send_skill_cast_result(
 	if peer_id <= 1:
 		return ERR_INVALID_PARAMETER
 
-
 	if request_id <= 0:
 		return ERR_INVALID_PARAMETER
-
 
 	if not authenticated_sessions.has(
 		peer_id

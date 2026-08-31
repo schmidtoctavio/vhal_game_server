@@ -138,6 +138,7 @@ func _reject_client_move(
 			false,
 			session.position,
 			session.rotation_y,
+			session.derived_stats.movement_speed,
 			Vector3.ZERO,
 			reason
 		)
@@ -201,6 +202,39 @@ func _on_client_move_requested(
 
 		return
 
+	if session.derived_stats == null:
+		game_server.reject_authenticated_peer(
+			peer_id,
+			"No existen Derived Stats para movimiento."
+		)
+
+
+		return
+
+
+	if not session.derived_stats.is_valid():
+		game_server.reject_authenticated_peer(
+			peer_id,
+			"Los Derived Stats de movimiento son inválidos."
+		)
+
+
+		return
+
+
+	var movement_speed := (
+		session.derived_stats.movement_speed
+	)
+
+
+	if movement_speed <= 0.0:
+		game_server.reject_authenticated_peer(
+			peer_id,
+			"Movement Speed autoritativa inválida."
+		)
+
+
+		return
 
 	# -----------------------------------------------------
 	# REGISTRAR INTENCIÓN RAW
@@ -387,6 +421,7 @@ func _on_client_move_requested(
 			true,
 			session.position,
 			session.rotation_y,
+			movement_speed,
 			session.authorized_move_target
 		)
 	)
