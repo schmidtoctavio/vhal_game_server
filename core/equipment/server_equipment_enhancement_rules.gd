@@ -108,6 +108,18 @@ static func validate_contract() -> String:
 			instance_state_contract_error
 		)
 
+	var scaling_contract_error := (
+		_validate_scaling_resolution_contract()
+	)
+
+
+	if not scaling_contract_error.is_empty():
+		return (
+			"Enhancement Scaling Contract inválido: "
+			+
+			scaling_contract_error
+		)
+
 	return ""
 
 
@@ -556,3 +568,524 @@ static func get_requirement_growth_keys(
 
 
 	return result
+
+# =========================================================
+# INTRINSIC BONUS POR LEVEL
+# =========================================================
+
+static func get_intrinsic_bonus_at_level(
+	definition: Dictionary,
+	enhancement_level: int
+) -> int:
+	var profile := (
+		get_profile_definition(
+			definition
+		)
+	)
+
+
+	if profile.is_empty():
+		return -1
+
+
+	var max_level := int(
+		profile.get(
+			"max_enhancement_level",
+			-1
+		)
+	)
+
+
+	if (
+		enhancement_level < 0
+		or
+		enhancement_level > max_level
+	):
+		return -1
+
+
+	var curve_value: Variant = (
+		profile.get(
+			"intrinsic_bonus_by_level",
+			null
+		)
+	)
+
+
+	if typeof(curve_value) != TYPE_ARRAY:
+		return -1
+
+
+	var curve: Array = (
+		curve_value as Array
+	)
+
+
+	if enhancement_level >= curve.size():
+		return -1
+
+
+	var bonus_value: Variant = (
+		curve[
+			enhancement_level
+		]
+	)
+
+
+	if typeof(bonus_value) != TYPE_INT:
+		return -1
+
+
+	return int(
+		bonus_value
+	)
+
+
+# =========================================================
+# INTRINSIC VALUE RESUELTO
+# =========================================================
+
+static func get_resolved_intrinsic_value(
+	item: Dictionary,
+	definition: Dictionary
+) -> int:
+	var enhancement_level := (
+		ServerEquipmentEnhancementInstanceRules
+		.get_enhancement_level(
+			item,
+			definition
+		)
+	)
+
+
+	if enhancement_level < 0:
+		return -1
+
+
+	var base_value := (
+		get_base_intrinsic_value(
+			definition
+		)
+	)
+
+
+	if base_value < 0:
+		return -1
+
+
+	var bonus := (
+		get_intrinsic_bonus_at_level(
+			definition,
+			enhancement_level
+		)
+	)
+
+
+	if bonus < 0:
+		return -1
+
+
+	return (
+		base_value
+		+
+		bonus
+	)
+
+
+# =========================================================
+# REQUIREMENT BONUS POR LEVEL
+# =========================================================
+
+static func get_requirement_bonus_at_level(
+	definition: Dictionary,
+	requirement_key: String,
+	enhancement_level: int
+) -> int:
+	var normalized_key := (
+		requirement_key
+		.strip_edges()
+		.to_lower()
+	)
+
+
+	var valid_keys: Array[String] = [
+		ServerEquipmentUsageRules.REQUIREMENT_LEVEL,
+		ServerEquipmentUsageRules.REQUIREMENT_STRENGTH,
+		ServerEquipmentUsageRules.REQUIREMENT_AGILITY,
+		ServerEquipmentUsageRules.REQUIREMENT_VITALITY,
+		ServerEquipmentUsageRules.REQUIREMENT_ENERGY,
+	]
+
+
+	if not valid_keys.has(
+		normalized_key
+	):
+		return -1
+
+
+	var profile := (
+		get_profile_definition(
+			definition
+		)
+	)
+
+
+	if profile.is_empty():
+		return -1
+
+
+	var max_level := int(
+		profile.get(
+			"max_enhancement_level",
+			-1
+		)
+	)
+
+
+	if (
+		enhancement_level < 0
+		or
+		enhancement_level > max_level
+	):
+		return -1
+
+
+	var growth_keys := (
+		get_requirement_growth_keys(
+			definition
+		)
+	)
+
+
+	if not growth_keys.has(
+		normalized_key
+	):
+		return 0
+
+
+	var curves_value: Variant = (
+		profile.get(
+			"requirement_bonus_by_level",
+			null
+		)
+	)
+
+
+	if typeof(curves_value) != TYPE_DICTIONARY:
+		return -1
+
+
+	var curves: Dictionary = (
+		curves_value as Dictionary
+	)
+
+
+	if not curves.has(
+		normalized_key
+	):
+		return -1
+
+
+	var curve_value: Variant = (
+		curves[
+			normalized_key
+		]
+	)
+
+
+	if typeof(curve_value) != TYPE_ARRAY:
+		return -1
+
+
+	var curve: Array = (
+		curve_value as Array
+	)
+
+
+	if enhancement_level >= curve.size():
+		return -1
+
+
+	var bonus_value: Variant = (
+		curve[
+			enhancement_level
+		]
+	)
+
+
+	if typeof(bonus_value) != TYPE_INT:
+		return -1
+
+
+	return int(
+		bonus_value
+	)
+
+
+# =========================================================
+# REQUIREMENTS RESUELTOS
+# =========================================================
+
+static func get_resolved_requirements(
+	item: Dictionary,
+	definition: Dictionary
+) -> Dictionary:
+	var enhancement_level := (
+		ServerEquipmentEnhancementInstanceRules
+		.get_enhancement_level(
+			item,
+			definition
+		)
+	)
+
+
+	if enhancement_level < 0:
+		return {}
+
+
+	var base_requirements := (
+		ServerEquipmentUsageRules
+		.get_base_requirements(
+			definition
+		)
+	)
+
+
+	if base_requirements.is_empty():
+		return {}
+
+
+	var resolved := (
+		base_requirements.duplicate(
+			true
+		)
+	)
+
+
+	var requirement_keys: Array[String] = [
+		ServerEquipmentUsageRules.REQUIREMENT_LEVEL,
+		ServerEquipmentUsageRules.REQUIREMENT_STRENGTH,
+		ServerEquipmentUsageRules.REQUIREMENT_AGILITY,
+		ServerEquipmentUsageRules.REQUIREMENT_VITALITY,
+		ServerEquipmentUsageRules.REQUIREMENT_ENERGY,
+	]
+
+
+	for requirement_key: String in (
+		requirement_keys
+	):
+		var bonus := (
+			get_requirement_bonus_at_level(
+				definition,
+				requirement_key,
+				enhancement_level
+			)
+		)
+
+
+		if bonus < 0:
+			return {}
+
+
+		resolved[
+			requirement_key
+		] = (
+			int(
+				base_requirements[
+					requirement_key
+				]
+			)
+			+
+			bonus
+		)
+
+
+	return resolved
+
+# =========================================================
+# SELF-TEST — SCALING RESOLUTION
+# =========================================================
+
+static func _validate_scaling_resolution_contract() -> String:
+	var sword_definition := (
+		ServerItemCatalog.get_definition(
+			"bronze_sword"
+		)
+	)
+
+
+	if sword_definition.is_empty():
+		return (
+			"No existe bronze_sword."
+		)
+
+
+	var sword_plus_zero := {
+		"state": {
+			"enhancement_level": 0,
+		},
+	}
+
+
+	if (
+		get_resolved_intrinsic_value(
+			sword_plus_zero,
+			sword_definition
+		)
+		!=
+		1000
+	):
+		return (
+			"Bronze Sword +0 no resolvió Damage 1000."
+		)
+
+
+	var sword_plus_thirteen := {
+		"state": {
+			"enhancement_level": 13,
+		},
+	}
+
+
+	if (
+		get_resolved_intrinsic_value(
+			sword_plus_thirteen,
+			sword_definition
+		)
+		!=
+		1500
+	):
+		return (
+			"Bronze Sword +13 no resolvió Damage 1500."
+		)
+
+
+	var sword_requirements := (
+		get_resolved_requirements(
+			sword_plus_thirteen,
+			sword_definition
+		)
+	)
+
+
+	if (
+		int(
+			sword_requirements.get(
+				"strength",
+				-1
+			)
+		)
+		!=
+		30
+	):
+		return (
+			"Bronze Sword +13 no resolvió STR 30."
+		)
+
+
+	if (
+		int(
+			sword_requirements.get(
+				"level",
+				-1
+			)
+		)
+		!=
+		1
+	):
+		return (
+			"Enhancement alteró Level requirement "
+			+
+			"de Bronze Sword."
+		)
+
+
+	var helmet_definition := (
+		ServerItemCatalog.get_definition(
+			"leather_helmet"
+		)
+	)
+
+
+	if helmet_definition.is_empty():
+		return (
+			"No existe leather_helmet."
+		)
+
+
+	var helmet_plus_thirteen := {
+		"state": {
+			"enhancement_level": 13,
+		},
+	}
+
+
+	if (
+		get_resolved_intrinsic_value(
+			helmet_plus_thirteen,
+			helmet_definition
+		)
+		!=
+		46
+	):
+		return (
+			"Leather Helmet +13 no resolvió Armor 46."
+		)
+
+
+	var helmet_requirements := (
+		get_resolved_requirements(
+			helmet_plus_thirteen,
+			helmet_definition
+		)
+	)
+
+
+	if (
+		int(
+			helmet_requirements.get(
+				"strength",
+				-1
+			)
+		)
+		!=
+		25
+	):
+		return (
+			"Leather Helmet +13 no resolvió STR 25."
+		)
+
+
+	if (
+		int(
+			helmet_requirements.get(
+				"agility",
+				-1
+			)
+		)
+		!=
+		23
+	):
+		return (
+			"Leather Helmet +13 no resolvió AGI 23."
+		)
+
+
+	if (
+		int(
+			helmet_requirements.get(
+				"level",
+				-1
+			)
+		)
+		!=
+		1
+	):
+		return (
+			"Enhancement alteró Level requirement "
+			+
+			"de Leather Helmet."
+		)
+
+
+	return ""

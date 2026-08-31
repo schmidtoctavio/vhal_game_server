@@ -46,21 +46,23 @@ const INTRINSIC_STAT_IDS: Array[StringName] = [
 # =========================================================
 # DEFINICIONES
 # =========================================================
-#
 # IMPORTANTE:
 #
-# Este catálogo NO contiene todavía las curvas numéricas
-# de +1 ... +13.
+# Este catálogo define tanto la identidad del Enhancement
+# Profile como sus curvas foundation de +0 ... +13.
 #
-# Define únicamente:
+# Las curvas almacenan BONUS ACUMULADO.
 #
-# - qué familia de Enhancement utiliza el Equipment;
-# - cuál es su máximo;
-# - qué categorías / modos son compatibles;
-# - qué propiedad inherente del item será escalada;
-# - qué requisitos primarios podrán crecer.
+# Ejemplo:
 #
-# Las curvas numéricas se agregarán en una etapa separada.
+# Base Armor = 20
+# Bonus en +7 = 7
+# Armor intrínseco resuelto = 27
+#
+# Enhancement NO reemplaza el valor base del item.
+#
+# Tampoco representa random/fixed modifiers.
+# Es una capa independiente.
 # =========================================================
 
 const DEFINITIONS: Dictionary = {
@@ -84,6 +86,41 @@ const DEFINITIONS: Dictionary = {
 		"requirement_growth_keys": [
 			"strength",
 		],
+		"intrinsic_bonus_by_level": [
+			0,
+			20,
+			40,
+			60,
+			80,
+			100,
+			125,
+			150,
+			180,
+			220,
+			270,
+			330,
+			400,
+			500,
+		],
+
+		"requirement_bonus_by_level": {
+			"strength": [
+				0,
+				0,
+				1,
+				1,
+				2,
+				2,
+				3,
+				4,
+				5,
+				6,
+				8,
+				10,
+				12,
+				15,
+			],
+		},
 	},
 
 	LIGHT_ARMOR_V1: {
@@ -111,6 +148,58 @@ const DEFINITIONS: Dictionary = {
 			"strength",
 			"agility",
 		],
+		"intrinsic_bonus_by_level": [
+			0,
+			1,
+			2,
+			3,
+			4,
+			5,
+			6,
+			7,
+			9,
+			11,
+			14,
+			17,
+			21,
+			26,
+		],
+
+		"requirement_bonus_by_level": {
+			"strength": [
+				0,
+				0,
+				0,
+				1,
+				1,
+				2,
+				2,
+				3,
+				4,
+				5,
+				6,
+				7,
+				8,
+				10,
+			],
+
+			"agility": [
+				0,
+				0,
+				0,
+				0,
+				1,
+				1,
+				2,
+				2,
+				3,
+				3,
+				4,
+				5,
+				6,
+				8,
+			],
+		},
 	},
 }
 
@@ -616,6 +705,271 @@ static func _validate_profile_definition(
 		seen_growth_keys[
 			growth_key
 		] = true
+
+	# -----------------------------------------------------
+	# INTRINSIC BONUS CURVE
+	# -----------------------------------------------------
+
+	var intrinsic_curve_error := (
+		_validate_cumulative_int_curve(
+			profile_id,
+			"intrinsic_bonus_by_level",
+			definition.get(
+				"intrinsic_bonus_by_level",
+				null
+			),
+			max_level
+		)
+	)
+
+
+	if not intrinsic_curve_error.is_empty():
+		return intrinsic_curve_error
+
+
+	# -----------------------------------------------------
+	# REQUIREMENT BONUS CURVES
+	# -----------------------------------------------------
+
+	var requirement_curves_value: Variant = (
+		definition.get(
+			"requirement_bonus_by_level",
+			null
+		)
+	)
+
+
+	if (
+		typeof(requirement_curves_value)
+		!=
+		TYPE_DICTIONARY
+	):
+		return (
+			String(profile_id)
+			+
+			" | requirement_bonus_by_level "
+			+
+			"debe ser Dictionary."
+		)
+
+
+	var requirement_curves: Dictionary = (
+		requirement_curves_value as Dictionary
+	)
+
+
+	if (
+		requirement_curves.size()
+		!=
+		growth_keys.size()
+	):
+		return (
+			String(profile_id)
+			+
+			" | requirement_bonus_by_level "
+			+
+			"no coincide con requirement_growth_keys."
+		)
+
+
+	for raw_growth_key: Variant in growth_keys:
+		var growth_key := String(
+			raw_growth_key
+		)
+
+
+		if not requirement_curves.has(
+			growth_key
+		):
+			return (
+				String(profile_id)
+				+
+				" | Falta curva para requirement: "
+				+
+				growth_key
+			)
+
+
+		var curve_error := (
+			_validate_cumulative_int_curve(
+				profile_id,
+				(
+					"requirement_bonus_by_level."
+					+
+					growth_key
+				),
+				requirement_curves[
+					growth_key
+				],
+				max_level
+			)
+		)
+
+
+		if not curve_error.is_empty():
+			return curve_error
+
+
+	for raw_curve_key: Variant in (
+		requirement_curves.keys()
+	):
+		var curve_key := String(
+			raw_curve_key
+		).strip_edges().to_lower()
+
+
+		if not seen_growth_keys.has(
+			curve_key
+		):
+			return (
+				String(profile_id)
+				+
+				" | Curva declarada para "
+				+
+				"requirement no habilitado: "
+				+
+				curve_key
+			)
+
+
+	return ""
+
+# =========================================================
+# VALIDAR CURVA ACUMULADA
+# =========================================================
+
+static func _validate_cumulative_int_curve(
+	profile_id: StringName,
+	curve_label: String,
+	curve_value: Variant,
+	max_level: int
+) -> String:
+	if typeof(curve_value) != TYPE_ARRAY:
+		return (
+			String(profile_id)
+			+
+			" | "
+			+
+			curve_label
+			+
+			" debe ser Array."
+		)
+
+
+	var curve: Array = (
+		curve_value as Array
+	)
+
+
+	var expected_size := (
+		max_level
+		+
+		1
+	)
+
+
+	if curve.size() != expected_size:
+		return (
+			String(profile_id)
+			+
+			" | "
+			+
+			curve_label
+			+
+			" debe contener exactamente "
+			+
+			str(expected_size)
+			+
+			" valores."
+		)
+
+
+	var previous_value := 0
+
+
+	for level in range(
+		curve.size()
+	):
+		var raw_value: Variant = (
+			curve[
+				level
+			]
+		)
+
+
+		if typeof(raw_value) != TYPE_INT:
+			return (
+				String(profile_id)
+				+
+				" | "
+				+
+				curve_label
+				+
+				" contiene valor no-int en +"
+				+
+				str(level)
+				+
+				"."
+			)
+
+
+		var value := int(
+			raw_value
+		)
+
+
+		if value < 0:
+			return (
+				String(profile_id)
+				+
+				" | "
+				+
+				curve_label
+				+
+				" contiene valor negativo en +"
+				+
+				str(level)
+				+
+				"."
+			)
+
+
+		if level == 0:
+			if value != 0:
+				return (
+					String(profile_id)
+					+
+					" | "
+					+
+					curve_label
+					+
+					" debe comenzar en 0."
+				)
+
+
+			previous_value = value
+
+
+			continue
+
+
+		if value < previous_value:
+			return (
+				String(profile_id)
+				+
+				" | "
+				+
+				curve_label
+				+
+				" decrece en +"
+				+
+				str(level)
+				+
+				"."
+			)
+
+
+		previous_value = value
 
 
 	return ""
