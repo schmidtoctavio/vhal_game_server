@@ -469,9 +469,68 @@ func _on_progression_persisted(
 		and
 		session.character_id == character_id
 	):
+		var level_changed := (
+			level
+			!=
+			previous_level
+		)
+
+
+		var next_primary_stats := (
+			session.primary_stats
+		)
+
+
+		# -------------------------------------------------
+		# LEVEL UP → REBUILD DE BUDGET
+		# -------------------------------------------------
+
+		if level_changed:
+			next_primary_stats = (
+				ServerCharacterPrimaryStatsBootstrap
+				.rebuild_for_progression(
+					session.primary_stats,
+					level,
+					session.reset_count
+				)
+			)
+
+
+			if next_primary_stats == null:
+				push_error(
+					(
+						"CharacterProgressionCoordinator | "
+						+
+						"No se pudieron reconstruir "
+						+
+						"Primary Stats después del Level Up."
+					)
+				)
+
+
+				game_server.reject_authenticated_peer(
+					peer_id,
+					(
+						"No se pudo reconstruir "
+						+
+						"el estado de Primary Stats."
+					)
+				)
+
+
+				return
+
+
 		session.level = level
 
 		session.experience = experience
+
+
+		if level_changed:
+			session.primary_stats = (
+				next_primary_stats
+			)
+
 
 		var experience_required := (
 			ServerCharacterProgressionRules
@@ -488,6 +547,10 @@ func _on_progression_persisted(
 			0
 		)
 
+
+		# -------------------------------------------------
+		# PRIMERO PROGRESSION
+		# -------------------------------------------------
 
 		var replication_result := (
 			game_server
@@ -515,6 +578,62 @@ func _on_progression_persisted(
 				%
 				replication_result
 			)
+
+
+		# -------------------------------------------------
+		# DESPUÉS PRIMARY STATS
+		#
+		# Ambos usan reliable/channel 0.
+		# El Client debe aplicar primero el nuevo Level.
+		# -------------------------------------------------
+
+		elif level_changed:
+			var stats_replication_result := (
+				game_server.send_primary_stats_updated(
+					peer_id,
+					character_id,
+					session.primary_stats.to_snapshot()
+				)
+			)
+
+
+			if stats_replication_result != OK:
+				push_warning(
+					(
+						"CharacterProgressionCoordinator | "
+						+
+						"No se pudieron replicar "
+						+
+						"Primary Stats post Level Up. "
+						+
+						"Error: %d"
+					)
+					%
+					stats_replication_result
+				)
+			else:
+				print(
+					(
+						"CharacterProgressionCoordinator | "
+						+
+						"Primary Stats reconstruidos "
+						+
+						"post Level Up"
+					),
+					" | Character ID: ",
+					character_id,
+					" | Level: ",
+					level,
+					" | Revision: ",
+					session.primary_stats.revision,
+					" | Points: ",
+					session.primary_stats.spent_points,
+					"/",
+					session.primary_stats.total_points,
+					" | Unspent: ",
+					session.primary_stats.unspent_points
+				)
+
 
 	print(
 		"CharacterProgressionCoordinator | Progresión confirmada",

@@ -33,6 +33,168 @@ static func create_from_snapshot(
 	})
 
 # =========================================================
+# RECONSTRUIR POR CAMBIO DE PROGRESIÓN
+# =========================================================
+
+static func rebuild_for_progression(
+	current_state: ServerCharacterPrimaryStatsState,
+	level: int,
+	reset_count: int
+) -> ServerCharacterPrimaryStatsState:
+	if current_state == null:
+		return null
+
+
+	if not current_state.is_valid():
+		return null
+
+
+	if level < 1:
+		return null
+
+
+	if reset_count < 0:
+		return null
+
+
+	var class_definition := (
+		ServerClassStatsCatalog.get_definition(
+			current_state.class_id
+		)
+	)
+
+
+	if class_definition == null:
+		return null
+
+
+	# -----------------------------------------------------
+	# BASE CANÓNICA DE CLASE
+	# -----------------------------------------------------
+
+	if (
+		current_state.base_strength
+		!=
+		class_definition.starting_strength
+		or
+		current_state.base_agility
+		!=
+		class_definition.starting_agility
+		or
+		current_state.base_vitality
+		!=
+		class_definition.starting_vitality
+		or
+		current_state.base_energy
+		!=
+		class_definition.starting_energy
+	):
+		return null
+
+
+	if (
+		current_state.stat_points_per_level
+		!=
+		class_definition.stat_points_per_level
+	):
+		return null
+
+
+	if (
+		current_state.stat_points_per_reset
+		!=
+		ServerPrimaryStatBudgetRules.RESET_STAT_POINTS
+	):
+		return null
+
+
+	var level_points := (
+		ServerPrimaryStatBudgetRules.get_level_points(
+			level,
+			class_definition.stat_points_per_level
+		)
+	)
+
+
+	var reset_points := (
+		ServerPrimaryStatBudgetRules.get_reset_points(
+			reset_count
+		)
+	)
+
+
+	if (
+		level_points < 0
+		or
+		reset_points < 0
+	):
+		return null
+
+
+	var spent_points := (
+		current_state.allocated_strength
+		+
+		current_state.allocated_agility
+		+
+		current_state.allocated_vitality
+		+
+		current_state.allocated_energy
+	)
+
+
+	var total_points := (
+		level_points
+		+
+		reset_points
+		+
+		current_state.bonus_stat_points
+	)
+
+
+	var unspent_points := (
+		total_points
+		-
+		spent_points
+	)
+
+
+	if unspent_points < 0:
+		return null
+
+
+	var next_state := (
+		ServerCharacterPrimaryStatsState.new(
+			current_state.class_id,
+			current_state.revision,
+			level,
+			reset_count,
+			class_definition.starting_strength,
+			class_definition.starting_agility,
+			class_definition.starting_vitality,
+			class_definition.starting_energy,
+			current_state.allocated_strength,
+			current_state.allocated_agility,
+			current_state.allocated_vitality,
+			current_state.allocated_energy,
+			class_definition.stat_points_per_level,
+			ServerPrimaryStatBudgetRules.RESET_STAT_POINTS,
+			level_points,
+			reset_points,
+			current_state.bonus_stat_points,
+			total_points,
+			spent_points,
+			unspent_points
+		)
+	)
+
+
+	if not next_state.is_valid():
+		return null
+
+
+	return next_state
+
+# =========================================================
 # CREAR DESDE GAME SESSION TICKET
 # =========================================================
 
