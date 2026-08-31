@@ -273,6 +273,63 @@ func _on_client_skill_cast_requested(
 
 		return
 
+	# -----------------------------------------------------
+	# HEALING POWER AUTORITATIVO
+	# -----------------------------------------------------
+
+	if session.derived_stats == null:
+		_send_result(
+			peer_id,
+			request_id,
+			definition.skill_id,
+			false,
+			"runtime_failure",
+			session,
+			0.0,
+			{}
+		)
+
+
+		return
+
+
+	if not session.derived_stats.is_valid():
+		_send_result(
+			peer_id,
+			request_id,
+			definition.skill_id,
+			false,
+			"runtime_failure",
+			session,
+			0.0,
+			{}
+		)
+
+
+		return
+
+
+	var requested_heal_amount := (
+		ServerHealEffect.calculate_heal_amount(
+			session.derived_stats
+		)
+	)
+
+
+	if requested_heal_amount <= 0:
+		_send_result(
+			peer_id,
+			request_id,
+			definition.skill_id,
+			false,
+			"runtime_failure",
+			session,
+			0.0,
+			{}
+		)
+
+
+		return
 
 	# -----------------------------------------------------
 	# COOLDOWN
@@ -384,7 +441,8 @@ func _on_client_skill_cast_requested(
 
 	var restored_hp := (
 		ServerHealEffect.apply(
-			session.vitals
+			session.vitals,
+			requested_heal_amount
 		)
 	)
 
@@ -427,7 +485,11 @@ func _on_client_skill_cast_requested(
 		session.character_name,
 		" | Skill: ",
 		definition.skill_id,
-		" | Heal: ",
+		" | Healing Power: ",
+		session.derived_stats.healing_power,
+		" | Requested Heal: ",
+		requested_heal_amount,
+		" | Restored Heal: ",
 		restored_hp,
 		" | HP: ",
 		session.vitals.hp,
