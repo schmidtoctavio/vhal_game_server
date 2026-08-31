@@ -557,10 +557,67 @@ func _on_progression_persisted(
 
 				return
 
+
+			if (
+				session.vitals == null
+				or
+				not session.vitals.is_valid()
+			):
+				push_error(
+					(
+						"CharacterProgressionCoordinator | "
+						+
+						"Vitals inválidos antes del Level Up."
+					)
+				)
+
+
+				game_server.reject_authenticated_peer(
+					peer_id,
+					(
+						"No se pudieron actualizar "
+						+
+						"los Vitals del personaje."
+					)
+				)
+
+
+				return
+
+
+			if not session.vitals.reconfigure_maximums(
+				next_derived_stats.max_hp,
+				next_derived_stats.max_mp
+			):
+				push_error(
+					(
+						"CharacterProgressionCoordinator | "
+						+
+						"No se pudieron reconfigurar "
+						+
+						"Vitals post Level Up."
+					)
+				)
+
+
+				game_server.reject_authenticated_peer(
+					peer_id,
+					(
+						"No se pudieron reconfigurar "
+						+
+						"los Vitals del personaje."
+					)
+				)
+
+
+				return
+
 		session.level = level
 
 		session.experience = experience
 
+		session.primary_stats = next_primary_stats
+		session.derived_stats = next_derived_stats
 
 		if level_changed:
 			session.primary_stats = (
@@ -569,6 +626,25 @@ func _on_progression_persisted(
 
 			session.derived_stats = (
 				next_derived_stats
+			)
+
+		if level_changed:
+			print(
+				(
+					"CharacterProgressionCoordinator | "
+					+
+					"Vitals reconfigurados post Level Up"
+				),
+				" | Character ID: ",
+				character_id,
+				" | HP: ",
+				session.vitals.hp,
+				"/",
+				session.vitals.max_hp,
+				" | MP: ",
+				session.vitals.mp,
+				"/",
+				session.vitals.max_mp
 			)
 
 		if level_changed:

@@ -509,6 +509,49 @@ func _on_primary_stats_persisted(
 
 		return
 
+	if (
+		session.vitals == null
+		or
+		not session.vitals.is_valid()
+	):
+		pending_by_peer.erase(
+			peer_id
+		)
+
+
+		game_server.reject_authenticated_peer(
+			peer_id,
+			(
+				"No se pudieron actualizar Vitals "
+				+
+				"después de allocation."
+			)
+		)
+
+
+		return
+
+
+	if not session.vitals.reconfigure_maximums(
+		next_derived_stats.max_hp,
+		next_derived_stats.max_mp
+	):
+		pending_by_peer.erase(
+			peer_id
+		)
+
+
+		game_server.reject_authenticated_peer(
+			peer_id,
+			(
+				"No se pudieron reconfigurar "
+				+
+				"los máximos de Vitals."
+			)
+		)
+
+
+		return
 
 	session.primary_stats = next_state
 
@@ -516,6 +559,23 @@ func _on_primary_stats_persisted(
 		next_derived_stats
 	)
 
+	print(
+		(
+			"PrimaryStatAllocationCoordinator | "
+			+
+			"Vitals reconfigurados post allocation"
+		),
+		" | Character ID: ",
+		character_id,
+		" | HP: ",
+		session.vitals.hp,
+		"/",
+		session.vitals.max_hp,
+		" | MP: ",
+		session.vitals.mp,
+		"/",
+		session.vitals.max_mp
+	)
 
 	var request_id := int(
 		pending.get(
@@ -800,6 +860,40 @@ func _on_primary_stats_persist_failed(
 					"No se pudieron resincronizar "
 					+
 					"Derived Stats después de stale_revision."
+				)
+			)
+
+
+			return
+
+		if (
+			session.vitals == null
+			or
+			not session.vitals.is_valid()
+		):
+			game_server.reject_authenticated_peer(
+				peer_id,
+				(
+					"No se pudieron resincronizar "
+					+
+					"Vitals después de stale_revision."
+				)
+			)
+
+
+			return
+
+
+		if not session.vitals.reconfigure_maximums(
+			current_derived_stats.max_hp,
+			current_derived_stats.max_mp
+		):
+			game_server.reject_authenticated_peer(
+				peer_id,
+				(
+					"No se pudieron reconfigurar "
+					+
+					"Vitals después de stale_revision."
 				)
 			)
 
