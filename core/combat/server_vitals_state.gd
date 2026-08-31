@@ -60,6 +60,49 @@ func configure(
 
 
 # =========================================================
+# RECONFIGURAR MÁXIMOS EN VIVO
+#
+# Cambiar Max HP / Max MP NO debe producir Heal ni
+# restauración de Mana implícita.
+#
+# Conservamos los valores actuales y sólo realizamos
+# clamp si un máximo nuevo queda por debajo de ellos.
+# =========================================================
+
+func reconfigure_maximums(
+	p_max_hp: int,
+	p_max_mp: int
+) -> bool:
+	if p_max_hp <= 0:
+		return false
+
+
+	if p_max_mp < 0:
+		return false
+
+
+	var previous_hp := hp
+
+	var previous_mp := mp
+
+
+	max_hp = p_max_hp
+
+	max_mp = p_max_mp
+
+
+	set_hp(
+		previous_hp
+	)
+
+	set_mp(
+		previous_mp
+	)
+
+
+	return true
+
+# =========================================================
 # VALIDACIÓN
 # =========================================================
 
