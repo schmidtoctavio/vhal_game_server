@@ -106,13 +106,7 @@ const DEFINITIONS: Dictionary = {
 			"light_armor_v1"
 		),
 
-		"fixed_modifiers": [
-			{
-				"stat_id": "super_strength",
-				"operation_id": "flat_add",
-				"value": 5,
-			},
-		],
+		"fixed_modifiers": [],
 
 		"base_armor_rating": 20,
 
