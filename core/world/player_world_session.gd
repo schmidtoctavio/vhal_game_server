@@ -36,6 +36,15 @@ var reset_count: int = 0
 var primary_stats: ServerCharacterPrimaryStatsState = null
 
 # =========================================================
+# DERIVED STATS AUTORITATIVOS
+#
+# No son estado durable independiente.
+# Se reconstruyen desde Primary Stats.
+# =========================================================
+
+var derived_stats: ServerCharacterDerivedStatsState = null
+
+# =========================================================
 # RUNTIME DURABLE
 # =========================================================
 
@@ -595,6 +604,13 @@ func _init(
 		)
 	)
 
+	derived_stats = (
+		ServerCharacterDerivedStatsBootstrap
+		.create_from_primary_stats(
+			primary_stats
+		)
+	)
+
 	# -----------------------------------------------------
 	# RUNTIME AUTORITATIVO DEL PERSONAJE
 	# -----------------------------------------------------
@@ -968,6 +984,15 @@ func is_valid() -> bool:
 		primary_stats.level == level
 		and
 		primary_stats.reset_count == reset_count
+		and
+		derived_stats != null
+		and
+		derived_stats.is_valid()
+		and
+		ServerCharacterDerivedStatsBootstrap.is_current_for_primary_stats(
+			derived_stats,
+			primary_stats
+		)
 		and
 		not map_id.is_empty()
 		and
