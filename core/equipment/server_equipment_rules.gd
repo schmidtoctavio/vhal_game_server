@@ -68,6 +68,19 @@ static func validate_contract() -> String:
 			modifier_source_contract_error
 		)
 
+	var modifier_aggregation_contract_error := (
+		ServerEquipmentModifierAggregationRules
+		.validate_contract()
+	)
+
+
+	if not modifier_aggregation_contract_error.is_empty():
+		return (
+			"Equipment Modifier Aggregation Contract inválido: "
+			+
+			modifier_aggregation_contract_error
+		)
+
 	# -----------------------------------------------------
 	# ONE HAND
 	# -----------------------------------------------------
