@@ -154,6 +154,25 @@ static func validate(
 				item_id
 			)
 
+		var enhancement_state_error := (
+			ServerEquipmentEnhancementInstanceRules
+			.validate_item_instance(
+				item,
+				definition
+			)
+		)
+
+
+		if not enhancement_state_error.is_empty():
+			return (
+				"estado Enhancement inválido: "
+				+
+				uid
+				+
+				" | "
+				+
+				enhancement_state_error
+			)
 
 		# -------------------------------------------------
 		# QUANTITY

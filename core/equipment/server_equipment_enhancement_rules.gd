@@ -95,6 +95,18 @@ static func validate_contract() -> String:
 				validation_error
 			)
 
+	var instance_state_contract_error := (
+		ServerEquipmentEnhancementInstanceRules
+		.validate_contract()
+	)
+
+
+	if not instance_state_contract_error.is_empty():
+		return (
+			"Enhancement Instance State Contract inválido: "
+			+
+			instance_state_contract_error
+		)
 
 	return ""
 
