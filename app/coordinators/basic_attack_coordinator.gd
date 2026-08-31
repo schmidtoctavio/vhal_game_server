@@ -252,6 +252,60 @@ func _on_client_basic_attack_requested(
 
 		return
 
+	# -----------------------------------------------------
+	# DERIVED POWER AUTORITATIVO
+	# -----------------------------------------------------
+
+	if session.derived_stats == null:
+		_send_result(
+			peer_id,
+			request_id,
+			false,
+			"runtime_failure",
+			target,
+			attack_profile
+		)
+
+
+		return
+
+
+	if not session.derived_stats.is_valid():
+		_send_result(
+			peer_id,
+			request_id,
+			false,
+			"runtime_failure",
+			target,
+			attack_profile
+		)
+
+
+		return
+
+
+	var pre_mitigation_damage := (
+		ServerBasicAttackDamageRules
+		.calculate_pre_mitigation_damage(
+			attack_profile,
+			session.derived_stats
+		)
+	)
+
+
+	if pre_mitigation_damage <= 0:
+		_send_result(
+			peer_id,
+			request_id,
+			false,
+			"runtime_failure",
+			target,
+			attack_profile
+		)
+
+
+		return
+
 
 	# -----------------------------------------------------
 	# RANGO AUTORITATIVO
@@ -377,7 +431,7 @@ func _on_client_basic_attack_requested(
 	var damage_result := (
 		world_mob_registry.apply_damage_to_mob(
 			mob.entity_id,
-			base_damage,
+			pre_mitigation_damage,
 			{
 				"kind": "player_basic_attack",
 
@@ -506,6 +560,12 @@ func _on_client_basic_attack_requested(
 		),
 		" | Distancia: ",
 		distance,
+		" | Base Damage: ",
+		base_damage,
+		" | Physical Power: ",
+		session.derived_stats.physical_power,
+		" | Pre-Mitigation: ",
+		pre_mitigation_damage,
 		" | Damage: ",
 		applied_damage,
 		" | HP restante: ",
