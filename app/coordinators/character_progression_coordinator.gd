@@ -770,6 +770,49 @@ func _on_progression_persisted(
 					" | Unspent: ",
 					session.primary_stats.unspent_points
 				)
+				var vitals_replication_result := (
+					game_server.send_character_vitals_updated(
+						peer_id,
+						character_id,
+						session.vitals.to_snapshot()
+					)
+				)
+
+
+				if vitals_replication_result != OK:
+					push_warning(
+						(
+							"CharacterProgressionCoordinator | "
+							+
+							"No se pudieron replicar "
+							+
+							"Vitals post Level Up. "
+							+
+							"Error: %d"
+						)
+						%
+						vitals_replication_result
+					)
+				else:
+					print(
+						(
+							"CharacterProgressionCoordinator | "
+							+
+							"Vitals autoritativos replicados "
+							+
+							"post Level Up"
+						),
+						" | Character ID: ",
+						character_id,
+						" | HP: ",
+						session.vitals.hp,
+						"/",
+						session.vitals.max_hp,
+						" | MP: ",
+						session.vitals.mp,
+						"/",
+						session.vitals.max_mp
+					)
 
 
 	print(

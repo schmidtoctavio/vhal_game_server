@@ -661,6 +661,11 @@ func _on_primary_stats_persisted(
 		"ok"
 	)
 
+	_send_vitals_update(
+		session,
+		character_id,
+		"allocation"
+	)
 
 # =========================================================
 # PERSISTENCIA RECHAZADA
@@ -918,6 +923,11 @@ func _on_primary_stats_persist_failed(
 			"stale_revision"
 		)
 
+		_send_vitals_update(
+			session,
+			character_id,
+			"stale_revision"
+		)
 
 		return
 
@@ -1124,6 +1134,79 @@ func _on_client_disconnected(
 		peer_id
 	)
 
+# =========================================================
+# VITALS UPDATE
+# =========================================================
+
+func _send_vitals_update(
+	session: PlayerWorldSession,
+	character_id: int,
+	source: String
+) -> void:
+	if session == null:
+		return
+
+
+	if session.vitals == null:
+		return
+
+
+	if not session.vitals.is_valid():
+		return
+
+
+	if character_id <= 0:
+		return
+
+
+	var replication_result := (
+		game_server.send_character_vitals_updated(
+			session.peer_id,
+			character_id,
+			session.vitals.to_snapshot()
+		)
+	)
+
+
+	if replication_result != OK:
+		push_warning(
+			(
+				"PrimaryStatAllocationCoordinator | "
+				+
+				"No se pudieron replicar Vitals live. "
+				+
+				"Source: %s | Error: %d"
+			)
+			%
+			[
+				source,
+				replication_result,
+			]
+		)
+
+
+		return
+
+
+	print(
+		(
+			"PrimaryStatAllocationCoordinator | "
+			+
+			"Vitals autoritativos replicados"
+		),
+		" | Character ID: ",
+		character_id,
+		" | Source: ",
+		source,
+		" | HP: ",
+		session.vitals.hp,
+		"/",
+		session.vitals.max_hp,
+		" | MP: ",
+		session.vitals.mp,
+		"/",
+		session.vitals.max_mp
+	)
 
 # =========================================================
 # RESULT
