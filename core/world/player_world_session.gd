@@ -616,7 +616,9 @@ func _init(
 	# -----------------------------------------------------
 
 	vitals = (
-		ServerCharacterRuntimeBootstrap.create_vitals()
+		ServerCharacterRuntimeBootstrap.create_vitals(
+			derived_stats
+		)
 	)
 
 

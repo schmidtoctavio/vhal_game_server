@@ -3,25 +3,34 @@ extends RefCounted
 
 
 # =========================================================
-# DEFAULTS TEMPORALES DE VITALS
-#
-# Estos valores todavía representan Foundation.
-# NO representan balance definitivo.
-# =========================================================
-
-const DEFAULT_MAX_HP: int = 100000
-
-const DEFAULT_MAX_MP: int = 350
-
-
-# =========================================================
 # VITALES
+#
+# Desde F22-F2 los máximos ya NO nacen de defaults
+# hardcodeados.
+#
+# Derived Stats es la fuente autoritativa runtime para:
+#
+# - Max HP
+# - Max MP
+#
+# HP / MP actuales continúan perteneciendo a
+# ServerVitalsState.
 # =========================================================
 
-static func create_vitals() -> ServerVitalsState:
+static func create_vitals(
+	derived_stats: ServerCharacterDerivedStatsState
+) -> ServerVitalsState:
+	if derived_stats == null:
+		return null
+
+
+	if not derived_stats.is_valid():
+		return null
+
+
 	return ServerVitalsState.new(
-		DEFAULT_MAX_HP,
-		DEFAULT_MAX_MP
+		derived_stats.max_hp,
+		derived_stats.max_mp
 	)
 
 
