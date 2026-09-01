@@ -94,6 +94,19 @@ static func validate_contract() -> String:
 			resolved_contribution_contract_error
 		)
 
+	var effective_primary_contract_error := (
+		ServerCharacterEffectivePrimaryStatsRules
+		.validate_contract()
+	)
+
+
+	if not effective_primary_contract_error.is_empty():
+		return (
+			"Effective Primary Contract inválido: "
+			+
+			effective_primary_contract_error
+		)
+
 	# -----------------------------------------------------
 	# ONE HAND
 	# -----------------------------------------------------
