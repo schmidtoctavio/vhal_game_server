@@ -81,6 +81,19 @@ static func validate_contract() -> String:
 			modifier_aggregation_contract_error
 		)
 
+	var resolved_contribution_contract_error := (
+		ServerEquipmentResolvedContributionRules
+		.validate_contract()
+	)
+
+
+	if not resolved_contribution_contract_error.is_empty():
+		return (
+			"Equipment Resolved Contribution Contract inválido: "
+			+
+			resolved_contribution_contract_error
+		)
+
 	# -----------------------------------------------------
 	# ONE HAND
 	# -----------------------------------------------------
