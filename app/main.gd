@@ -518,10 +518,36 @@ func _ready() -> void:
 
 		return
 
+
+	var basic_attack_profile_contract_error := (
+		ServerBasicAttackProfileResolver
+		.validate_contract()
+	)
+
+
+	if not basic_attack_profile_contract_error.is_empty():
+		push_error(
+			(
+				"ServerMain | "
+				+
+				"Basic Attack Profile Contract inválido: "
+				+
+				basic_attack_profile_contract_error
+			)
+		)
+
+
+		get_tree().quit(
+			42
+		)
+
+
+		return
+
+
 	var class_stats_catalog_contract_error := (
 		ServerClassStatsCatalog.validate_contract()
 	)
-
 
 	if not class_stats_catalog_contract_error.is_empty():
 		push_error(
@@ -641,6 +667,9 @@ func _ready() -> void:
 		"ServerMain | Equipment Transfer Contract validado."
 	)
 
+	print(
+		"ServerMain | Basic Attack Profile Contract validado."
+	)
 
 	if backend_item_transfer_repository == null:
 		push_error(
