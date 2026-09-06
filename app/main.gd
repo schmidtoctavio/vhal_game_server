@@ -545,9 +545,36 @@ func _ready() -> void:
 		return
 
 
+	var physical_defense_profile_contract_error := (
+		ServerCharacterPhysicalDefenseProfileResolver
+		.validate_contract()
+	)
+
+
+	if not physical_defense_profile_contract_error.is_empty():
+		push_error(
+			(
+				"ServerMain | "
+				+
+				"Physical Defense Profile Contract inválido: "
+				+
+				physical_defense_profile_contract_error
+			)
+		)
+
+
+		get_tree().quit(
+			43
+		)
+
+
+		return
+
+
 	var class_stats_catalog_contract_error := (
 		ServerClassStatsCatalog.validate_contract()
 	)
+
 
 	if not class_stats_catalog_contract_error.is_empty():
 		push_error(
@@ -669,6 +696,10 @@ func _ready() -> void:
 
 	print(
 		"ServerMain | Basic Attack Profile Contract validado."
+	)
+
+	print(
+		"ServerMain | Physical Defense Profile Contract validado."
 	)
 
 	if backend_item_transfer_repository == null:
