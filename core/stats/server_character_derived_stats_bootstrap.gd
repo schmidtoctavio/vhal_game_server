@@ -130,6 +130,48 @@ static func create_from_equipment_snapshot(
 		)
 	)
 
+# =========================================================
+# CREAR DESDE EQUIPMENT ACTUAL
+# =========================================================
+#
+# Este es el entry point para reconstrucciones runtime:
+#
+# - Allocation
+# - stale_revision
+# - Level Up
+#
+# Si Equipment todavía no fue cargado, preservamos el
+# comportamiento foundation.
+#
+# Si ya existe snapshot autoritativo, Equipment participa.
+# =========================================================
+
+static func create_from_current_equipment(
+	primary_stats: ServerCharacterPrimaryStatsState,
+	equipment_snapshot: Dictionary
+) -> ServerCharacterDerivedStatsState:
+	if primary_stats == null:
+		return null
+
+
+	if not primary_stats.is_valid():
+		return null
+
+
+	if equipment_snapshot.is_empty():
+		return (
+			create_from_primary_stats(
+				primary_stats
+			)
+		)
+
+
+	return (
+		create_from_equipment_snapshot(
+			primary_stats,
+			equipment_snapshot
+		)
+	)
 
 # =========================================================
 # CREAR STATE DESDE VALUES
@@ -305,6 +347,26 @@ static func validate_equipment_bootstrap_contract() -> String:
 			"Legacy Derived State no conservó Max MP 79."
 		)
 
+	var current_without_equipment := (
+		create_from_current_equipment(
+			primary_stats,
+			{}
+		)
+	)
+
+
+	if current_without_equipment == null:
+		return (
+			"Current Equipment Bootstrap vacío falló."
+		)
+
+
+	if current_without_equipment.max_hp != 288:
+		return (
+			"Current Equipment Bootstrap vacío "
+			+
+			"no conservó Max HP 288."
+		)
 
 	# -----------------------------------------------------
 	# EQUIPMENT
@@ -374,7 +436,7 @@ static func validate_equipment_bootstrap_contract() -> String:
 
 
 	var equipment_state := (
-		create_from_equipment_snapshot(
+		create_from_current_equipment(
 			primary_stats,
 			equipment_snapshot
 		)

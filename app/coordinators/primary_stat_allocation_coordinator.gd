@@ -485,8 +485,9 @@ func _on_primary_stats_persisted(
 
 	var next_derived_stats := (
 		ServerCharacterDerivedStatsBootstrap
-		.create_from_primary_stats(
-			next_state
+		.create_from_current_equipment(
+			next_state,
+			session.get_equipment_snapshot()
 		)
 	)
 
@@ -852,8 +853,9 @@ func _on_primary_stats_persist_failed(
 
 		var current_derived_stats := (
 			ServerCharacterDerivedStatsBootstrap
-			.create_from_primary_stats(
-				current_state
+			.create_from_current_equipment(
+				current_state,
+				session.get_equipment_snapshot()
 			)
 		)
 

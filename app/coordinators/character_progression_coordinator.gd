@@ -527,8 +527,9 @@ func _on_progression_persisted(
 
 			next_derived_stats = (
 				ServerCharacterDerivedStatsBootstrap
-				.create_from_primary_stats(
-					next_primary_stats
+				.create_from_current_equipment(
+					next_primary_stats,
+					session.get_equipment_snapshot()
 				)
 			)
 
