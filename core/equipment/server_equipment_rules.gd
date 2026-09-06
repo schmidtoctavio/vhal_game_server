@@ -107,6 +107,19 @@ static func validate_contract() -> String:
 			effective_primary_contract_error
 		)
 
+	var effective_derived_formula_contract_error := (
+		ServerCharacterDerivedStatsRules
+		.validate_effective_primary_formula_contract()
+	)
+
+
+	if not effective_derived_formula_contract_error.is_empty():
+		return (
+			"Effective Derived Formula Contract inválido: "
+			+
+			effective_derived_formula_contract_error
+		)
+
 	# -----------------------------------------------------
 	# ONE HAND
 	# -----------------------------------------------------

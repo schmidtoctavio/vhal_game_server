@@ -678,6 +678,220 @@ static func resolve(
 		EFFECTIVE_KEY: effective,
 	}
 
+# =========================================================
+# VALIDAR RESOLVED PRIMARY CONTRA SU SOURCE
+# =========================================================
+
+static func validate_resolved_for_primary_stats(
+	primary_stats: ServerCharacterPrimaryStatsState,
+	resolved_primary: Dictionary
+) -> String:
+	if primary_stats == null:
+		return (
+			"Primary Stats nulo."
+		)
+
+
+	if not primary_stats.is_valid():
+		return (
+			"Primary Stats inválido."
+		)
+
+
+	if resolved_primary.is_empty():
+		return (
+			"Resolved Primary vacío."
+		)
+
+
+	var source_revision_value: Variant = (
+		resolved_primary.get(
+			SOURCE_PRIMARY_STATS_REVISION_KEY,
+			null
+		)
+	)
+
+
+	if typeof(source_revision_value) != TYPE_INT:
+		return (
+			"source_primary_stats_revision debe ser int."
+		)
+
+
+	if int(
+		source_revision_value
+	) != primary_stats.revision:
+		return (
+			"Resolved Primary pertenece a otra revision."
+		)
+
+
+	var class_id := String(
+		resolved_primary.get(
+			CLASS_ID_KEY,
+			""
+		)
+	).strip_edges().to_lower()
+
+
+	if class_id != primary_stats.class_id:
+		return (
+			"Resolved Primary pertenece a otra Class."
+		)
+
+
+	var level_value: Variant = (
+		resolved_primary.get(
+			LEVEL_KEY,
+			null
+		)
+	)
+
+
+	if typeof(level_value) != TYPE_INT:
+		return (
+			"level debe ser int."
+		)
+
+
+	if int(
+		level_value
+	) != primary_stats.level:
+		return (
+			"Resolved Primary pertenece a otro Level."
+		)
+
+
+	var reset_count_value: Variant = (
+		resolved_primary.get(
+			RESET_COUNT_KEY,
+			null
+		)
+	)
+
+
+	if typeof(reset_count_value) != TYPE_INT:
+		return (
+			"reset_count debe ser int."
+		)
+
+
+	if int(
+		reset_count_value
+	) != primary_stats.reset_count:
+		return (
+			"Resolved Primary pertenece a otro Reset."
+		)
+
+
+	for stat_id: StringName in PRIMARY_STAT_IDS:
+		var permanent_value: Variant = (
+			get_permanent_value(
+				resolved_primary,
+				stat_id
+			)
+		)
+
+
+		var equipment_bonus_value: Variant = (
+			get_equipment_bonus(
+				resolved_primary,
+				stat_id
+			)
+		)
+
+
+		var effective_value: Variant = (
+			get_effective_value(
+				resolved_primary,
+				stat_id
+			)
+		)
+
+
+		if typeof(permanent_value) != TYPE_INT:
+			return (
+				String(stat_id)
+				+
+				" | permanent inválido."
+			)
+
+
+		if typeof(equipment_bonus_value) != TYPE_INT:
+			return (
+				String(stat_id)
+				+
+				" | equipment_bonus inválido."
+			)
+
+
+		if typeof(effective_value) != TYPE_INT:
+			return (
+				String(stat_id)
+				+
+				" | effective inválido."
+			)
+
+
+		var expected_permanent := (
+			_get_permanent_primary_value(
+				primary_stats,
+				stat_id
+			)
+		)
+
+
+		if expected_permanent < 0:
+			return (
+				String(stat_id)
+				+
+				" | Permanent source inválido."
+			)
+
+
+		if int(
+			permanent_value
+		) != expected_permanent:
+			return (
+				String(stat_id)
+				+
+				" | Permanent no coincide con "
+				+
+				"Primary Stats."
+			)
+
+
+		if int(
+			equipment_bonus_value
+		) < 0:
+			return (
+				String(stat_id)
+				+
+				" | Equipment Bonus negativo."
+			)
+
+
+		if (
+			int(
+				effective_value
+			)
+			!=
+			(
+				expected_permanent
+				+
+				int(
+					equipment_bonus_value
+				)
+			)
+		):
+			return (
+				String(stat_id)
+				+
+				" | Effective != Permanent + Equipment."
+			)
+
+
+	return ""
 
 # =========================================================
 # PERMANENT VALUE

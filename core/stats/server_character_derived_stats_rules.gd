@@ -72,7 +72,8 @@ const FOUNDATION_MOVEMENT_SPEED: float = 4.0
 
 static func calculate_max_hp(
 	primary_stats: ServerCharacterPrimaryStatsState,
-	class_definition: ServerClassStatsDefinition
+	class_definition: ServerClassStatsDefinition,
+	resolved_primary: Dictionary = {}
 ) -> int:
 	if primary_stats == null:
 		return 0
@@ -105,8 +106,21 @@ static func calculate_max_hp(
 	)
 
 
+	var vitality_value := (
+		_get_formula_primary_value(
+			primary_stats,
+			resolved_primary,
+			ServerEquipmentStatModifierCatalog.VITALITY
+		)
+	)
+
+
+	if vitality_value < 0:
+		return 0
+
+
 	var vitality_growth := (
-		primary_stats.permanent_vitality
+		vitality_value
 		*
 		class_definition.hp_per_vitality
 	)
@@ -127,7 +141,8 @@ static func calculate_max_hp(
 
 static func calculate_max_mp(
 	primary_stats: ServerCharacterPrimaryStatsState,
-	class_definition: ServerClassStatsDefinition
+	class_definition: ServerClassStatsDefinition,
+	resolved_primary: Dictionary = {}
 ) -> int:
 	if primary_stats == null:
 		return -1
@@ -160,8 +175,21 @@ static func calculate_max_mp(
 	)
 
 
+	var energy_value := (
+		_get_formula_primary_value(
+			primary_stats,
+			resolved_primary,
+			ServerEquipmentStatModifierCatalog.ENERGY
+		)
+	)
+
+
+	if energy_value < 0:
+		return -1
+
+
 	var energy_growth := (
-		primary_stats.permanent_energy
+		energy_value
 		*
 		class_definition.mp_per_energy
 	)
@@ -181,7 +209,8 @@ static func calculate_max_mp(
 
 static func calculate_physical_power(
 	primary_stats: ServerCharacterPrimaryStatsState,
-	class_definition: ServerClassStatsDefinition
+	class_definition: ServerClassStatsDefinition,
+	resolved_primary: Dictionary = {}
 ) -> int:
 	if primary_stats == null:
 		return -1
@@ -214,15 +243,41 @@ static func calculate_physical_power(
 	)
 
 
+	var strength_value := (
+		_get_formula_primary_value(
+			primary_stats,
+			resolved_primary,
+			ServerEquipmentStatModifierCatalog.STRENGTH
+		)
+	)
+
+
+	var agility_value := (
+		_get_formula_primary_value(
+			primary_stats,
+			resolved_primary,
+			ServerEquipmentStatModifierCatalog.AGILITY
+		)
+	)
+
+
+	if (
+		strength_value < 0
+		or
+		agility_value < 0
+	):
+		return -1
+
+
 	var strength_growth := (
-		primary_stats.permanent_strength
+		strength_value
 		*
 		class_definition.physical_power_per_strength
 	)
 
 
 	var agility_growth := (
-		primary_stats.permanent_agility
+		agility_value
 		*
 		class_definition.physical_power_per_agility
 	)
@@ -244,7 +299,8 @@ static func calculate_physical_power(
 
 static func calculate_magic_power(
 	primary_stats: ServerCharacterPrimaryStatsState,
-	class_definition: ServerClassStatsDefinition
+	class_definition: ServerClassStatsDefinition,
+	resolved_primary: Dictionary = {}
 ) -> int:
 	if primary_stats == null:
 		return -1
@@ -277,8 +333,21 @@ static func calculate_magic_power(
 	)
 
 
+	var energy_value := (
+		_get_formula_primary_value(
+			primary_stats,
+			resolved_primary,
+			ServerEquipmentStatModifierCatalog.ENERGY
+		)
+	)
+
+
+	if energy_value < 0:
+		return -1
+
+
 	var energy_growth := (
-		primary_stats.permanent_energy
+		energy_value
 		*
 		class_definition.magic_power_per_energy
 	)
@@ -298,7 +367,8 @@ static func calculate_magic_power(
 
 static func calculate_healing_power(
 	primary_stats: ServerCharacterPrimaryStatsState,
-	class_definition: ServerClassStatsDefinition
+	class_definition: ServerClassStatsDefinition,
+	resolved_primary: Dictionary = {}
 ) -> int:
 	if primary_stats == null:
 		return -1
@@ -331,8 +401,21 @@ static func calculate_healing_power(
 	)
 
 
+	var energy_value := (
+		_get_formula_primary_value(
+			primary_stats,
+			resolved_primary,
+			ServerEquipmentStatModifierCatalog.ENERGY
+		)
+	)
+
+
+	if energy_value < 0:
+		return -1
+
+
 	var energy_growth := (
-		primary_stats.permanent_energy
+		energy_value
 		*
 		class_definition.healing_power_per_energy
 	)
@@ -421,7 +504,8 @@ static func calculate_critical_damage_multiplier(
 
 static func calculate_attack_speed_multiplier(
 	primary_stats: ServerCharacterPrimaryStatsState,
-	class_definition: ServerClassStatsDefinition
+	class_definition: ServerClassStatsDefinition,
+	resolved_primary: Dictionary = {}
 ) -> float:
 	if primary_stats == null:
 		return -1.0
@@ -447,8 +531,21 @@ static func calculate_attack_speed_multiplier(
 		return -1.0
 
 
-	var permanent_agility := float(
-		primary_stats.permanent_agility
+	var agility_value := (
+		_get_formula_primary_value(
+			primary_stats,
+			resolved_primary,
+			ServerEquipmentStatModifierCatalog.AGILITY
+		)
+	)
+
+
+	if agility_value < 0:
+		return -1.0
+
+
+	var formula_agility := float(
+		agility_value
 	)
 
 
@@ -463,7 +560,7 @@ static func calculate_attack_speed_multiplier(
 	)
 
 
-	if permanent_agility < 0.0:
+	if formula_agility < 0.0:
 		return -1.0
 
 
@@ -476,10 +573,10 @@ static func calculate_attack_speed_multiplier(
 
 
 	var agility_ratio := (
-		permanent_agility
+		formula_agility
 		/
 		(
-			permanent_agility
+			formula_agility
 			+
 			half_saturation
 		)
@@ -534,11 +631,495 @@ static func calculate_movement_speed(
 	return FOUNDATION_MOVEMENT_SPEED
 
 # =========================================================
+# RESOLVER PRIMARY VALUE PARA FÓRMULAS
+# =========================================================
+
+static func _get_formula_primary_value(
+	primary_stats: ServerCharacterPrimaryStatsState,
+	resolved_primary: Dictionary,
+	stat_id: Variant
+) -> int:
+	if primary_stats == null:
+		return -1
+
+
+	if not primary_stats.is_valid():
+		return -1
+
+
+	var normalized_stat_id := (
+		ServerEquipmentStatModifierCatalog
+		.normalize_stat_id(
+			stat_id
+		)
+	)
+
+
+	if not (
+		ServerCharacterEffectivePrimaryStatsRules
+		.PRIMARY_STAT_IDS
+		.has(
+			normalized_stat_id
+		)
+	):
+		return -1
+
+
+	# -----------------------------------------------------
+	# LEGACY / FOUNDATION
+	# -----------------------------------------------------
+	#
+	# Sin Resolved Primary mantenemos exactamente el
+	# comportamiento histórico:
+	#
+	# Derived ← Permanent Primary
+	# -----------------------------------------------------
+
+	if resolved_primary.is_empty():
+		match normalized_stat_id:
+			ServerEquipmentStatModifierCatalog.STRENGTH:
+				return primary_stats.permanent_strength
+
+			ServerEquipmentStatModifierCatalog.AGILITY:
+				return primary_stats.permanent_agility
+
+			ServerEquipmentStatModifierCatalog.VITALITY:
+				return primary_stats.permanent_vitality
+
+			ServerEquipmentStatModifierCatalog.ENERGY:
+				return primary_stats.permanent_energy
+
+			_:
+				return -1
+
+
+	# -----------------------------------------------------
+	# EFFECTIVE
+	# -----------------------------------------------------
+
+	var validation_error := (
+		ServerCharacterEffectivePrimaryStatsRules
+		.validate_resolved_for_primary_stats(
+			primary_stats,
+			resolved_primary
+		)
+	)
+
+
+	if not validation_error.is_empty():
+		return -1
+
+
+	var value: Variant = (
+		ServerCharacterEffectivePrimaryStatsRules
+		.get_effective_value(
+			resolved_primary,
+			normalized_stat_id
+		)
+	)
+
+
+	if typeof(value) != TYPE_INT:
+		return -1
+
+
+	return int(
+		value
+	)
+
+# =========================================================
+# EFFECTIVE PRIMARY → DERIVED FORMULA CONTRACT
+# =========================================================
+
+static func validate_effective_primary_formula_contract() -> String:
+	var primary_stats := (
+		ServerCharacterPrimaryStatsState.new(
+			"warrior",
+			7,
+			11,
+			0,
+			25,
+			15,
+			25,
+			10,
+			2,
+			0,
+			2,
+			3,
+			5,
+			200,
+			50,
+			0,
+			0,
+			50,
+			7,
+			43
+		)
+	)
+
+
+	if primary_stats == null:
+		return (
+			"No se pudo crear Primary Stats foundation."
+		)
+
+
+	if not primary_stats.is_valid():
+		return (
+			"Primary Stats foundation inválido."
+		)
+
+
+	# -----------------------------------------------------
+	# LEGACY DEBE PERMANECER IDÉNTICO
+	# -----------------------------------------------------
+
+	var legacy_values := (
+		build_foundation_values(
+			primary_stats
+		)
+	)
+
+
+	if legacy_values.is_empty():
+		return (
+			"Legacy Derived Values vacío."
+		)
+
+
+	if int(
+		legacy_values.get(
+			"max_hp",
+			-1
+		)
+	) != 288:
+		return (
+			"Legacy Max HP dejó de resolver 288."
+		)
+
+
+	if int(
+		legacy_values.get(
+			"max_mp",
+			-1
+		)
+	) != 79:
+		return (
+			"Legacy Max MP dejó de resolver 79."
+		)
+
+
+	if int(
+		legacy_values.get(
+			"physical_power",
+			-1
+		)
+	) != 84:
+		return (
+			"Legacy Physical Power dejó de resolver 84."
+		)
+
+
+	if not is_equal_approx(
+		float(
+			legacy_values.get(
+				"attack_speed_multiplier",
+				-1.0
+			)
+		),
+		1.01666666666667
+	):
+		return (
+			"Legacy Attack Speed cambió."
+		)
+
+
+	# -----------------------------------------------------
+	# EFFECTIVE PRIMARY SINTÉTICO
+	# -----------------------------------------------------
+	#
+	# Permanent:
+	#
+	# STR 27
+	# AGI 15
+	# VIT 27
+	# ENE 13
+	#
+	# Equipment:
+	#
+	# STR +3
+	# AGI +5
+	# VIT +4
+	# ENE +3
+	#
+	# Effective:
+	#
+	# STR 30
+	# AGI 20
+	# VIT 31
+	# ENE 16
+	# -----------------------------------------------------
+
+	var resolved_primary := {
+		"source_primary_stats_revision": 7,
+
+		"class_id": "warrior",
+
+		"level": 11,
+
+		"reset_count": 0,
+
+		"permanent": {
+			"strength": 27,
+			"agility": 15,
+			"vitality": 27,
+			"energy": 13,
+		},
+
+		"equipment_bonus": {
+			"strength": 3,
+			"agility": 5,
+			"vitality": 4,
+			"energy": 3,
+		},
+
+		"effective": {
+			"strength": 30,
+			"agility": 20,
+			"vitality": 31,
+			"energy": 16,
+		},
+	}
+
+
+	var resolved_error := (
+		ServerCharacterEffectivePrimaryStatsRules
+		.validate_resolved_for_primary_stats(
+			primary_stats,
+			resolved_primary
+		)
+	)
+
+
+	if not resolved_error.is_empty():
+		return (
+			"Effective Primary sintético inválido: "
+			+
+			resolved_error
+		)
+
+
+	var effective_values := (
+		build_effective_primary_values(
+			primary_stats,
+			resolved_primary
+		)
+	)
+
+
+	if effective_values.is_empty():
+		return (
+			"Effective Derived Values vacío."
+		)
+
+
+	# Warrior:
+	#
+	# HP = 100 + (10 * 8) + (31 * 4)
+	#    = 304
+
+	if int(
+		effective_values.get(
+			"max_hp",
+			-1
+		)
+	) != 304:
+		return (
+			"Effective Max HP no resolvió 304."
+		)
+
+
+	# MP = 30 + (10 * 1) + (16 * 3)
+	#    = 88
+
+	if int(
+		effective_values.get(
+			"max_mp",
+			-1
+		)
+	) != 88:
+		return (
+			"Effective Max MP no resolvió 88."
+		)
+
+
+	# Physical =
+	#
+	# 10
+	# + 10 levels * 2
+	# + 30 STR * 2
+	# = 90
+
+	if int(
+		effective_values.get(
+			"physical_power",
+			-1
+		)
+	) != 90:
+		return (
+			"Effective Physical Power no resolvió 90."
+		)
+
+
+	if int(
+		effective_values.get(
+			"magic_power",
+			-1
+		)
+	) != 16:
+		return (
+			"Effective Magic Power no resolvió 16."
+		)
+
+
+	if int(
+		effective_values.get(
+			"healing_power",
+			-1
+		)
+	) != 16:
+		return (
+			"Effective Healing Power no resolvió 16."
+		)
+
+
+	if not is_equal_approx(
+		float(
+			effective_values.get(
+				"critical_strike_chance",
+				-1.0
+			)
+		),
+		0.0
+	):
+		return (
+			"Effective Primary alteró Crit foundation."
+		)
+
+
+	if not is_equal_approx(
+		float(
+			effective_values.get(
+				"critical_damage_multiplier",
+				-1.0
+			)
+		),
+		1.5
+	):
+		return (
+			"Effective Primary alteró Crit Damage foundation."
+		)
+
+
+	if not is_equal_approx(
+		float(
+			effective_values.get(
+				"attack_speed_multiplier",
+				-1.0
+			)
+		),
+		1.021875
+	):
+		return (
+			"Effective Attack Speed no resolvió 1.021875."
+		)
+
+
+	if not is_equal_approx(
+		float(
+			effective_values.get(
+				"movement_speed",
+				-1.0
+			)
+		),
+		4.0
+	):
+		return (
+			"Effective Primary alteró Movement Speed."
+		)
+
+
+	# Primary durable no debe sufrir mutación.
+
+	if primary_stats.permanent_strength != 27:
+		return (
+			"Derived Formula mutó Permanent STR."
+		)
+
+
+	if primary_stats.permanent_agility != 15:
+		return (
+			"Derived Formula mutó Permanent AGI."
+		)
+
+
+	if primary_stats.permanent_vitality != 27:
+		return (
+			"Derived Formula mutó Permanent VIT."
+		)
+
+
+	if primary_stats.permanent_energy != 13:
+		return (
+			"Derived Formula mutó Permanent ENE."
+		)
+
+
+	return ""
+
+# =========================================================
 # RESOLVER DERIVED STATS
 # =========================================================
 
 static func build_foundation_values(
 	primary_stats: ServerCharacterPrimaryStatsState
+) -> Dictionary:
+	return (
+		_build_values(
+			primary_stats,
+			{}
+		)
+	)
+
+
+static func build_effective_primary_values(
+	primary_stats: ServerCharacterPrimaryStatsState,
+	resolved_primary: Dictionary
+) -> Dictionary:
+	var validation_error := (
+		ServerCharacterEffectivePrimaryStatsRules
+		.validate_resolved_for_primary_stats(
+			primary_stats,
+			resolved_primary
+		)
+	)
+
+
+	if not validation_error.is_empty():
+		return {}
+
+
+	return (
+		_build_values(
+			primary_stats,
+			resolved_primary
+		)
+	)
+
+
+static func _build_values(
+	primary_stats: ServerCharacterPrimaryStatsState,
+	resolved_primary: Dictionary
 ) -> Dictionary:
 	if primary_stats == null:
 		return {}
@@ -565,19 +1146,22 @@ static func build_foundation_values(
 
 	var max_hp := calculate_max_hp(
 		primary_stats,
-		class_definition
+		class_definition,
+		resolved_primary
 	)
 
 
 	var max_mp := calculate_max_mp(
 		primary_stats,
-		class_definition
+		class_definition,
+		resolved_primary
 	)
 
 	var physical_power := (
 		calculate_physical_power(
 			primary_stats,
-			class_definition
+			class_definition,
+			resolved_primary
 		)
 	)
 
@@ -585,7 +1169,8 @@ static func build_foundation_values(
 	var magic_power := (
 		calculate_magic_power(
 			primary_stats,
-			class_definition
+			class_definition,
+			resolved_primary
 		)
 	)
 
@@ -593,7 +1178,8 @@ static func build_foundation_values(
 	var healing_power := (
 		calculate_healing_power(
 			primary_stats,
-			class_definition
+			class_definition,
+			resolved_primary
 		)
 	)
 
@@ -615,7 +1201,8 @@ static func build_foundation_values(
 	var attack_speed_multiplier := (
 		calculate_attack_speed_multiplier(
 			primary_stats,
-			class_definition
+			class_definition,
+			resolved_primary
 		)
 	)
 
