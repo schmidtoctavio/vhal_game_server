@@ -120,6 +120,19 @@ static func validate_contract() -> String:
 			effective_derived_formula_contract_error
 		)
 
+	var resolved_derived_contract_error := (
+		ServerCharacterResolvedDerivedStatsRules
+		.validate_contract()
+	)
+
+
+	if not resolved_derived_contract_error.is_empty():
+		return (
+			"Resolved Derived Contract inválido: "
+			+
+			resolved_derived_contract_error
+		)
+
 	# -----------------------------------------------------
 	# ONE HAND
 	# -----------------------------------------------------
