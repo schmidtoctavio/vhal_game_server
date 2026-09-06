@@ -734,6 +734,74 @@ func _on_equipment_loaded(
 
 		return
 
+	# -----------------------------------------------------
+	# PERSISTED USAGE ELIGIBILITY
+	#
+	# El snapshot ya es estructuralmente válido.
+	#
+	# Ahora verificamos que el personaje pueda utilizar
+	# legalmente TODOS los items que vienen persistidos.
+	#
+	# Se evalúan:
+	#
+	# - Class
+	# - Level
+	# - Enhancement Requirements
+	# - Permanent Primary Stats
+	#
+	# Nunca Effective Primary.
+	# -----------------------------------------------------
+
+	var usage_validation_error := (
+		ServerEquipmentUsageRules
+		.validate_equipment_snapshot_usage(
+			snapshot,
+			session.primary_stats
+		)
+	)
+
+
+	if not usage_validation_error.is_empty():
+		print(
+			"CharacterItemStateCoordinator | "
+			+
+			"Equipment persistente rechazado por Usage Eligibility",
+			" | Peer: ",
+			peer_id,
+			" | Cuenta: ",
+			account_id,
+			" | Character ID: ",
+			character_id,
+			" | Motivo: ",
+			usage_validation_error
+		)
+
+
+		game_server.reject_authenticated_peer(
+			peer_id,
+			(
+				"El Equipment persistente no cumple "
+				+
+				"los requisitos del personaje."
+			)
+		)
+
+
+		return
+
+
+	print(
+		"CharacterItemStateCoordinator | "
+		+
+		"Equipment persistente validado por Usage Eligibility",
+		" | Peer: ",
+		peer_id,
+		" | Cuenta: ",
+		account_id,
+		" | Character ID: ",
+		character_id
+	)
+
 
 	if not session.set_equipment_snapshot(
 		snapshot
