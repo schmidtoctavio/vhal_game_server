@@ -474,9 +474,10 @@ func _on_load_request_completed(
 		"container": container,
 
 		"items": (
-			items_value as Array
-		).duplicate(
-			true
+			BackendItemStateTransportNormalizer
+			.normalize_items(
+				items_value as Array
+			)
 		),
 	}
 
@@ -1363,7 +1364,10 @@ func _parse_enhancement_response(
 
 
 	var item: Dictionary = (
-		item_value
+		BackendItemStateTransportNormalizer
+		.normalize_item(
+			item_value as Dictionary
+		)
 	)
 
 
@@ -1554,7 +1558,10 @@ func _parse_mutation_response(
 
 
 	var item: Dictionary = (
-		item_value
+		BackendItemStateTransportNormalizer
+		.normalize_item(
+			item_value as Dictionary
+		)
 	)
 
 

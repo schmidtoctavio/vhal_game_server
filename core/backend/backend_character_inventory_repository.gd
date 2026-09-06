@@ -440,9 +440,10 @@ func _on_request_completed(
 		"character_id": character_id,
 		"container": container,
 		"items": (
-			items_value as Array
-		).duplicate(
-			true
+			BackendItemStateTransportNormalizer
+			.normalize_items(
+				items_value as Array
+			)
 		),
 	}
 
