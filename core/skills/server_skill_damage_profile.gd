@@ -10,6 +10,7 @@ const DAMAGE_PHYSICAL: String = "physical"
 
 const DAMAGE_MAGIC: String = "magic"
 
+const DAMAGE_POISON: String = "poison"
 
 # =========================================================
 # DAMAGE TYPE
@@ -41,4 +42,6 @@ func is_valid() -> bool:
 		damage_type == DAMAGE_PHYSICAL
 		or
 		damage_type == DAMAGE_MAGIC
+		or
+		damage_type == DAMAGE_POISON
 	)

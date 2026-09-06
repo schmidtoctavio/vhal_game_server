@@ -52,6 +52,8 @@ var scaling_profile: ServerSkillScalingProfile = null
 
 var damage_profile: ServerSkillDamageProfile = null
 
+var status_effect_profile: ServerSkillStatusEffectProfile = null
+
 # =========================================================
 # CONSTRUCTOR
 # =========================================================
@@ -63,7 +65,8 @@ func _init(
 	p_target_kind: String = TARGET_SELF,
 	p_scaling_profile: ServerSkillScalingProfile = null,
 	p_damage_profile: ServerSkillDamageProfile = null,
-	p_cast_range: float = 0.0
+	p_cast_range: float = 0.0,
+	p_status_effect_profile: ServerSkillStatusEffectProfile = null
 ) -> void:
 	skill_id = (
 		p_skill_id
@@ -96,6 +99,10 @@ func _init(
 
 	cast_range = (
 		p_cast_range
+	)
+
+	status_effect_profile = (
+		p_status_effect_profile
 	)
 
 # =========================================================
@@ -135,5 +142,12 @@ func is_valid() -> bool:
 
 		and
 		cast_range >= 0.0
+
+		and
+		(
+			status_effect_profile == null
+			or
+			status_effect_profile.is_valid()
+		)
 
 	)

@@ -53,7 +53,25 @@ static func get_definition(
 				POISON_ID,
 				20,
 				5.0,
-				ServerSkillDefinition.TARGET_ENTITY
+				ServerSkillDefinition.TARGET_ENTITY,
+
+				ServerSkillScalingProfile.new(
+					0,
+					ServerSkillScalingProfile.POWER_PHYSICAL,
+					0.20
+				),
+
+				null,
+
+				6.0,
+
+				ServerSkillStatusEffectProfile.new(
+					POISON_ID,
+					ServerSkillDamageProfile.DAMAGE_POISON,
+					1.0,
+					5,
+					ServerSkillStatusEffectProfile.REFRESH_REPLACE
+				)
 			)
 
 		HEAL_ID:

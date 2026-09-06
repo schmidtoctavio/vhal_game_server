@@ -66,6 +66,13 @@ func setup(
 			_on_mob_respawned
 		)
 
+	if not world_mob_registry.mob_periodic_damage_applied.is_connected(
+		_on_mob_periodic_damage_applied
+	):
+		world_mob_registry.mob_periodic_damage_applied.connect(
+			_on_mob_periodic_damage_applied
+		)
+
 	configured = true
 
 	if not world_drop_registry.world_drop_spawned.is_connected(
@@ -559,6 +566,60 @@ func _on_world_drop_removed(
 		entity_id,
 		" | Mapa: ",
 		map_id,
+		" | Recipients: ",
+		recipients
+	)
+
+# =========================================================
+# PERIODIC MOB DAMAGE
+# =========================================================
+
+func _on_mob_periodic_damage_applied(
+	entity_id: String,
+	map_id: String,
+	mob_snapshot: Dictionary,
+	_source: Dictionary,
+	applied_damage: int,
+	status_effect_id: String
+) -> void:
+	if not configured:
+		return
+
+	var recipients := 0
+
+
+	for session: PlayerWorldSession in (
+		world_session_registry.get_sessions_in_map(
+			map_id
+		)
+	):
+		if session == null:
+			continue
+
+
+		var result := (
+			game_server.send_mob_state_updated(
+				session.peer_id,
+				mob_snapshot
+			)
+		)
+
+
+		if result != OK:
+			continue
+
+
+		recipients += 1
+
+
+	print(
+		"WorldPresenceCoordinator | Periodic Damage replicado",
+		" | Entity: ",
+		entity_id,
+		" | Effect: ",
+		status_effect_id,
+		" | Damage: ",
+		applied_damage,
 		" | Recipients: ",
 		recipients
 	)

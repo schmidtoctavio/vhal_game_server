@@ -19,6 +19,15 @@ signal mob_respawned(
 	mob_snapshot: Dictionary
 )
 
+signal mob_periodic_damage_applied(
+	entity_id: String,
+	map_id: String,
+	mob_snapshot: Dictionary,
+	source: Dictionary,
+	applied_damage: int,
+	status_effect_id: String
+)
+
 # =========================================================
 # DEFINICIONES
 # =========================================================
@@ -41,6 +50,12 @@ var pending_respawn_deadlines_msec: Dictionary = {}
 var respawn_timer: Timer = null
 
 # =========================================================
+# STATUS EFFECT SCHEDULER
+# =========================================================
+
+var status_effect_timer: Timer = null
+
+# =========================================================
 # INICIALIZACIÓN
 # =========================================================
 
@@ -53,6 +68,9 @@ func initialize() -> Error:
 
 
 	if not _prepare_respawn_scheduler():
+		return ERR_CANT_CREATE
+
+	if not _prepare_status_effect_scheduler():
 		return ERR_CANT_CREATE
 
 	# -----------------------------------------------------
@@ -616,6 +634,7 @@ func apply_damage_to_mob(
 	# -----------------------------------------------------
 
 	if died:
+		mob.clear_status_effects()
 		var mob_snapshot := (
 			mob.to_snapshot()
 		)
@@ -721,3 +740,287 @@ func get_mobs_in_map(
 
 
 	return result
+
+# =========================================================
+# PREPARAR STATUS EFFECT SCHEDULER
+# =========================================================
+
+func _prepare_status_effect_scheduler() -> bool:
+	if (
+		status_effect_timer == null
+		or
+		not is_instance_valid(
+			status_effect_timer
+		)
+	):
+		status_effect_timer = Timer.new()
+
+		status_effect_timer.name = (
+			"StatusEffectTimer"
+		)
+
+		status_effect_timer.one_shot = true
+
+		add_child(
+			status_effect_timer
+		)
+
+
+	if not status_effect_timer.timeout.is_connected(
+		_on_status_effect_timer_timeout
+	):
+		status_effect_timer.timeout.connect(
+			_on_status_effect_timer_timeout
+		)
+
+
+	status_effect_timer.stop()
+
+	return true
+
+
+# =========================================================
+# APLICAR STATUS EFFECT
+# =========================================================
+
+func apply_status_effect_to_mob(
+	entity_id: String,
+	status_effect: WorldMobStatusEffectRuntime
+) -> bool:
+	var mob := get_mob(
+		entity_id
+	)
+
+	if mob == null:
+		return false
+
+	if not mob.apply_status_effect(
+		status_effect
+	):
+		return false
+
+	print(
+		"WorldMobRegistry | Status Effect aplicado",
+		" | Entity: ",
+		mob.entity_id,
+		" | Effect: ",
+		status_effect.effect_id,
+		" | Damage/Tick: ",
+		status_effect.damage_per_tick,
+		" | Ticks: ",
+		status_effect.ticks_remaining
+	)
+
+	_arm_next_status_effect_tick()
+
+	return true
+
+
+# =========================================================
+# ARMAR PRÓXIMO STATUS TICK
+# =========================================================
+
+func _arm_next_status_effect_tick() -> void:
+	if status_effect_timer == null:
+		return
+
+	var nearest_deadline_msec: int = 0
+
+
+	for mob_value: Variant in mobs_by_entity_id.values():
+		var mob := (
+			mob_value
+			as WorldMobRuntimeState
+		)
+
+		if mob == null:
+			continue
+
+		if not mob.is_alive():
+			continue
+
+		for status_effect: WorldMobStatusEffectRuntime in (
+			mob.get_status_effects()
+		):
+			if status_effect == null:
+				continue
+
+			if status_effect.is_finished():
+				continue
+
+			var deadline := (
+				status_effect.next_tick_at_msec
+			)
+
+			if deadline <= 0:
+				continue
+
+			if (
+				nearest_deadline_msec == 0
+				or
+				deadline < nearest_deadline_msec
+			):
+				nearest_deadline_msec = deadline
+
+
+	if nearest_deadline_msec <= 0:
+		status_effect_timer.stop()
+
+		return
+
+
+	var remaining_msec := maxi(
+		nearest_deadline_msec
+		-
+		Time.get_ticks_msec(),
+		1
+	)
+
+
+	status_effect_timer.start(
+		float(remaining_msec)
+		/
+		1000.0
+	)
+
+
+# =========================================================
+# EJECUTAR STATUS TICKS
+# =========================================================
+
+func _on_status_effect_timer_timeout() -> void:
+	var now_msec := (
+		Time.get_ticks_msec()
+	)
+
+
+	for mob_value: Variant in mobs_by_entity_id.values():
+		var mob := (
+			mob_value
+			as WorldMobRuntimeState
+		)
+
+		if mob == null:
+			continue
+
+		if not mob.is_alive():
+			mob.clear_status_effects()
+
+			continue
+
+
+		var status_effects := (
+			mob.get_status_effects()
+		)
+
+
+		for status_effect: WorldMobStatusEffectRuntime in status_effects:
+			if status_effect == null:
+				continue
+
+
+			while (
+				mob.is_alive()
+				and
+				status_effect.is_due(
+					now_msec
+				)
+			):
+				if not status_effect.consume_due_tick(
+					now_msec
+				):
+					break
+
+
+				var source := (
+					status_effect.source.duplicate(
+						true
+					)
+				)
+
+				source[
+					"kind"
+				] = "player_skill_periodic"
+
+				source[
+					"status_effect_id"
+				] = status_effect.effect_id
+
+				source[
+					"damage_type"
+				] = status_effect.damage_type
+
+
+				var damage_result := (
+					apply_damage_to_mob(
+						mob.entity_id,
+						status_effect.damage_per_tick,
+						source
+					)
+				)
+
+
+				if damage_result.is_empty():
+					break
+
+
+				var applied_damage := int(
+					damage_result.get(
+						"applied_damage",
+						0
+					)
+				)
+
+
+				if applied_damage <= 0:
+					break
+
+
+				var snapshot := (
+					mob.to_snapshot()
+				)
+
+
+				if not snapshot.is_empty():
+					mob_periodic_damage_applied.emit(
+						mob.entity_id,
+						mob.map_id,
+						snapshot.duplicate(
+							true
+						),
+						source.duplicate(
+							true
+						),
+						applied_damage,
+						status_effect.effect_id
+					)
+
+
+				print(
+					"WorldMobRegistry | Status Effect Tick",
+					" | Entity: ",
+					mob.entity_id,
+					" | Effect: ",
+					status_effect.effect_id,
+					" | Damage: ",
+					applied_damage,
+					" | Ticks restantes: ",
+					status_effect.ticks_remaining,
+					" | HP: ",
+					mob.vitals.hp,
+					"/",
+					mob.vitals.max_hp
+				)
+
+
+				if not mob.is_alive():
+					break
+
+
+			if status_effect.is_finished():
+				mob.remove_status_effect(
+					status_effect.effect_id
+				)
+
+
+	_arm_next_status_effect_tick()

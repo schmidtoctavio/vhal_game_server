@@ -280,6 +280,13 @@ func _on_client_skill_cast_requested(
 		definition.skill_id
 		!=
 		ServerSkillCatalog.FIRE_BALL_ID
+
+		and
+
+		definition.skill_id
+		!=
+		ServerSkillCatalog.POISON_ID
+
 	):
 		_send_result(
 			peer_id,
@@ -311,6 +318,8 @@ func _on_client_skill_cast_requested(
 	var requested_heal_amount: int = 0
 
 	var raw_damage_amount: int = 0
+
+	var periodic_tick_damage: int = 0
 
 	var damage_target: WorldMobRuntimeState = null
 
@@ -373,6 +382,34 @@ func _on_client_skill_cast_requested(
 
 			return
 
+	elif (
+		definition.skill_id
+		==
+		ServerSkillCatalog.POISON_ID
+	):
+		periodic_tick_damage = (
+			ServerSkillPeriodicDamageRules
+			.calculate_tick_damage(
+				definition,
+				session.derived_stats
+			)
+		)
+
+
+		if periodic_tick_damage <= 0:
+			_send_result(
+				peer_id,
+				request_id,
+				definition.skill_id,
+				false,
+				"runtime_failure",
+				session,
+				0.0,
+				{}
+			)
+
+			return
+
 
 		var target_entity_id := String(
 			target.get(
@@ -404,7 +441,6 @@ func _on_client_skill_cast_requested(
 				0.0,
 				{}
 			)
-
 
 			return
 
@@ -775,6 +811,205 @@ func _on_client_skill_cast_requested(
 			damage_target.vitals.max_hp,
 			" | Killed: ",
 			target_died,
+			" | MP: ",
+			session.vitals.mp,
+			"/",
+			session.vitals.max_mp,
+			" | Cooldown: ",
+			cooldown_remaining
+		)
+
+		return
+
+	# =====================================================
+	# EJECUTAR POISON
+	# =====================================================
+
+	if (
+		definition.skill_id
+		==
+		ServerSkillCatalog.POISON_ID
+	):
+		if (
+			damage_target == null
+			or
+			definition.status_effect_profile == null
+		):
+			_rollback_committed_skill_costs(
+				session,
+				definition
+			)
+
+			_send_result(
+				peer_id,
+				request_id,
+				definition.skill_id,
+				false,
+				"runtime_failure",
+				session,
+				0.0,
+				{}
+			)
+
+			return
+
+
+		var status_effect := (
+			WorldMobStatusEffectRuntime.create(
+				definition.status_effect_profile,
+				periodic_tick_damage,
+				{
+					"kind": "player_skill_periodic",
+
+					"peer_id": peer_id,
+
+					"character_id": (
+						session.character_id
+					),
+
+					"request_id": request_id,
+
+					"skill_id": (
+						definition.skill_id
+					),
+
+					"damage_type": (
+						definition
+						.status_effect_profile
+						.damage_type
+					),
+				},
+				Time.get_ticks_msec()
+			)
+		)
+
+
+		if status_effect == null:
+			_rollback_committed_skill_costs(
+				session,
+				definition
+			)
+
+			_send_result(
+				peer_id,
+				request_id,
+				definition.skill_id,
+				false,
+				"runtime_failure",
+				session,
+				0.0,
+				{}
+			)
+
+			return
+
+
+		if not world_mob_registry.apply_status_effect_to_mob(
+			damage_target.entity_id,
+			status_effect
+		):
+			_rollback_committed_skill_costs(
+				session,
+				definition
+			)
+
+			_send_result(
+				peer_id,
+				request_id,
+				definition.skill_id,
+				false,
+				"runtime_failure",
+				session,
+				0.0,
+				{}
+			)
+
+			return
+
+
+		cooldown_remaining = (
+			session
+			.skill_runtime
+			.get_cooldown_remaining_seconds(
+				definition.skill_id
+			)
+		)
+
+
+		_send_result(
+			peer_id,
+			request_id,
+			definition.skill_id,
+			true,
+			"ok",
+			session,
+			cooldown_remaining,
+			{
+				"kind": "status_effect",
+
+				"amount": 0,
+
+				"status_effect_id": (
+					definition
+					.status_effect_profile
+					.effect_id
+				),
+
+				"damage_type": (
+					definition
+					.status_effect_profile
+					.damage_type
+				),
+
+				"tick_damage": (
+					periodic_tick_damage
+				),
+
+				"tick_count": (
+					definition
+					.status_effect_profile
+					.tick_count
+				),
+
+				"tick_interval": (
+					definition
+					.status_effect_profile
+					.tick_interval_seconds
+				),
+
+				"duration": (
+					definition
+					.status_effect_profile
+					.get_duration_seconds()
+				),
+
+				"entity_id": (
+					damage_target.entity_id
+				),
+			}
+		)
+
+
+		print(
+			"SkillCastCoordinator | Poison autoritativo aplicado",
+			" | Request: ",
+			request_id,
+			" | Peer: ",
+			peer_id,
+			" | Personaje: ",
+			session.character_name,
+			" | Entity: ",
+			damage_target.entity_id,
+			" | Physical Power: ",
+			session.derived_stats.physical_power,
+			" | Damage/Tick: ",
+			periodic_tick_damage,
+			" | Ticks: ",
+			definition.status_effect_profile.tick_count,
+			" | Interval: ",
+			definition.status_effect_profile.tick_interval_seconds,
+			" | Duration: ",
+			definition.status_effect_profile.get_duration_seconds(),
 			" | MP: ",
 			session.vitals.mp,
 			"/",

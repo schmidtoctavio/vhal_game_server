@@ -34,6 +34,8 @@ var rotation_y: float = 0.0
 var vitals: ServerVitalsState = null
 
 
+var status_effects_by_id: Dictionary = {}
+
 # =========================================================
 # CREAR
 # =========================================================
@@ -162,6 +164,66 @@ func apply_damage(
 	)
 
 # =========================================================
+# STATUS EFFECTS
+# =========================================================
+
+func apply_status_effect(
+	status_effect: WorldMobStatusEffectRuntime
+) -> bool:
+	if status_effect == null:
+		return false
+
+	if not status_effect.is_valid():
+		return false
+
+	if not is_alive():
+		return false
+
+	# Foundation:
+	#
+	# Un solo efecto por effect_id.
+	# Un nuevo Poison reemplaza/refresca al anterior.
+
+	status_effects_by_id[
+		status_effect.effect_id
+	] = status_effect
+
+	return true
+
+
+func get_status_effects() -> Array[WorldMobStatusEffectRuntime]:
+	var result: Array[WorldMobStatusEffectRuntime] = []
+
+	for value: Variant in status_effects_by_id.values():
+		var status_effect := (
+			value
+			as WorldMobStatusEffectRuntime
+		)
+
+		if status_effect == null:
+			continue
+
+		result.append(
+			status_effect
+		)
+
+	return result
+
+
+func remove_status_effect(
+	effect_id: String
+) -> void:
+	status_effects_by_id.erase(
+		effect_id
+		.strip_edges()
+		.to_lower()
+	)
+
+
+func clear_status_effects() -> void:
+	status_effects_by_id.clear()
+
+# =========================================================
 # RESPAWN
 # =========================================================
 
@@ -177,6 +239,8 @@ func respawn_at_spawn() -> bool:
 	if is_alive():
 		return false
 
+
+	clear_status_effects()
 
 	vitals.set_hp(
 		vitals.max_hp
