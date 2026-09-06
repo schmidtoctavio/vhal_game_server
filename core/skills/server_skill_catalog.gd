@@ -33,7 +33,17 @@ static func get_definition(
 				FIRE_BALL_ID,
 				30,
 				3.0,
-				ServerSkillDefinition.TARGET_ENTITY
+				ServerSkillDefinition.TARGET_ENTITY,
+
+				ServerSkillScalingProfile.new(
+					0,
+					ServerSkillScalingProfile.POWER_MAGIC,
+					1.0
+				),
+
+				ServerSkillDamageProfile.new(
+					ServerSkillDamageProfile.DAMAGE_MAGIC
+				)
 			)
 
 		POISON_ID:
@@ -227,6 +237,22 @@ static func validate_contract() -> String:
 			"Skill Usage Contract inválido: "
 			+
 			usage_contract_error
+		)
+
+	# =====================================================
+	# SKILL DAMAGE CONTRACT
+	# =====================================================
+
+	var damage_contract_error := (
+		ServerSkillDamageRules.validate_contract()
+	)
+
+
+	if not damage_contract_error.is_empty():
+		return (
+			"Skill Damage Contract inválido: "
+			+
+			damage_contract_error
 		)
 
 

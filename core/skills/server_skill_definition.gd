@@ -46,6 +46,12 @@ var cooldown_duration: float = 0.0
 var scaling_profile: ServerSkillScalingProfile = null
 
 # =========================================================
+# DAMAGE
+# =========================================================
+
+var damage_profile: ServerSkillDamageProfile = null
+
+# =========================================================
 # CONSTRUCTOR
 # =========================================================
 
@@ -54,7 +60,8 @@ func _init(
 	p_mana_cost: int = 0,
 	p_cooldown_duration: float = 0.0,
 	p_target_kind: String = TARGET_SELF,
-	p_scaling_profile: ServerSkillScalingProfile = null
+	p_scaling_profile: ServerSkillScalingProfile = null,
+	p_damage_profile: ServerSkillDamageProfile = null
 ) -> void:
 	skill_id = (
 		p_skill_id
@@ -79,6 +86,10 @@ func _init(
 
 	scaling_profile = (
 		p_scaling_profile
+	)
+
+	damage_profile = (
+		p_damage_profile
 	)
 
 # =========================================================
@@ -108,4 +119,12 @@ func is_valid() -> bool:
 			or
 			scaling_profile.is_valid()
 		)
+
+		and
+		(
+			damage_profile == null
+			or
+			damage_profile.is_valid()
+		)
+
 	)
