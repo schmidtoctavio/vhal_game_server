@@ -434,6 +434,174 @@ static func validate_contract() -> String:
 			strong_warrior_error
 		)
 
+	# =====================================================
+	# SNAPSHOT USAGE ELIGIBILITY
+	# =====================================================
+
+	var empty_equipment_snapshot := {
+		"account_id": 1,
+
+		"character_id": 1,
+
+		"container": "equipment",
+
+		"items": [],
+	}
+
+
+	var empty_snapshot_error := (
+		validate_equipment_snapshot_usage(
+			empty_equipment_snapshot,
+			warrior_primary
+		)
+	)
+
+
+	if not empty_snapshot_error.is_empty():
+		return (
+			"Equipment vacío fue rechazado por Usage: "
+			+
+			empty_snapshot_error
+		)
+
+
+	# -----------------------------------------------------
+	# SWORD +0 EQUIPADA
+	#
+	# Permanent STR 27
+	# Requirement STR 15
+	#
+	# Snapshot completo debe ser válido.
+	# -----------------------------------------------------
+
+	var valid_equipment_snapshot := {
+		"account_id": 1,
+
+		"character_id": 1,
+
+		"container": "equipment",
+
+		"items": [
+			{
+				"uid": "snapshot-usage-sword-zero",
+
+				"item_id": "bronze_sword",
+
+				"quantity": 1,
+
+				"equipment_slot": "main_hand",
+
+				"state": {
+					"enhancement_level": 0,
+				},
+			},
+		],
+	}
+
+
+	var valid_snapshot_error := (
+		validate_equipment_snapshot_usage(
+			valid_equipment_snapshot,
+			warrior_primary
+		)
+	)
+
+
+	if not valid_snapshot_error.is_empty():
+		return (
+			"Equipment Snapshot válido fue rechazado: "
+			+
+			valid_snapshot_error
+		)
+
+
+	# -----------------------------------------------------
+	# SWORD +13 EQUIPADA
+	#
+	# Permanent STR 27
+	# Requirement STR 30
+	#
+	# Aunque el snapshot sea estructuralmente válido,
+	# Usage Eligibility debe rechazarlo.
+	# -----------------------------------------------------
+
+	var invalid_usage_snapshot := {
+		"account_id": 1,
+
+		"character_id": 1,
+
+		"container": "equipment",
+
+		"items": [
+			{
+				"uid": "snapshot-usage-sword-thirteen",
+
+				"item_id": "bronze_sword",
+
+				"quantity": 1,
+
+				"equipment_slot": "main_hand",
+
+				"state": {
+					"enhancement_level": 13,
+				},
+			},
+		],
+	}
+
+
+	var invalid_snapshot_error := (
+		validate_equipment_snapshot_usage(
+			invalid_usage_snapshot,
+			warrior_primary
+		)
+	)
+
+
+	if invalid_snapshot_error.is_empty():
+		return (
+			"Equipment Snapshot permitió Bronze Sword +13 "
+			+
+			"con Permanent STR 27."
+		)
+
+
+	if not invalid_snapshot_error.contains(
+		"reason=insufficient_strength"
+	):
+		return (
+			"Equipment Snapshot rechazó Sword +13 "
+			+
+			"por motivo inesperado: "
+			+
+			invalid_snapshot_error
+		)
+
+
+	# -----------------------------------------------------
+	# MISMO SNAPSHOT + STR 30
+	#
+	# Ahora sí debe permitir.
+	# -----------------------------------------------------
+
+	var strong_snapshot_error := (
+		validate_equipment_snapshot_usage(
+			invalid_usage_snapshot,
+			strong_warrior_primary
+		)
+	)
+
+
+	if not strong_snapshot_error.is_empty():
+		return (
+			"Equipment Snapshot rechazó Sword +13 "
+			+
+			"con Permanent STR 30: "
+			+
+			strong_snapshot_error
+		)
+
+
 	return ""
 
 
@@ -1011,6 +1179,128 @@ static func validate_item_usage(
 		required_energy
 	):
 		return "insufficient_energy"
+
+
+	return ""
+
+# =========================================================
+# VALIDAR USO DE EQUIPMENT SNAPSHOT COMPLETO
+# =========================================================
+#
+# Verifica que TODOS los items actualmente equipados
+# puedan ser usados por el estado Primary permanente
+# del personaje.
+#
+#
+# Esto sirve para:
+#
+# - Login
+# - Equipment reload
+# - Resync durable
+#
+#
+# Un snapshot estructuralmente válido puede igualmente
+# ser inválido desde Usage Eligibility.
+# =========================================================
+
+static func validate_equipment_snapshot_usage(
+	snapshot: Dictionary,
+	primary_stats: ServerCharacterPrimaryStatsState
+) -> String:
+	if primary_stats == null:
+		return "invalid_primary_stats"
+
+
+	if not primary_stats.is_valid():
+		return "invalid_primary_stats"
+
+
+	var snapshot_error := (
+		ServerEquipmentSnapshotValidator
+		.validate(
+			snapshot
+		)
+	)
+
+
+	if not snapshot_error.is_empty():
+		return (
+			"invalid_equipment_snapshot: "
+			+
+			snapshot_error
+		)
+
+
+	var items_value: Variant = (
+		snapshot.get(
+			"items",
+			null
+		)
+	)
+
+
+	if typeof(items_value) != TYPE_ARRAY:
+		return "invalid_equipment_items"
+
+
+	var items: Array = (
+		items_value as Array
+	)
+
+
+	for item_value: Variant in items:
+		if typeof(item_value) != TYPE_DICTIONARY:
+			return "invalid_equipment_item"
+
+
+		var item: Dictionary = (
+			item_value as Dictionary
+		)
+
+
+		var usage_error := (
+			validate_item_usage(
+				item,
+				primary_stats
+			)
+		)
+
+
+		if usage_error.is_empty():
+			continue
+
+
+		var uid := String(
+			item.get(
+				"uid",
+				""
+			)
+		).strip_edges()
+
+
+		var item_id := String(
+			item.get(
+				"item_id",
+				""
+			)
+		).strip_edges()
+
+
+		return (
+			"item_usage_invalid"
+			+
+			" | uid="
+			+
+			uid
+			+
+			" | item_id="
+			+
+			item_id
+			+
+			" | reason="
+			+
+			usage_error
+		)
 
 
 	return ""
