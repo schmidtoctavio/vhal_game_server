@@ -113,6 +113,12 @@ signal client_equipment_unequip_requested(
 	new_position: Vector2i
 )
 
+signal client_equipment_enhancement_requested(
+	peer_id: int,
+	request_id: int,
+	uid: String
+)
+
 signal client_world_drop_pickup_requested(
 	peer_id: int,
 	request_id: int,
@@ -243,6 +249,10 @@ const MESSAGE_EQUIPMENT_EQUIP_REQUEST: String = (
 
 const MESSAGE_EQUIPMENT_UNEQUIP_REQUEST: String = (
 	"equipment_unequip_request"
+)
+
+const MESSAGE_EQUIPMENT_ENHANCEMENT_REQUEST: String = (
+	"equipment_enhancement_request"
 )
 
 const MESSAGE_MOB_STATE_UPDATED: String = (
@@ -1819,6 +1829,15 @@ func _on_peer_packet(
 
 	if message_type == MESSAGE_EQUIPMENT_UNEQUIP_REQUEST:
 		_process_equipment_unequip_request(
+			peer_id,
+			message
+		)
+
+
+		return
+
+	if message_type == MESSAGE_EQUIPMENT_ENHANCEMENT_REQUEST:
+		_process_equipment_enhancement_request(
 			peer_id,
 			message
 		)
@@ -4727,6 +4746,99 @@ func _process_equipment_unequip_request(
 		uid,
 		slot_id,
 		new_position
+	)
+
+# =========================================================
+# EQUIPMENT — ENHANCEMENT REQUEST
+# =========================================================
+
+func _process_equipment_enhancement_request(
+	peer_id: int,
+	message: Dictionary
+) -> void:
+	if not authenticated_sessions.has(
+		peer_id
+	):
+		return
+
+
+	var data_value: Variant = (
+		message.get(
+			"data",
+			null
+		)
+	)
+
+
+	if typeof(data_value) != TYPE_DICTIONARY:
+		return
+
+
+	var data: Dictionary = (
+		data_value
+	)
+
+
+	# -----------------------------------------------------
+	# REQUEST ID
+	# -----------------------------------------------------
+
+	var request_id := int(
+		data.get(
+			"request_id",
+			0
+		)
+	)
+
+
+	if request_id <= 0:
+		return
+
+
+	# -----------------------------------------------------
+	# UID
+	#
+	# El cliente identifica únicamente la instancia.
+	#
+	# NO puede declarar:
+	#
+	# - container
+	# - current enhancement level
+	# - next enhancement level
+	#
+	# Todo eso se resolverá desde el estado autoritativo
+	# del Game Server.
+	# -----------------------------------------------------
+
+	var uid_value: Variant = (
+		data.get(
+			"uid",
+			null
+		)
+	)
+
+
+	if typeof(uid_value) != TYPE_STRING:
+		return
+
+
+	var uid := String(
+		uid_value
+	).strip_edges()
+
+
+	if (
+		uid.is_empty()
+		or
+		uid.length() > 64
+	):
+		return
+
+
+	client_equipment_enhancement_requested.emit(
+		peer_id,
+		request_id,
+		uid
 	)
 
 func _is_inventory_grid_position_valid(
