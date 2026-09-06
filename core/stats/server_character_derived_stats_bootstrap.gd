@@ -5,6 +5,15 @@ extends RefCounted
 # =========================================================
 # CREAR DESDE PRIMARY STATS
 # =========================================================
+#
+# Camino foundation / legacy:
+#
+# Primary Permanent
+# →
+# Derived
+#
+# Equipment todavía no participa.
+# =========================================================
 
 static func create_from_primary_stats(
 	primary_stats: ServerCharacterPrimaryStatsState
@@ -23,6 +32,119 @@ static func create_from_primary_stats(
 			primary_stats
 		)
 	)
+
+
+	return (
+		_create_state_from_values(
+			primary_stats,
+			values
+		)
+	)
+
+
+# =========================================================
+# CREAR DESDE EQUIPMENT SNAPSHOT
+# =========================================================
+#
+# Pipeline:
+#
+# Equipment Snapshot
+# →
+# Equipment Contributions
+# →
+# Effective Primary
+# →
+# Resolved Derived
+# →
+# Derived Stats State
+#
+#
+# IMPORTANTE:
+#
+# Primary Stats durable NO es mutado.
+# =========================================================
+
+static func create_from_equipment_snapshot(
+	primary_stats: ServerCharacterPrimaryStatsState,
+	equipment_snapshot: Dictionary
+) -> ServerCharacterDerivedStatsState:
+	if primary_stats == null:
+		return null
+
+
+	if not primary_stats.is_valid():
+		return null
+
+
+	var snapshot_error := (
+		ServerEquipmentSnapshotValidator
+		.validate(
+			equipment_snapshot
+		)
+	)
+
+
+	if not snapshot_error.is_empty():
+		return null
+
+
+	var equipment_contributions := (
+		ServerEquipmentResolvedContributionRules
+		.resolve_equipment_snapshot(
+			equipment_snapshot
+		)
+	)
+
+
+	if equipment_contributions.is_empty():
+		return null
+
+
+	var effective_primary := (
+		ServerCharacterEffectivePrimaryStatsRules
+		.resolve(
+			primary_stats,
+			equipment_contributions
+		)
+	)
+
+
+	if effective_primary.is_empty():
+		return null
+
+
+	var values := (
+		ServerCharacterResolvedDerivedStatsRules
+		.resolve(
+			primary_stats,
+			effective_primary,
+			equipment_contributions
+		)
+	)
+
+
+	return (
+		_create_state_from_values(
+			primary_stats,
+			values
+		)
+	)
+
+
+# =========================================================
+# CREAR STATE DESDE VALUES
+# =========================================================
+
+static func _create_state_from_values(
+	primary_stats: ServerCharacterPrimaryStatsState,
+	values: Dictionary
+) -> ServerCharacterDerivedStatsState:
+	if primary_stats == null:
+		return null
+
+
+	if not primary_stats.is_valid():
+		return null
 
 
 	if values.is_empty():
@@ -110,6 +232,203 @@ static func create_from_primary_stats(
 
 
 	return state
+
+
+# =========================================================
+# EQUIPMENT BOOTSTRAP CONTRACT
+# =========================================================
+
+static func validate_equipment_bootstrap_contract() -> String:
+	var primary_stats := (
+		ServerCharacterPrimaryStatsState.new(
+			"warrior",
+			7,
+			11,
+			0,
+			25,
+			15,
+			25,
+			10,
+			2,
+			0,
+			2,
+			3,
+			5,
+			200,
+			50,
+			0,
+			0,
+			50,
+			7,
+			43
+		)
+	)
+
+
+	if primary_stats == null:
+		return (
+			"No se pudo crear Primary Stats foundation."
+		)
+
+
+	if not primary_stats.is_valid():
+		return (
+			"Primary Stats foundation inválido."
+		)
+
+
+	# -----------------------------------------------------
+	# LEGACY
+	# -----------------------------------------------------
+
+	var legacy_state := (
+		create_from_primary_stats(
+			primary_stats
+		)
+	)
+
+
+	if legacy_state == null:
+		return (
+			"No se pudo crear Derived State legacy."
+		)
+
+
+	if legacy_state.max_hp != 288:
+		return (
+			"Legacy Derived State no conservó Max HP 288."
+		)
+
+
+	if legacy_state.max_mp != 79:
+		return (
+			"Legacy Derived State no conservó Max MP 79."
+		)
+
+
+	# -----------------------------------------------------
+	# EQUIPMENT
+	# -----------------------------------------------------
+	#
+	# Permanent VIT 27
+	#
+	# Equipment:
+	# +4 VIT
+	# +100 Max HP
+	# +0.03 Crit
+	#
+	# Effective VIT 31
+	#
+	# HP por Effective VIT:
+	# 304
+	#
+	# +100 directo
+	#
+	# Final:
+	# Max HP 404
+	# -----------------------------------------------------
+
+	var equipment_snapshot := {
+		"account_id": 1,
+
+		"character_id": 1,
+
+		"container": "equipment",
+
+		"items": [
+			{
+				"uid": "derived-bootstrap-helmet",
+
+				"item_id": "leather_helmet",
+
+				"quantity": 1,
+
+				"equipment_slot": "head",
+
+				"state": {
+					"enhancement_level": 7,
+
+					"rolled_modifiers": [
+						{
+							"stat_id": "vitality",
+							"operation_id": "flat_add",
+							"value": 4,
+						},
+
+						{
+							"stat_id": "max_hp",
+							"operation_id": "flat_add",
+							"value": 100,
+						},
+
+						{
+							"stat_id": "critical_strike_chance",
+							"operation_id": "flat_add",
+							"value": 0.03,
+						},
+					],
+				},
+			},
+		],
+	}
+
+
+	var equipment_state := (
+		create_from_equipment_snapshot(
+			primary_stats,
+			equipment_snapshot
+		)
+	)
+
+
+	if equipment_state == null:
+		return (
+			"No se pudo crear Derived State "
+			+
+			"desde Equipment."
+		)
+
+
+	if equipment_state.max_hp != 404:
+		return (
+			"Equipment Derived State "
+			+
+			"no resolvió Max HP 404."
+		)
+
+
+	if equipment_state.max_mp != 79:
+		return (
+			"Equipment inesperadamente alteró Max MP."
+		)
+
+
+	if equipment_state.physical_power != 84:
+		return (
+			"Equipment inesperadamente alteró "
+			+
+			"Physical Power."
+		)
+
+
+	if not is_equal_approx(
+		equipment_state.critical_strike_chance,
+		0.03
+	):
+		return (
+			"Equipment Derived State "
+			+
+			"no resolvió Crit 0.03."
+		)
+
+
+	if primary_stats.permanent_vitality != 27:
+		return (
+			"Equipment Bootstrap mutó Permanent VIT."
+		)
+
+
+	return ""
 
 
 # =========================================================

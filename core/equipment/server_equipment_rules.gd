@@ -133,6 +133,19 @@ static func validate_contract() -> String:
 			resolved_derived_contract_error
 		)
 
+	var equipment_derived_bootstrap_contract_error := (
+		ServerCharacterDerivedStatsBootstrap
+		.validate_equipment_bootstrap_contract()
+	)
+
+
+	if not equipment_derived_bootstrap_contract_error.is_empty():
+		return (
+			"Equipment Derived Bootstrap Contract inválido: "
+			+
+			equipment_derived_bootstrap_contract_error
+		)
+
 	# -----------------------------------------------------
 	# ONE HAND
 	# -----------------------------------------------------
