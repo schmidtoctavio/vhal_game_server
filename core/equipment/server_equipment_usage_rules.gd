@@ -47,20 +47,31 @@ const REQUIREMENT_ENERGY: String = (
 # Este dominio define:
 #
 # - qué Classes pueden usar un Equipment;
-# - cuáles son sus requisitos BASE en +0.
+# - cuáles son sus requisitos BASE en +0;
+# - elegibilidad de uso de una instancia concreta;
+# - requisitos resueltos según Enhancement.
+#
+#
+# La elegibilidad SIEMPRE se compara contra:
+#
+# Permanent Primary Stats
+#
+# Nunca contra Effective Primary.
+#
+#
+# Por lo tanto:
+#
+# Equipment Bonuses NO pueden utilizarse para cumplir
+# requisitos de otro Equipment ni del propio item.
+#
 #
 # Todavía NO:
 #
-# - aplica requisitos al equip live;
-# - conoce enhancement_level;
-# - calcula requisitos de +1 ... +13;
-# - aplica modifiers del Equipment.
+# - persiste Equipment;
+# - mueve items entre containers;
+# - modifica snapshots.
 #
-# Cuando los requisitos se conecten al gameplay se deberán
-# comparar contra Permanent Primary Stats.
-#
-# Los bonuses otorgados por Equipment NO deben utilizarse
-# para cumplir requisitos de Equipment.
+# Esa integración pertenece al Coordinator.
 # =========================================================
 
 
@@ -239,6 +250,189 @@ static func validate_contract() -> String:
 					"."
 				)
 
+	# =====================================================
+	# ITEM USAGE ELIGIBILITY
+	# =====================================================
+
+	var warrior_primary := (
+		ServerCharacterPrimaryStatsState.new(
+			"warrior",
+			7,
+			11,
+			0,
+			25,
+			15,
+			25,
+			10,
+			2,
+			0,
+			2,
+			3,
+			5,
+			200,
+			50,
+			0,
+			0,
+			50,
+			7,
+			43
+		)
+	)
+
+
+	if (
+		warrior_primary == null
+		or
+		not warrior_primary.is_valid()
+	):
+		return (
+			"Equipment Usage Eligibility "
+			+
+			"no pudo crear Warrior foundation."
+		)
+
+
+	# -----------------------------------------------------
+	# SWORD +0
+	#
+	# Required STR = 15
+	# Permanent STR = 27
+	#
+	# Debe permitir.
+	# -----------------------------------------------------
+
+	var sword_plus_zero := {
+		"uid": "usage-sword-zero",
+
+		"item_id": "bronze_sword",
+
+		"quantity": 1,
+
+		"state": {
+			"enhancement_level": 0,
+		},
+	}
+
+
+	var sword_zero_error := (
+		validate_item_usage(
+			sword_plus_zero,
+			warrior_primary
+		)
+	)
+
+
+	if not sword_zero_error.is_empty():
+		return (
+			"Bronze Sword +0 fue rechazada: "
+			+
+			sword_zero_error
+		)
+
+
+	# -----------------------------------------------------
+	# SWORD +13
+	#
+	# Base STR     15
+	# Enhance     +15
+	# Required     30
+	#
+	# Permanent STR = 27
+	#
+	# Debe rechazar.
+	# -----------------------------------------------------
+
+	var sword_plus_thirteen := {
+		"uid": "usage-sword-thirteen",
+
+		"item_id": "bronze_sword",
+
+		"quantity": 1,
+
+		"state": {
+			"enhancement_level": 13,
+		},
+	}
+
+
+	var sword_thirteen_error := (
+		validate_item_usage(
+			sword_plus_thirteen,
+			warrior_primary
+		)
+	)
+
+
+	if (
+		sword_thirteen_error
+		!=
+		"insufficient_strength"
+	):
+		return (
+			"Bronze Sword +13 con Permanent STR 27 "
+			+
+			"debía requerir STR 30."
+		)
+
+
+	# -----------------------------------------------------
+	# WARRIOR CON PERMANENT STR 30
+	# -----------------------------------------------------
+
+	var strong_warrior_primary := (
+		ServerCharacterPrimaryStatsState.new(
+			"warrior",
+			8,
+			11,
+			0,
+			25,
+			15,
+			25,
+			10,
+			5,
+			0,
+			2,
+			3,
+			5,
+			200,
+			50,
+			0,
+			0,
+			50,
+			10,
+			40
+		)
+	)
+
+
+	if (
+		strong_warrior_primary == null
+		or
+		not strong_warrior_primary.is_valid()
+	):
+		return (
+			"Equipment Usage Eligibility "
+			+
+			"no pudo crear Strong Warrior."
+		)
+
+
+	var strong_warrior_error := (
+		validate_item_usage(
+			sword_plus_thirteen,
+			strong_warrior_primary
+		)
+	)
+
+
+	if not strong_warrior_error.is_empty():
+		return (
+			"Bronze Sword +13 fue rechazada "
+			+
+			"con Permanent STR 30: "
+			+
+			strong_warrior_error
+		)
 
 	return ""
 
@@ -607,3 +801,216 @@ static func get_base_requirements(
 	return requirements.duplicate(
 		true
 	)
+
+# =========================================================
+# VALIDAR USO DE UNA INSTANCIA
+# =========================================================
+#
+# Valida:
+#
+# Item Instance
+# +
+# Character Permanent Primary
+#
+# contra:
+#
+# Class
+# +
+# Level
+# +
+# Requirements resueltos por Enhancement.
+#
+#
+# Retorna:
+#
+# ""
+# → puede utilizarlo.
+#
+# reason_id
+# → no puede utilizarlo.
+# =========================================================
+
+static func validate_item_usage(
+	item: Dictionary,
+	primary_stats: ServerCharacterPrimaryStatsState
+) -> String:
+	if item.is_empty():
+		return "invalid_item"
+
+
+	if primary_stats == null:
+		return "invalid_primary_stats"
+
+
+	if not primary_stats.is_valid():
+		return "invalid_primary_stats"
+
+
+	var item_id := String(
+		item.get(
+			"item_id",
+			""
+		)
+	).strip_edges()
+
+
+	if item_id.is_empty():
+		return "invalid_item"
+
+
+	var definition := (
+		ServerItemCatalog.get_definition(
+			item_id
+		)
+	)
+
+
+	if definition.is_empty():
+		return "unknown_item"
+
+
+	if not (
+		validate_definition(
+			definition
+		).is_empty()
+	):
+		return "invalid_definition"
+
+
+	# -----------------------------------------------------
+	# CLASS
+	# -----------------------------------------------------
+
+	if not can_class_use_definition(
+		definition,
+		primary_stats.class_id
+	):
+		return "class_not_allowed"
+
+
+	# -----------------------------------------------------
+	# REQUIREMENTS RESUELTOS
+	#
+	# +0 usa base_requirements.
+	#
+	# +1 ... +13 agrega únicamente las curvas definidas
+	# por Enhancement Profile.
+	# -----------------------------------------------------
+
+	var requirements := (
+		ServerEquipmentEnhancementRules
+		.get_resolved_requirements(
+			item,
+			definition
+		)
+	)
+
+
+	if requirements.is_empty():
+		return "invalid_requirements"
+
+
+	var required_level := int(
+		requirements.get(
+			REQUIREMENT_LEVEL,
+			-1
+		)
+	)
+
+
+	var required_strength := int(
+		requirements.get(
+			REQUIREMENT_STRENGTH,
+			-1
+		)
+	)
+
+
+	var required_agility := int(
+		requirements.get(
+			REQUIREMENT_AGILITY,
+			-1
+		)
+	)
+
+
+	var required_vitality := int(
+		requirements.get(
+			REQUIREMENT_VITALITY,
+			-1
+		)
+	)
+
+
+	var required_energy := int(
+		requirements.get(
+			REQUIREMENT_ENERGY,
+			-1
+		)
+	)
+
+
+	if (
+		required_level < 1
+		or
+		required_strength < 0
+		or
+		required_agility < 0
+		or
+		required_vitality < 0
+		or
+		required_energy < 0
+	):
+		return "invalid_requirements"
+
+
+	# -----------------------------------------------------
+	# LEVEL
+	# -----------------------------------------------------
+
+	if primary_stats.level < required_level:
+		return "insufficient_level"
+
+
+	# -----------------------------------------------------
+	# PERMANENT PRIMARY
+	#
+	# IMPORTANTE:
+	#
+	# No usar Effective Primary acá.
+	# Equipment Bonuses quedan deliberadamente afuera.
+	# -----------------------------------------------------
+
+	if (
+		primary_stats.permanent_strength
+		<
+		required_strength
+	):
+		return "insufficient_strength"
+
+
+	if (
+		primary_stats.permanent_agility
+		<
+		required_agility
+	):
+		return "insufficient_agility"
+
+
+	if (
+		primary_stats.permanent_vitality
+		<
+		required_vitality
+	):
+		return "insufficient_vitality"
+
+
+	if (
+		primary_stats.permanent_energy
+		<
+		required_energy
+	):
+		return "insufficient_energy"
+
+
+	return ""
