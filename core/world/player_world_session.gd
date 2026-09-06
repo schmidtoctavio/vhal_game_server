@@ -53,6 +53,23 @@ var runtime_revision: int = 0
 var runtime_bootstrap_valid: bool = true
 
 # =========================================================
+# RUNTIME VITALS PENDIENTES DE EQUIPMENT
+#
+# El World Session nace antes de que Laravel termine de
+# cargar Equipment.
+#
+# Conservamos los valores HP/MP durables originales para
+# volver a aplicarlos una sola vez después de conocer los
+# máximos finales aportados por Equipment.
+# =========================================================
+
+var persisted_runtime_hp: int = -1
+
+var persisted_runtime_mp: int = -1
+
+var has_pending_persisted_vitals_reapply: bool = false
+
+# =========================================================
 # VITALES AUTORITATIVOS
 # =========================================================
 
@@ -415,9 +432,80 @@ func set_equipment_snapshot(
 		return false
 
 
+	if (
+		primary_stats == null
+		or
+		not primary_stats.is_valid()
+	):
+		return false
+
+
+	if (
+		vitals == null
+		or
+		not vitals.is_valid()
+	):
+		return false
+
+
+	# -----------------------------------------------------
+	# Resolver Derived contra el NUEVO Equipment antes de
+	# modificar el snapshot autoritativo de la sesión.
+	# -----------------------------------------------------
+
+	var next_derived_stats := (
+		ServerCharacterDerivedStatsBootstrap
+		.create_from_equipment_snapshot(
+			primary_stats,
+			snapshot
+		)
+	)
+
+
+	if next_derived_stats == null:
+		return false
+
+
+	if not next_derived_stats.is_valid():
+		return false
+
+
+	# -----------------------------------------------------
+	# Max HP / MP cambian sin producir Heal/Mana Restore.
+	#
+	# reconfigure_maximums conserva HP/MP actuales y sólo
+	# hace clamp si el máximo nuevo baja.
+	# -----------------------------------------------------
+
+	if not vitals.reconfigure_maximums(
+		next_derived_stats.max_hp,
+		next_derived_stats.max_mp
+	):
+		return false
+
+
 	equipment_snapshot = snapshot.duplicate(
 		true
 	)
+
+
+	derived_stats = next_derived_stats
+
+
+	# -----------------------------------------------------
+	# LOGIN:
+	#
+	# El checkpoint durable fue leído antes de conocer
+	# Equipment. Volvemos a aplicar los valores originales
+	# una única vez contra los máximos finales.
+	#
+	# EQUIP / UNEQUIP posteriores:
+	#
+	# Esta flag ya será false, por lo que conservaremos los
+	# HP/MP vivos actuales.
+	# -----------------------------------------------------
+
+	_reapply_persisted_vitals_after_equipment()
 
 
 	return true
@@ -449,6 +537,39 @@ var authorized_path: PackedVector3Array = (
 )
 
 var authorized_path_index: int = 0
+
+# =========================================================
+# REAPLICAR RUNTIME VITALS DESPUÉS DE EQUIPMENT
+# =========================================================
+
+func _reapply_persisted_vitals_after_equipment() -> void:
+	if not has_pending_persisted_vitals_reapply:
+		return
+
+
+	has_pending_persisted_vitals_reapply = false
+
+
+	if vitals == null:
+		return
+
+
+	if (
+		persisted_runtime_hp < 0
+		or
+		persisted_runtime_mp < 0
+	):
+		return
+
+
+	vitals.set_hp(
+		persisted_runtime_hp
+	)
+
+
+	vitals.set_mp(
+		persisted_runtime_mp
+	)
 
 # =========================================================
 # REGISTRAR INTENCIÓN DE MOVIMIENTO
@@ -916,6 +1037,12 @@ func _apply_persisted_runtime(
 		runtime_bootstrap_valid = false
 
 		return
+
+	persisted_runtime_hp = restored_hp
+
+	persisted_runtime_mp = restored_mp
+
+	has_pending_persisted_vitals_reapply = true
 
 
 	if vitals == null:

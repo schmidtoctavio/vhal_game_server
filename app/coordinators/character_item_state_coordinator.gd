@@ -750,6 +750,68 @@ func _on_equipment_loaded(
 
 		return
 
+	var vitals_send_result := (
+		game_server.send_character_vitals_updated(
+			peer_id,
+			character_id,
+			session.vitals.to_snapshot()
+		)
+	)
+
+	if vitals_send_result != OK:
+		push_error(
+			(
+				"CharacterItemStateCoordinator | "
+				+
+				"No se pudieron sincronizar "
+				+
+				"Vitals después de Equipment."
+				+
+				" Error: %d"
+			)
+			%
+			vitals_send_result
+		)
+
+
+		game_server.reject_authenticated_peer(
+			peer_id,
+			(
+				"No se pudieron sincronizar "
+				+
+				"los Vitals derivados de Equipment."
+			)
+		)
+
+
+		return
+
+	print(
+		(
+			"CharacterItemStateCoordinator | "
+			+
+			"Stats autoritativos reconstruidos desde Equipment"
+		),
+		" | Character ID: ",
+		character_id,
+		" | Max HP/MP: ",
+		session.derived_stats.max_hp,
+		"/",
+		session.derived_stats.max_mp,
+		" | Power P/M/H: ",
+		session.derived_stats.physical_power,
+		"/",
+		session.derived_stats.magic_power,
+		"/",
+		session.derived_stats.healing_power,
+		" | Crit: ",
+		session.derived_stats.critical_strike_chance,
+		" | Crit DMG: ",
+		session.derived_stats.critical_damage_multiplier,
+		" | Attack Speed: ",
+		session.derived_stats.attack_speed_multiplier
+	)
+
 
 	var send_result := (
 		game_server.send_character_equipment_snapshot(
