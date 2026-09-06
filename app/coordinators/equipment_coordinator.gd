@@ -204,6 +204,108 @@ func _request_equipment_equip(
 
 		return ERR_INVALID_DATA
 
+	# -----------------------------------------------------
+	# USAGE ELIGIBILITY
+	#
+	# El Transfer Validator ya resolvió estructuralmente
+	# qué item sería movido a Equipment.
+	#
+	# Ahora validamos si ESTE personaje puede utilizar
+	# ESTA instancia concreta.
+	#
+	# Se contemplan:
+	#
+	# - Class
+	# - Level
+	# - Enhancement Level
+	# - Permanent STR
+	# - Permanent AGI
+	# - Permanent VIT
+	# - Permanent ENE
+	#
+	# Nunca Effective Primary.
+	# -----------------------------------------------------
+
+	var moved_item_value: Variant = (
+		validation_result.get(
+			"item",
+			null
+		)
+	)
+
+
+	if typeof(
+		moved_item_value
+	) != TYPE_DICTIONARY:
+		print(
+			"EquipmentCoordinator | "
+			+
+			"Equip rechazado por item resuelto inválido",
+			" | Peer: ",
+			peer_id,
+			" | UID: ",
+			uid
+		)
+
+
+		return ERR_INVALID_DATA
+
+
+	var moved_item: Dictionary = (
+		moved_item_value as Dictionary
+	)
+
+
+	var usage_error := (
+		ServerEquipmentUsageRules
+		.validate_item_usage(
+			moved_item,
+			session.primary_stats
+		)
+	)
+
+
+	if not usage_error.is_empty():
+		print(
+			"EquipmentCoordinator | "
+			+
+			"Equip rechazado por Usage Eligibility",
+			" | Peer: ",
+			peer_id,
+			" | UID: ",
+			uid,
+			" | Item: ",
+			moved_item.get(
+				"item_id",
+				"?"
+			),
+			" | Slot: ",
+			equipment_slot,
+			" | Motivo: ",
+			usage_error
+		)
+
+
+		return ERR_INVALID_DATA
+
+
+	print(
+		"EquipmentCoordinator | "
+		+
+		"Usage Eligibility validada",
+		" | Peer: ",
+		peer_id,
+		" | UID: ",
+		uid,
+		" | Item: ",
+		moved_item.get(
+			"item_id",
+			"?"
+		),
+		" | Slot: ",
+		equipment_slot
+	)
+
 
 	return equipment_repository.equip_item(
 		peer_id,
