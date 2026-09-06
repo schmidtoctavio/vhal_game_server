@@ -21,6 +21,8 @@ var allowed_class_ids: PackedStringArray = (
 
 var minimum_level: int = 1
 
+var primary_stat_requirements: ServerSkillPrimaryStatRequirements = null
+
 var trainer_service_id: String = ""
 
 
@@ -33,7 +35,8 @@ func _init(
 	p_scroll_item_id: String = "",
 	p_allowed_class_ids: PackedStringArray = PackedStringArray(),
 	p_minimum_level: int = 1,
-	p_trainer_service_id: String = ""
+	p_trainer_service_id: String = "",
+	p_primary_stat_requirements: ServerSkillPrimaryStatRequirements = null
 ) -> void:
 	skill_id = (
 		p_skill_id
@@ -57,6 +60,16 @@ func _init(
 		.strip_edges()
 		.to_lower()
 	)
+
+	if p_primary_stat_requirements == null:
+		primary_stat_requirements = (
+			ServerSkillPrimaryStatRequirements.new()
+		)
+
+	else:
+		primary_stat_requirements = (
+			p_primary_stat_requirements
+		)
 
 
 	for class_id: String in p_allowed_class_ids:
@@ -103,6 +116,21 @@ func meets_level_requirement(
 		level >= minimum_level
 	)
 
+# =========================================================
+# PRIMARY STAT REQUIREMENTS
+# =========================================================
+
+func validate_primary_stat_requirements(
+	primary_stats: ServerCharacterPrimaryStatsState
+) -> String:
+	if primary_stat_requirements == null:
+		return "primary_stats_unavailable"
+
+
+	return primary_stat_requirements.validate(
+		primary_stats
+	)
+
 
 # =========================================================
 # TRAINER
@@ -136,6 +164,12 @@ func is_valid() -> bool:
 	if minimum_level <= 0:
 		return false
 
+	if primary_stat_requirements == null:
+		return false
+
+
+	if not primary_stat_requirements.is_valid():
+		return false
 
 	if trainer_service_id.is_empty():
 		return false

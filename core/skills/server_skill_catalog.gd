@@ -49,7 +49,13 @@ static func get_definition(
 				HEAL_ID,
 				40,
 				4.0,
-				ServerSkillDefinition.TARGET_SELF
+				ServerSkillDefinition.TARGET_SELF,
+
+				ServerSkillScalingProfile.new(
+					0,
+					ServerSkillScalingProfile.POWER_HEALING,
+					1.0
+				)
 			)
 
 
@@ -148,6 +154,80 @@ static func validate_contract() -> String:
 				+
 				normalized_skill_id
 			)
+
+	# =====================================================
+	# HEAL SCALING CONTRACT
+	# =====================================================
+
+	var heal_definition := (
+		get_definition(
+			HEAL_ID
+		)
+	)
+
+
+	if heal_definition == null:
+		return (
+			"No se pudo resolver Heal Scaling Profile."
+		)
+
+
+	if heal_definition.scaling_profile == null:
+		return (
+			"Heal no posee Scaling Profile."
+		)
+
+
+	if (
+		heal_definition
+		.scaling_profile
+		.power_source
+		!=
+		ServerSkillScalingProfile.POWER_HEALING
+	):
+		return (
+			"Heal debe utilizar Healing Power."
+		)
+
+
+	if (
+		heal_definition
+		.scaling_profile
+		.flat_effect_value
+		!=
+		0
+	):
+		return (
+			"Heal debe conservar flat effect 0."
+		)
+
+
+	if not is_equal_approx(
+		heal_definition
+		.scaling_profile
+		.power_coefficient,
+		1.0
+	):
+		return (
+			"Heal debe conservar coefficient 1.0."
+		)
+
+
+	# =====================================================
+	# RESET-SAFE USAGE CONTRACT
+	# =====================================================
+
+	var usage_contract_error := (
+		ServerSkillUsageRules.validate_contract()
+	)
+
+
+	if not usage_contract_error.is_empty():
+		return (
+			"Skill Usage Contract inválido: "
+			+
+			usage_contract_error
+		)
 
 
 	return ""

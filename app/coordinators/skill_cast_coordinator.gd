@@ -164,15 +164,31 @@ func _on_client_skill_cast_requested(
 	# SKILL APRENDIDA
 	# -----------------------------------------------------
 
-	if not session.skill_runtime.has_learned_skill(
-		definition.skill_id
-	):
+	# -----------------------------------------------------
+	# SKILL USAGE ELIGIBILITY
+	#
+	# Learning Requirements NO se vuelven a evaluar.
+	#
+	# Una Skill durablemente aprendida sigue siendo usable
+	# después de futuros Resets aunque Level o allocations
+	# cambien.
+	# -----------------------------------------------------
+
+	var usage_error := (
+		ServerSkillUsageRules.validate_cast_usage(
+			definition,
+			session.skill_runtime
+		)
+	)
+
+
+	if not usage_error.is_empty():
 		_send_result(
 			peer_id,
 			request_id,
 			definition.skill_id,
 			false,
-			"skill_not_learned",
+			usage_error,
 			session,
 			0.0,
 			{}
@@ -311,6 +327,7 @@ func _on_client_skill_cast_requested(
 
 	var requested_heal_amount := (
 		ServerHealEffect.calculate_heal_amount(
+			definition,
 			session.derived_stats
 		)
 	)

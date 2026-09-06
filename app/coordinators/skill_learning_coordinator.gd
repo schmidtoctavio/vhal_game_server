@@ -355,6 +355,45 @@ func request_learning(
 			ERR_UNAUTHORIZED
 		)
 
+	# -----------------------------------------------------
+	# PERMANENT PRIMARY STAT REQUIREMENTS
+	#
+	# Los bonuses de Equipment NO participan.
+	# -----------------------------------------------------
+
+	var stat_requirement_error := (
+		learning_definition
+		.validate_primary_stat_requirements(
+			session.primary_stats
+		)
+	)
+
+
+	if not stat_requirement_error.is_empty():
+		var requirement_error_code := (
+			ERR_UNAUTHORIZED
+		)
+
+
+		if (
+			stat_requirement_error
+			==
+			"primary_stats_unavailable"
+		):
+			requirement_error_code = (
+				ERR_UNAVAILABLE
+			)
+
+
+		return _reject_learning_request(
+			session,
+			request_id,
+			normalized_skill_id,
+			normalized_scroll_uid,
+			stat_requirement_error,
+			requirement_error_code
+		)
+
 
 	if not session.has_active_npc_service():
 		return _reject_learning_request(

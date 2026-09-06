@@ -3,41 +3,52 @@ extends RefCounted
 
 
 # =========================================================
-# HEAL — FOUNDATION AUTORITATIVA
+# HEAL AUTORITATIVO
 #
-# F22-F3-D2
+# F22-J
 #
-# En esta primera integración:
+# Heal ya no conoce directamente la fórmula:
 #
 # Requested Heal = Healing Power
 #
-# Todavía NO participan:
+# Ahora consume el Scaling Profile autoritativo declarado
+# por ServerSkillCatalog.
 #
-# - coeficientes específicos de Skill
-# - bonuses de Equipment
-# - buffs/debuffs
-# - critical healing
-# - modificadores del objetivo
+# Balance actual:
 #
-# Esos sistemas podrán ampliar esta regla posteriormente.
+# Heal
+# =
+# 0
+# +
+# Healing Power * 1.0
+#
+# El resultado permanece idéntico al comportamiento
+# anterior.
 # =========================================================
 
 static func calculate_heal_amount(
+	definition: ServerSkillDefinition,
 	derived_stats: ServerCharacterDerivedStatsState
 ) -> int:
-	if derived_stats == null:
+	if definition == null:
 		return 0
 
 
-	if not derived_stats.is_valid():
+	if not definition.is_valid():
 		return 0
 
 
-	if derived_stats.healing_power <= 0:
+	if definition.scaling_profile == null:
 		return 0
 
 
-	return derived_stats.healing_power
+	return (
+		ServerSkillScalingResolver
+		.calculate_effect_value(
+			definition.scaling_profile,
+			derived_stats
+		)
+	)
 
 
 # =========================================================

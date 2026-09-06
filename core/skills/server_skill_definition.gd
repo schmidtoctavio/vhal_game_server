@@ -40,6 +40,12 @@ var cooldown_duration: float = 0.0
 
 
 # =========================================================
+# SCALING
+# =========================================================
+
+var scaling_profile: ServerSkillScalingProfile = null
+
+# =========================================================
 # CONSTRUCTOR
 # =========================================================
 
@@ -47,7 +53,8 @@ func _init(
 	p_skill_id: String = "",
 	p_mana_cost: int = 0,
 	p_cooldown_duration: float = 0.0,
-	p_target_kind: String = TARGET_SELF
+	p_target_kind: String = TARGET_SELF,
+	p_scaling_profile: ServerSkillScalingProfile = null
 ) -> void:
 	skill_id = (
 		p_skill_id
@@ -70,6 +77,9 @@ func _init(
 		.to_lower()
 	)
 
+	scaling_profile = (
+		p_scaling_profile
+	)
 
 # =========================================================
 # VALIDACIÓN
@@ -90,5 +100,12 @@ func is_valid() -> bool:
 			target_kind == TARGET_SELF
 			or
 			target_kind == TARGET_ENTITY
+		)
+
+		and
+		(
+			scaling_profile == null
+			or
+			scaling_profile.is_valid()
 		)
 	)

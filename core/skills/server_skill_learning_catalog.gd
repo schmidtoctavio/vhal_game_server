@@ -36,7 +36,14 @@ static func get_definition(
 					]
 				),
 				10,
-				SKILL_TRAINER_SERVICE_ID
+				SKILL_TRAINER_SERVICE_ID,
+
+				ServerSkillPrimaryStatRequirements.new(
+					0,
+					0,
+					0,
+					50
+				)
 			)
 
 
@@ -50,7 +57,14 @@ static func get_definition(
 					]
 				),
 				10,
-				SKILL_TRAINER_SERVICE_ID
+				SKILL_TRAINER_SERVICE_ID,
+
+				ServerSkillPrimaryStatRequirements.new(
+					0,
+					45,
+					0,
+					0
+				)
 			)
 
 
@@ -66,7 +80,14 @@ static func get_definition(
 					]
 				),
 				5,
-				SKILL_TRAINER_SERVICE_ID
+				SKILL_TRAINER_SERVICE_ID,
+
+				ServerSkillPrimaryStatRequirements.new(
+					0,
+					0,
+					0,
+					20
+				)
 			)
 
 
@@ -86,6 +107,20 @@ static func get_all_skill_ids() -> PackedStringArray:
 # =========================================================
 
 static func validate_contract() -> String:
+	
+	var requirements_contract_error := (
+		ServerSkillPrimaryStatRequirements
+		.validate_contract()
+	)
+
+
+	if not requirements_contract_error.is_empty():
+		return (
+			"Primary Stat Requirements Contract inválido: "
+			+
+			requirements_contract_error
+		)
+	
 	var seen_skill_ids: Dictionary = {}
 
 	var seen_scroll_item_ids: Dictionary = {}
