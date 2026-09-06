@@ -67,6 +67,27 @@ signal equipment_item_unequip_failed(
 	message: String
 )
 
+# =========================================================
+# SIGNALS — ENHANCEMENT
+# =========================================================
+
+signal equipment_item_enhanced(
+	peer_id: int,
+	account_id: int,
+	character_id: int,
+	uid: String,
+	item: Dictionary
+)
+
+
+signal equipment_item_enhance_failed(
+	peer_id: int,
+	account_id: int,
+	character_id: int,
+	uid: String,
+	response_code: int,
+	message: String
+)
 
 # =========================================================
 # CONFIGURACIÓN
@@ -980,6 +1001,422 @@ func _on_unequip_request_completed(
 		item
 	)
 
+# =========================================================
+# ENHANCEMENT
+# =========================================================
+
+func enhance_item(
+	peer_id: int,
+	account_id: int,
+	character_id: int,
+	uid: String,
+	expected_container: String,
+	expected_current_level: int,
+	next_level: int
+) -> Error:
+	if peer_id <= 1:
+		return ERR_INVALID_PARAMETER
+
+
+	if account_id <= 0:
+		return ERR_INVALID_PARAMETER
+
+
+	if character_id <= 0:
+		return ERR_INVALID_PARAMETER
+
+
+	var normalized_uid := (
+		uid.strip_edges()
+	)
+
+
+	if normalized_uid.is_empty():
+		return ERR_INVALID_PARAMETER
+
+
+	var normalized_container := (
+		expected_container
+		.strip_edges()
+		.to_lower()
+	)
+
+
+	if (
+		normalized_container != "inventory"
+		and
+		normalized_container != "equipment"
+	):
+		return ERR_INVALID_PARAMETER
+
+
+	if expected_current_level < 0:
+		return ERR_INVALID_PARAMETER
+
+
+	if next_level != expected_current_level + 1:
+		return ERR_INVALID_PARAMETER
+
+
+	if not is_configured():
+		return ERR_UNAVAILABLE
+
+
+	if pending_peers.has(
+		peer_id
+	):
+		return ERR_BUSY
+
+
+	var http_request := HTTPRequest.new()
+
+
+	add_child(
+		http_request
+	)
+
+
+	pending_peers[
+		peer_id
+	] = "enhance"
+
+
+	http_request.request_completed.connect(
+		_on_enhancement_request_completed.bind(
+			http_request,
+			peer_id,
+			account_id,
+			character_id,
+			normalized_uid,
+			normalized_container,
+			expected_current_level,
+			next_level
+		)
+	)
+
+
+	var request_body := JSON.stringify({
+		"expected_container": (
+			normalized_container
+		),
+
+		"expected_current_level": (
+			expected_current_level
+		),
+
+		"next_level": next_level,
+	})
+
+
+	var request_error := (
+		http_request.request(
+			_get_enhancement_url(
+				account_id,
+				character_id,
+				normalized_uid
+			),
+			_get_headers(
+				true
+			),
+			HTTPClient.METHOD_PATCH,
+			request_body
+		)
+	)
+
+
+	if request_error != OK:
+		pending_peers.erase(
+			peer_id
+		)
+
+
+		http_request.queue_free()
+
+
+		return request_error
+
+
+	return OK
+
+
+# =========================================================
+# RESPUESTA — ENHANCEMENT
+# =========================================================
+
+func _on_enhancement_request_completed(
+	result: int,
+	response_code: int,
+	_headers: PackedStringArray,
+	body: PackedByteArray,
+	http_request: HTTPRequest,
+	peer_id: int,
+	requested_account_id: int,
+	requested_character_id: int,
+	requested_uid: String,
+	expected_container: String,
+	expected_current_level: int,
+	expected_next_level: int
+) -> void:
+	_finish_request(
+		peer_id,
+		http_request
+	)
+
+
+	var parsed := (
+		_parse_enhancement_response(
+			result,
+			response_code,
+			body,
+			requested_account_id,
+			requested_character_id,
+			requested_uid,
+			expected_container,
+			expected_next_level
+		)
+	)
+
+
+	if not bool(
+		parsed.get(
+			"ok",
+			false
+		)
+	):
+		equipment_item_enhance_failed.emit(
+			peer_id,
+			requested_account_id,
+			requested_character_id,
+			requested_uid,
+			response_code,
+			String(
+				parsed.get(
+					"message",
+					"No se pudo persistir Enhancement."
+				)
+			)
+		)
+
+
+		return
+
+
+	var item: Dictionary = (
+		parsed.get(
+			"item",
+			{}
+		)
+	)
+
+
+	print(
+		"BackendCharacterEquipmentRepository"
+		+
+		" | Enhancement persistido"
+		+
+		" | Peer: ",
+		peer_id,
+		" | UID: ",
+		requested_uid,
+		" | Container: ",
+		expected_container,
+		" | Level: ",
+		expected_current_level,
+		" -> ",
+		expected_next_level
+	)
+
+
+	equipment_item_enhanced.emit(
+		peer_id,
+		requested_account_id,
+		requested_character_id,
+		requested_uid,
+		item
+	)
+
+# =========================================================
+# PARSE ENHANCEMENT
+# =========================================================
+
+func _parse_enhancement_response(
+	result: int,
+	response_code: int,
+	body: PackedByteArray,
+	requested_account_id: int,
+	requested_character_id: int,
+	requested_uid: String,
+	expected_container: String,
+	expected_next_level: int
+) -> Dictionary:
+	if result != HTTPRequest.RESULT_SUCCESS:
+		return _mutation_failure(
+			"Laravel no respondió correctamente."
+		)
+
+
+	var parsed_response: Variant = (
+		JSON.parse_string(
+			body.get_string_from_utf8()
+		)
+	)
+
+
+	if typeof(parsed_response) != TYPE_DICTIONARY:
+		return _mutation_failure(
+			"Respuesta inválida del backend."
+		)
+
+
+	var response: Dictionary = (
+		parsed_response
+	)
+
+
+	if (
+		response_code != 200
+		or
+		not bool(
+			response.get(
+				"ok",
+				false
+			)
+		)
+	):
+		return _mutation_failure(
+			String(
+				response.get(
+					"message",
+					"Operación de Enhancement rechazada."
+				)
+			)
+		)
+
+
+	var data_value: Variant = (
+		response.get(
+			"data",
+			null
+		)
+	)
+
+
+	if typeof(data_value) != TYPE_DICTIONARY:
+		return _mutation_failure(
+			"Respuesta de Enhancement sin datos."
+		)
+
+
+	var data: Dictionary = (
+		data_value
+	)
+
+
+	if int(
+		data.get(
+			"account_id",
+			0
+		)
+	) != requested_account_id:
+		return _mutation_failure(
+			"El backend devolvió otra cuenta."
+		)
+
+
+	if int(
+		data.get(
+			"character_id",
+			0
+		)
+	) != requested_character_id:
+		return _mutation_failure(
+			"El backend devolvió otro personaje."
+		)
+
+
+	var returned_container := String(
+		data.get(
+			"container",
+			""
+		)
+	).strip_edges().to_lower()
+
+
+	if returned_container != expected_container:
+		return _mutation_failure(
+			"El backend devolvió otro contenedor."
+		)
+
+
+	var item_value: Variant = (
+		data.get(
+			"item",
+			null
+		)
+	)
+
+
+	if typeof(item_value) != TYPE_DICTIONARY:
+		return _mutation_failure(
+			"Respuesta de Enhancement sin item."
+		)
+
+
+	var item: Dictionary = (
+		item_value
+	)
+
+
+	if String(
+		item.get(
+			"uid",
+			""
+		)
+	).strip_edges() != requested_uid:
+		return _mutation_failure(
+			"El backend devolvió otro uid."
+		)
+
+
+	var state_value: Variant = (
+		item.get(
+			"state",
+			null
+		)
+	)
+
+
+	if typeof(state_value) != TYPE_DICTIONARY:
+		return _mutation_failure(
+			"El backend devolvió Enhancement sin state válido."
+		)
+
+
+	var state: Dictionary = (
+		state_value
+	)
+
+
+	if int(
+		state.get(
+			"enhancement_level",
+			-1
+		)
+	) != expected_next_level:
+		return _mutation_failure(
+			"El backend devolvió otro Enhancement Level."
+		)
+
+
+	return {
+		"ok": true,
+
+		"message": "",
+
+		"item": item.duplicate(
+			true
+		),
+	}
 
 # =========================================================
 # PARSE MUTACIÓN
@@ -1277,4 +1714,22 @@ func _get_unequip_url(
 		uid
 		+
 		"/unequip"
+	)
+
+func _get_enhancement_url(
+	account_id: int,
+	character_id: int,
+	uid: String
+) -> String:
+	return (
+		_get_equipment_url(
+			account_id,
+			character_id
+		)
+		+
+		"/items/"
+		+
+		uid
+		+
+		"/enhancement"
 	)
