@@ -97,6 +97,12 @@ func _bind_signals() -> void:
 			_on_client_equipment_unequip_requested
 		)
 
+	if not game_server.client_equipment_enhancement_requested.is_connected(
+		_on_client_equipment_enhancement_requested
+	):
+		game_server.client_equipment_enhancement_requested.connect(
+			_on_client_equipment_enhancement_requested
+		)
 
 	if not equipment_repository.equipment_item_equipped.is_connected(
 		_on_equipment_item_equipped
@@ -803,6 +809,71 @@ func _on_client_equipment_unequip_requested(
 		peer_id
 	)
 
+# =========================================================
+# CLIENT REQUEST — ENHANCEMENT
+# =========================================================
+
+func _on_client_equipment_enhancement_requested(
+	peer_id: int,
+	request_id: int,
+	uid: String
+) -> void:
+	var result := (
+		_request_equipment_enhancement(
+			peer_id,
+			uid
+		)
+	)
+
+
+	print(
+		"EquipmentCoordinator | "
+		+
+		"Solicitud Enhancement procesada",
+		" | Request: ",
+		request_id,
+		" | Peer: ",
+		peer_id,
+		" | UID: ",
+		uid,
+		" | Resultado: ",
+		result
+	)
+
+
+	# -----------------------------------------------------
+	# ASYNC BACKEND
+	#
+	# OK:
+	#   La persistencia quedó en curso.
+	#
+	# ERR_BUSY:
+	#   Ya existe otra operación de Equipment pendiente
+	#   para este peer.
+	#
+	# En ambos casos esperamos el flujo autoritativo
+	# correspondiente.
+	# -----------------------------------------------------
+
+	if (
+		result == OK
+		or
+		result == ERR_BUSY
+	):
+		return
+
+
+	# -----------------------------------------------------
+	# RECHAZO LOCAL
+	#
+	# Si Transition Rules, Usage Eligibility o cualquier
+	# precondición autoritativa rechaza el intento antes
+	# de Laravel, reenviamos el estado vigente.
+	# -----------------------------------------------------
+
+	character_item_state_coordinator.resend_snapshots(
+		peer_id
+	)
 
 # =========================================================
 # BACKEND — ITEM EQUIPADO
