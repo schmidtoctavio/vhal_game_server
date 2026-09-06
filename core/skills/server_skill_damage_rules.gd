@@ -97,6 +97,26 @@ static func validate_contract() -> String:
 			"Fire Ball debe utilizar Magic Damage."
 		)
 
+	if (
+		fire_ball.target_kind
+		!=
+		ServerSkillDefinition.TARGET_ENTITY
+	):
+		return (
+			"Fire Ball debe utilizar target entity."
+		)
+
+
+	if not is_equal_approx(
+		fire_ball.cast_range,
+		6.0
+	):
+		return (
+			"Fire Ball foundation debe conservar "
+			+
+			"cast range 6.0."
+		)
+
 
 	if fire_ball.scaling_profile == null:
 		return (

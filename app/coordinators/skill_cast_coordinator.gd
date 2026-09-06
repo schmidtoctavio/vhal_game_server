@@ -274,6 +274,12 @@ func _on_client_skill_cast_requested(
 		definition.skill_id
 		!=
 		ServerSkillCatalog.HEAL_ID
+
+		and
+
+		definition.skill_id
+		!=
+		ServerSkillCatalog.FIRE_BALL_ID
 	):
 		_send_result(
 			peer_id,
@@ -293,60 +299,114 @@ func _on_client_skill_cast_requested(
 	# HEALING POWER AUTORITATIVO
 	# -----------------------------------------------------
 
-	if session.derived_stats == null:
-		_send_result(
-			peer_id,
-			request_id,
-			definition.skill_id,
-			false,
-			"runtime_failure",
-			session,
-			0.0,
-			{}
+	# -----------------------------------------------------
+	# PREPARAR EFECTO AUTORITATIVO
+	#
+	# Todavía NO mutamos nada.
+	#
+	# Primero resolvemos y validamos completamente el
+	# efecto. Mana y Cooldown se comprometen después.
+	# -----------------------------------------------------
+
+	var requested_heal_amount: int = 0
+
+	var raw_damage_amount: int = 0
+
+	var damage_target: WorldMobRuntimeState = null
+
+
+	if (
+		definition.skill_id
+		==
+		ServerSkillCatalog.HEAL_ID
+	):
+		requested_heal_amount = (
+			ServerHealEffect.calculate_heal_amount(
+				definition,
+				session.derived_stats
+			)
 		)
 
 
-		return
+		if requested_heal_amount <= 0:
+			_send_result(
+				peer_id,
+				request_id,
+				definition.skill_id,
+				false,
+				"runtime_failure",
+				session,
+				0.0,
+				{}
+			)
 
 
-	if not session.derived_stats.is_valid():
-		_send_result(
-			peer_id,
-			request_id,
-			definition.skill_id,
-			false,
-			"runtime_failure",
-			session,
-			0.0,
-			{}
+			return
+
+
+	elif (
+		definition.skill_id
+		==
+		ServerSkillCatalog.FIRE_BALL_ID
+	):
+		raw_damage_amount = (
+			ServerSkillDamageRules
+			.calculate_raw_damage(
+				definition,
+				session.derived_stats
+			)
 		)
 
 
-		return
+		if raw_damage_amount <= 0:
+			_send_result(
+				peer_id,
+				request_id,
+				definition.skill_id,
+				false,
+				"runtime_failure",
+				session,
+				0.0,
+				{}
+			)
 
 
-	var requested_heal_amount := (
-		ServerHealEffect.calculate_heal_amount(
-			definition,
-			session.derived_stats
+			return
+
+
+		var target_entity_id := String(
+			target.get(
+				"entity_id",
+				""
+			)
+		).strip_edges().to_lower()
+
+
+		damage_target = (
+			world_mob_registry.get_mob(
+				target_entity_id
+			)
 		)
-	)
 
 
-	if requested_heal_amount <= 0:
-		_send_result(
-			peer_id,
-			request_id,
-			definition.skill_id,
-			false,
-			"runtime_failure",
-			session,
-			0.0,
-			{}
-		)
+		if (
+			damage_target == null
+			or
+			not damage_target.is_alive()
+		):
+			_send_result(
+				peer_id,
+				request_id,
+				definition.skill_id,
+				false,
+				"runtime_failure",
+				session,
+				0.0,
+				{}
+			)
 
 
-		return
+			return
 
 	# -----------------------------------------------------
 	# COOLDOWN
@@ -452,73 +512,307 @@ func _on_client_skill_cast_requested(
 		return
 
 
-	# -----------------------------------------------------
+	# =====================================================
 	# EJECUTAR HEAL
-	# -----------------------------------------------------
+	# =====================================================
 
-	var restored_hp := (
-		ServerHealEffect.apply(
-			session.vitals,
-			requested_heal_amount
+	if (
+		definition.skill_id
+		==
+		ServerSkillCatalog.HEAL_ID
+	):
+		var restored_hp := (
+			ServerHealEffect.apply(
+				session.vitals,
+				requested_heal_amount
+			)
 		)
-	)
 
 
-	cooldown_remaining = (
-		session
-		.skill_runtime
-		.get_cooldown_remaining_seconds(
-			definition.skill_id
+		cooldown_remaining = (
+			session
+			.skill_runtime
+			.get_cooldown_remaining_seconds(
+				definition.skill_id
+			)
 		)
-	)
 
 
-	# -----------------------------------------------------
-	# RESULTADO AUTORITATIVO
-	# -----------------------------------------------------
-
-	_send_result(
-		peer_id,
-		request_id,
-		definition.skill_id,
-		true,
-		"ok",
-		session,
-		cooldown_remaining,
-		{
-			"kind": "heal",
-			"amount": restored_hp,
-		}
-	)
+		_send_result(
+			peer_id,
+			request_id,
+			definition.skill_id,
+			true,
+			"ok",
+			session,
+			cooldown_remaining,
+			{
+				"kind": "heal",
+				"amount": restored_hp,
+			}
+		)
 
 
-	print(
-		"SkillCastCoordinator | Cast autoritativo ejecutado",
-		" | Request: ",
-		request_id,
-		" | Peer: ",
-		peer_id,
-		" | Personaje: ",
-		session.character_name,
-		" | Skill: ",
-		definition.skill_id,
-		" | Healing Power: ",
-		session.derived_stats.healing_power,
-		" | Requested Heal: ",
-		requested_heal_amount,
-		" | Restored Heal: ",
-		restored_hp,
-		" | HP: ",
-		session.vitals.hp,
-		"/",
-		session.vitals.max_hp,
-		" | MP: ",
-		session.vitals.mp,
-		"/",
-		session.vitals.max_mp,
-		" | Cooldown: ",
-		cooldown_remaining
-	)
+		print(
+			"SkillCastCoordinator | Cast autoritativo ejecutado",
+			" | Request: ",
+			request_id,
+			" | Peer: ",
+			peer_id,
+			" | Personaje: ",
+			session.character_name,
+			" | Skill: ",
+			definition.skill_id,
+			" | Healing Power: ",
+			session.derived_stats.healing_power,
+			" | Requested Heal: ",
+			requested_heal_amount,
+			" | Restored Heal: ",
+			restored_hp,
+			" | HP: ",
+			session.vitals.hp,
+			"/",
+			session.vitals.max_hp,
+			" | MP: ",
+			session.vitals.mp,
+			"/",
+			session.vitals.max_mp,
+			" | Cooldown: ",
+			cooldown_remaining
+		)
+
+
+		return
+
+
+	# =====================================================
+	# EJECUTAR FIRE BALL
+	# =====================================================
+
+	if (
+		definition.skill_id
+		==
+		ServerSkillCatalog.FIRE_BALL_ID
+	):
+		if damage_target == null:
+			_rollback_committed_skill_costs(
+				session,
+				definition
+			)
+
+
+			_send_result(
+				peer_id,
+				request_id,
+				definition.skill_id,
+				false,
+				"runtime_failure",
+				session,
+				0.0,
+				{}
+			)
+
+
+			return
+
+
+		var damage_result := (
+			world_mob_registry.apply_damage_to_mob(
+				damage_target.entity_id,
+				raw_damage_amount,
+				{
+					"kind": "player_skill",
+
+					"peer_id": peer_id,
+
+					"character_id": (
+						session.character_id
+					),
+
+					"request_id": request_id,
+
+					"skill_id": (
+						definition.skill_id
+					),
+
+					"damage_type": (
+						definition
+						.damage_profile
+						.damage_type
+					),
+				}
+			)
+		)
+
+
+		if damage_result.is_empty():
+			_rollback_committed_skill_costs(
+				session,
+				definition
+			)
+
+
+			_send_result(
+				peer_id,
+				request_id,
+				definition.skill_id,
+				false,
+				"runtime_failure",
+				session,
+				0.0,
+				{}
+			)
+
+
+			return
+
+
+		var applied_damage := int(
+			damage_result.get(
+				"applied_damage",
+				0
+			)
+		)
+
+
+		var target_died := bool(
+			damage_result.get(
+				"died",
+				false
+			)
+		)
+
+
+		if applied_damage <= 0:
+			_rollback_committed_skill_costs(
+				session,
+				definition
+			)
+
+
+			_send_result(
+				peer_id,
+				request_id,
+				definition.skill_id,
+				false,
+				"runtime_failure",
+				session,
+				0.0,
+				{}
+			)
+
+
+			return
+
+
+		cooldown_remaining = (
+			session
+			.skill_runtime
+			.get_cooldown_remaining_seconds(
+				definition.skill_id
+			)
+		)
+
+
+		_send_result(
+			peer_id,
+			request_id,
+			definition.skill_id,
+			true,
+			"ok",
+			session,
+			cooldown_remaining,
+			{
+				"kind": "damage",
+
+				"amount": applied_damage,
+
+				"raw_amount": (
+					raw_damage_amount
+				),
+
+				"damage_type": (
+					definition
+					.damage_profile
+					.damage_type
+				),
+
+				"entity_id": (
+					damage_target.entity_id
+				),
+
+				"killed": target_died,
+			}
+		)
+
+
+		_broadcast_mob_state(
+			damage_target
+		)
+
+
+		print(
+			"SkillCastCoordinator | Fire Ball autoritativo ejecutado",
+			" | Request: ",
+			request_id,
+			" | Peer: ",
+			peer_id,
+			" | Personaje: ",
+			session.character_name,
+			" | Entity: ",
+			damage_target.entity_id,
+			" | Magic Power: ",
+			session.derived_stats.magic_power,
+			" | Raw Damage: ",
+			raw_damage_amount,
+			" | Applied Damage: ",
+			applied_damage,
+			" | Damage Type: ",
+			definition.damage_profile.damage_type,
+			" | HP restante: ",
+			damage_target.vitals.hp,
+			"/",
+			damage_target.vitals.max_hp,
+			" | Killed: ",
+			target_died,
+			" | MP: ",
+			session.vitals.mp,
+			"/",
+			session.vitals.max_mp,
+			" | Cooldown: ",
+			cooldown_remaining
+		)
+
+
+		return
+
+# =========================================================
+# ROLLBACK DE COSTOS DE SKILL
+# =========================================================
+
+func _rollback_committed_skill_costs(
+	session: PlayerWorldSession,
+	definition: ServerSkillDefinition
+) -> void:
+	if session == null:
+		return
+
+
+	if definition == null:
+		return
+
+
+	if session.vitals != null:
+		session.vitals.restore_mp(
+			definition.mana_cost
+		)
+
+
+	if session.skill_runtime != null:
+		session.skill_runtime.start_cooldown(
+			definition.skill_id,
+			0.0
+		)
 
 # =========================================================
 # VALIDAR TARGET AUTORITATIVO
@@ -620,6 +914,54 @@ func _validate_authoritative_target(
 	if not mob.is_alive():
 		return "target_not_alive"
 
+	# -----------------------------------------------------
+	# RANGO AUTORITATIVO
+	#
+	# Algunas entity Skills todavía pueden conservar
+	# cast_range = 0 mientras no estén implementadas.
+	#
+	# Si la definición declara rango positivo,
+	# el Game Server lo hace cumplir.
+	# -----------------------------------------------------
+
+	if definition.cast_range > 0.0:
+		var caster_position := Vector2(
+			session.position.x,
+			session.position.z
+		)
+
+
+		var target_position := Vector2(
+			mob.position.x,
+			mob.position.z
+		)
+
+
+		var distance := (
+			caster_position.distance_to(
+				target_position
+			)
+		)
+
+
+		if distance > definition.cast_range:
+			print(
+				"SkillCastCoordinator | Skill fuera de rango",
+				" | Request: ",
+				request_id,
+				" | Skill: ",
+				definition.skill_id,
+				" | Entity: ",
+				mob.entity_id,
+				" | Distancia: ",
+				distance,
+				" | Rango: ",
+				definition.cast_range
+			)
+
+
+			return "out_of_range"
+
 
 	# -----------------------------------------------------
 	# TARGET VALIDADO
@@ -644,6 +986,76 @@ func _validate_authoritative_target(
 
 
 	return ""
+
+# =========================================================
+# REPLICAR MOB STATE
+# =========================================================
+
+func _broadcast_mob_state(
+	mob: WorldMobRuntimeState
+) -> void:
+	if mob == null:
+		return
+
+
+	var snapshot := (
+		mob.to_snapshot()
+	)
+
+
+	if snapshot.is_empty():
+		return
+
+
+	var recipients := 0
+
+
+	for target_session: PlayerWorldSession in (
+		world_session_registry.get_sessions_in_map(
+			mob.map_id
+		)
+	):
+		if target_session == null:
+			continue
+
+
+		var result := (
+			game_server.send_mob_state_updated(
+				target_session.peer_id,
+				snapshot
+			)
+		)
+
+
+		if result != OK:
+			push_warning(
+				(
+					"SkillCastCoordinator | "
+					+
+					"No se pudo replicar mob. Error: %d"
+				)
+				%
+				result
+			)
+
+
+			continue
+
+
+		recipients += 1
+
+
+	print(
+		"SkillCastCoordinator | Estado de mob replicado",
+		" | Entity: ",
+		mob.entity_id,
+		" | Recipients: ",
+		recipients,
+		" | HP: ",
+		mob.vitals.hp,
+		"/",
+		mob.vitals.max_hp
+	)
 
 # =========================================================
 # ENVIAR RESULTADO

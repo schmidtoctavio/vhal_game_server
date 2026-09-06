@@ -43,7 +43,9 @@ static func get_definition(
 
 				ServerSkillDamageProfile.new(
 					ServerSkillDamageProfile.DAMAGE_MAGIC
-				)
+				),
+
+				6.0
 			)
 
 		POISON_ID:

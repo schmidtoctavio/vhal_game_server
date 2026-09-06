@@ -24,6 +24,7 @@ var skill_id: String = ""
 
 var target_kind: String = TARGET_SELF
 
+var cast_range: float = 0.0
 
 # =========================================================
 # COSTOS
@@ -61,7 +62,8 @@ func _init(
 	p_cooldown_duration: float = 0.0,
 	p_target_kind: String = TARGET_SELF,
 	p_scaling_profile: ServerSkillScalingProfile = null,
-	p_damage_profile: ServerSkillDamageProfile = null
+	p_damage_profile: ServerSkillDamageProfile = null,
+	p_cast_range: float = 0.0
 ) -> void:
 	skill_id = (
 		p_skill_id
@@ -90,6 +92,10 @@ func _init(
 
 	damage_profile = (
 		p_damage_profile
+	)
+
+	cast_range = (
+		p_cast_range
 	)
 
 # =========================================================
@@ -126,5 +132,8 @@ func is_valid() -> bool:
 			or
 			damage_profile.is_valid()
 		)
+
+		and
+		cast_range >= 0.0
 
 	)
