@@ -641,6 +641,35 @@ func _ready() -> void:
 
 		return
 
+	# =====================================================
+	# F22 — INTEGRATED BALANCE AUDIT
+	# =====================================================
+
+	var integrated_balance_contract_error := (
+		ServerIntegratedBalanceContract
+		.validate_contract()
+	)
+
+
+	if not integrated_balance_contract_error.is_empty():
+		push_error(
+			(
+				"ServerMain | "
+				+
+				"Integrated Balance Contract inválido: "
+				+
+				integrated_balance_contract_error
+			)
+		)
+
+
+		get_tree().quit(
+			44
+		)
+
+
+		return
+
 	var mob_drop_catalog_contract_error := (
 		ServerMobDropCatalog.validate_contract()
 	)
@@ -678,6 +707,10 @@ func _ready() -> void:
 
 	print(
 		"ServerMain | Skill Learning Catalog Contract validado."
+	)
+
+	print(
+		"ServerMain | Integrated Balance Contract validado."
 	)
 
 	print(
