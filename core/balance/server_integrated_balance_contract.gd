@@ -46,6 +46,18 @@ static func validate_contract() -> String:
 		.validate_contract()
 	)
 
+	var unified_damage_error := (
+		ServerDamageResolver
+		.validate_contract()
+	)
+
+
+	if not unified_damage_error.is_empty():
+		return (
+			"Unified Damage Resolver | "
+			+
+			unified_damage_error
+		)
 
 	if not resistance_mitigation_error.is_empty():
 		return (
