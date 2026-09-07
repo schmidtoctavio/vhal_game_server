@@ -12,16 +12,19 @@ extends RefCounted
 # - Permanent Vitality
 # - Permanent Energy
 #
-# Regeneration continúa temporalmente en 0.
+# F26-E habilita una foundation mínima de regeneración:
+#
+# - VIT → HP Regeneration
+# - ENE → MP Regeneration
 #
 # F22-F3 resuelve Physical / Magic / Healing Power
 # desde el balance autoritativo de cada Class.
 # Serán reemplazados en etapas posteriores.
 # =========================================================
 
-const FOUNDATION_HP_REGENERATION: int = 0
+const HP_REGENERATION_VITALITY_DIVISOR: int = 10
 
-const FOUNDATION_MP_REGENERATION: int = 0
+const MP_REGENERATION_ENERGY_DIVISOR: int = 10
 
 # =========================================================
 # CRITICAL FOUNDATION
@@ -201,6 +204,132 @@ static func calculate_max_mp(
 		level_growth
 		+
 		energy_growth
+	)
+
+# =========================================================
+# HP REGENERATION
+# =========================================================
+#
+# F26-E foundation:
+#
+# floor(Effective VIT / 10)
+#
+# La fórmula vive en Balance/Derived Stats.
+# El runtime de regeneración sólo consume el resultado.
+# =========================================================
+
+static func calculate_hp_regeneration(
+	primary_stats: ServerCharacterPrimaryStatsState,
+	class_definition: ServerClassStatsDefinition,
+	resolved_primary: Dictionary = {}
+) -> int:
+	if primary_stats == null:
+		return -1
+
+
+	if class_definition == null:
+		return -1
+
+
+	if not primary_stats.is_valid():
+		return -1
+
+
+	if not class_definition.is_valid():
+		return -1
+
+
+	if (
+		primary_stats.class_id
+		!=
+		class_definition.class_id
+	):
+		return -1
+
+
+	var vitality_value := (
+		_get_formula_primary_value(
+			primary_stats,
+			resolved_primary,
+			ServerEquipmentStatModifierCatalog.VITALITY
+		)
+	)
+
+
+	if vitality_value < 0:
+		return -1
+
+
+	return floori(
+		float(
+			vitality_value
+		)
+		/
+		float(
+			HP_REGENERATION_VITALITY_DIVISOR
+		)
+	)
+
+
+# =========================================================
+# MP REGENERATION
+# =========================================================
+#
+# F26-E foundation:
+#
+# floor(Effective ENE / 10)
+# =========================================================
+
+static func calculate_mp_regeneration(
+	primary_stats: ServerCharacterPrimaryStatsState,
+	class_definition: ServerClassStatsDefinition,
+	resolved_primary: Dictionary = {}
+) -> int:
+	if primary_stats == null:
+		return -1
+
+
+	if class_definition == null:
+		return -1
+
+
+	if not primary_stats.is_valid():
+		return -1
+
+
+	if not class_definition.is_valid():
+		return -1
+
+
+	if (
+		primary_stats.class_id
+		!=
+		class_definition.class_id
+	):
+		return -1
+
+
+	var energy_value := (
+		_get_formula_primary_value(
+			primary_stats,
+			resolved_primary,
+			ServerEquipmentStatModifierCatalog.ENERGY
+		)
+	)
+
+
+	if energy_value < 0:
+		return -1
+
+
+	return floori(
+		float(
+			energy_value
+		)
+		/
+		float(
+			MP_REGENERATION_ENERGY_DIVISOR
+		)
 	)
 
 # =========================================================
@@ -808,6 +937,27 @@ static func validate_effective_primary_formula_contract() -> String:
 			"Legacy Max MP dejó de resolver 79."
 		)
 
+	if int(
+		legacy_values.get(
+			"hp_regeneration",
+			-1
+		)
+	) != 2:
+		return (
+			"Legacy HP Regeneration dejó de resolver 2."
+		)
+
+
+	if int(
+		legacy_values.get(
+			"mp_regeneration",
+			-1
+		)
+	) != 1:
+		return (
+			"Legacy MP Regeneration dejó de resolver 1."
+		)
+
 
 	if int(
 		legacy_values.get(
@@ -950,6 +1100,27 @@ static func validate_effective_primary_formula_contract() -> String:
 	) != 88:
 		return (
 			"Effective Max MP no resolvió 88."
+		)
+
+	if int(
+		effective_values.get(
+			"hp_regeneration",
+			-1
+		)
+	) != 3:
+		return (
+			"Effective HP Regeneration no resolvió 3."
+		)
+
+
+	if int(
+		effective_values.get(
+			"mp_regeneration",
+			-1
+		)
+	) != 1:
+		return (
+			"Effective MP Regeneration no resolvió 1."
 		)
 
 
@@ -1157,6 +1328,23 @@ static func _build_values(
 		resolved_primary
 	)
 
+	var hp_regeneration := (
+		calculate_hp_regeneration(
+			primary_stats,
+			class_definition,
+			resolved_primary
+		)
+	)
+
+
+	var mp_regeneration := (
+		calculate_mp_regeneration(
+			primary_stats,
+			class_definition,
+			resolved_primary
+		)
+	)
+
 	var physical_power := (
 		calculate_physical_power(
 			primary_stats,
@@ -1221,6 +1409,13 @@ static func _build_values(
 	if max_mp < 0:
 		return {}
 
+	if hp_regeneration < 0:
+		return {}
+
+
+	if mp_regeneration < 0:
+		return {}
+
 	if physical_power < 0:
 		return {}
 
@@ -1256,11 +1451,11 @@ static func _build_values(
 		"max_mp": max_mp,
 
 		"hp_regeneration": (
-			FOUNDATION_HP_REGENERATION
+			hp_regeneration
 		),
 
 		"mp_regeneration": (
-			FOUNDATION_MP_REGENERATION
+			mp_regeneration
 		),
 
 		"physical_power": (

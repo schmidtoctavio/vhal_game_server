@@ -200,6 +200,8 @@ static func _validate_class_profiles() -> String:
 			"level": 1,
 			"max_hp": 200,
 			"max_mp": 60,
+			"hp_regeneration": 2,
+			"mp_regeneration": 1,
 			"physical_power": 60,
 			"magic_power": 10,
 			"healing_power": 10,
@@ -209,6 +211,8 @@ static func _validate_class_profiles() -> String:
 			"level": 1,
 			"max_hp": 115,
 			"max_mp": 295,
+			"hp_regeneration": 1,
+			"mp_regeneration": 3,
 			"physical_power": 15,
 			"magic_power": 90,
 			"healing_power": 80,
@@ -218,6 +222,8 @@ static func _validate_class_profiles() -> String:
 			"level": 1,
 			"max_hp": 130,
 			"max_mp": 130,
+			"hp_regeneration": 1,
+			"mp_regeneration": 1,
 			"physical_power": 60,
 			"magic_power": 15,
 			"healing_power": 15,
@@ -227,6 +233,8 @@ static func _validate_class_profiles() -> String:
 			"level": 100,
 			"max_hp": 992,
 			"max_mp": 159,
+			"hp_regeneration": 2,
+			"mp_regeneration": 1,
 			"physical_power": 258,
 			"magic_power": 10,
 			"healing_power": 10,
@@ -236,6 +244,8 @@ static func _validate_class_profiles() -> String:
 			"level": 100,
 			"max_hp": 610,
 			"max_mp": 691,
+			"hp_regeneration": 1,
+			"mp_regeneration": 3,
 			"physical_power": 114,
 			"magic_power": 288,
 			"healing_power": 179,
@@ -245,6 +255,8 @@ static func _validate_class_profiles() -> String:
 			"level": 100,
 			"max_hp": 724,
 			"max_mp": 328,
+			"hp_regeneration": 1,
+			"mp_regeneration": 1,
 			"physical_power": 258,
 			"magic_power": 15,
 			"healing_power": 15,
@@ -509,6 +521,48 @@ static func _validate_class_profile_case(
 			str(level)
 			+
 			" alteró Max MP."
+		)
+
+
+	if (
+		derived_stats.hp_regeneration
+		!=
+		int(
+			case_data.get(
+				"hp_regeneration",
+				-1
+			)
+		)
+	):
+		return (
+			class_id
+			+
+			" Level "
+			+
+			str(level)
+			+
+			" alteró HP Regeneration."
+		)
+
+
+	if (
+		derived_stats.mp_regeneration
+		!=
+		int(
+			case_data.get(
+				"mp_regeneration",
+				-1
+			)
+		)
+	):
+		return (
+			class_id
+			+
+			" Level "
+			+
+			str(level)
+			+
+			" alteró MP Regeneration."
 		)
 
 

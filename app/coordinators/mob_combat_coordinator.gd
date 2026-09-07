@@ -1,6 +1,34 @@
 class_name MobCombatCoordinator
 extends Node
 
+# =========================================================
+# SIGNALS
+# =========================================================
+
+signal player_mob_aggro_acquired(
+	peer_id: int,
+	entity_id: String
+)
+
+signal player_mob_aggro_released(
+	peer_id: int,
+	entity_id: String
+)
+
+signal player_damaged_by_mob(
+	peer_id: int,
+	entity_id: String,
+	applied_damage: int
+)
+
+signal player_died(
+	peer_id: int
+)
+
+signal player_respawned(
+	peer_id: int
+)
+
 
 # =========================================================
 # CONFIGURACIÓN
@@ -553,6 +581,11 @@ func _acquire_target(
 	):
 		return
 
+	player_mob_aggro_acquired.emit(
+		session.peer_id,
+		mob.entity_id
+	)
+
 
 	print(
 		"MobCombatCoordinator | Aggro adquirido",
@@ -587,6 +620,12 @@ func _release_target_and_return(
 	mob.combat_runtime.release_target(
 		true
 	)
+
+	if previous_peer_id > 1:
+		player_mob_aggro_released.emit(
+			previous_peer_id,
+			mob.entity_id
+		)
 
 
 	print(
@@ -1174,6 +1213,12 @@ func _try_mob_attack(
 	if applied_damage <= 0:
 		return
 
+	player_damaged_by_mob.emit(
+		session.peer_id,
+		mob.entity_id,
+		applied_damage
+	)
+
 
 	_send_player_vitals(
 		session
@@ -1285,6 +1330,10 @@ func _handle_player_death(
 		PLAYER_RESPAWN_DELAY_MSEC
 	)
 
+	player_died.emit(
+		session.peer_id
+	)
+
 
 	_replicate_player_transform(
 		session
@@ -1389,6 +1438,9 @@ func _process_player_respawns(
 
 		session.clear_move_request()
 
+		player_respawned.emit(
+			session.peer_id
+		)
 
 		_send_player_vitals(
 			session

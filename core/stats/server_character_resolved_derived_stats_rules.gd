@@ -314,6 +314,27 @@ static func validate_contract() -> String:
 			"Resolved Max MP no resolvió 108."
 		)
 
+	if int(
+		resolved_values.get(
+			"hp_regeneration",
+			-1
+		)
+	) != 3:
+		return (
+			"Resolved HP Regeneration no resolvió 3."
+		)
+
+
+	if int(
+		resolved_values.get(
+			"mp_regeneration",
+			-1
+		)
+	) != 1:
+		return (
+			"Resolved MP Regeneration no resolvió 1."
+		)
+
 
 	if int(
 		resolved_values.get(
@@ -625,6 +646,23 @@ static func resolve(
 	if int(
 		result.get(
 			"max_mp",
+			-1
+		)
+	) < 0:
+		return {}
+
+	if int(
+		result.get(
+			"hp_regeneration",
+			-1
+		)
+	) < 0:
+		return {}
+
+
+	if int(
+		result.get(
+			"mp_regeneration",
 			-1
 		)
 	) < 0:

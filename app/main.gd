@@ -69,6 +69,10 @@ extends Node
 	$MobCombatCoordinator
 )
 
+@onready var character_regen_coordinator: CharacterRegenCoordinator = (
+	$CharacterRegenCoordinator
+)
+
 @onready var world_presence_coordinator: WorldPresenceCoordinator = (
 	$WorldPresenceCoordinator
 )
@@ -1248,6 +1252,39 @@ func _ready() -> void:
 
 		get_tree().quit(
 			46
+		)
+
+
+		return
+
+	if character_regen_coordinator == null:
+		push_error(
+			"ServerMain | No existe CharacterRegenCoordinator."
+		)
+
+
+		get_tree().quit(
+			47
+		)
+
+
+		return
+
+
+	if not character_regen_coordinator.setup(
+		game_server,
+		world_session_registry,
+		world_mob_registry,
+		basic_attack_coordinator,
+		mob_combat_coordinator
+	):
+		push_error(
+			"ServerMain | No se pudo inicializar CharacterRegenCoordinator."
+		)
+
+
+		get_tree().quit(
+			47
 		)
 
 

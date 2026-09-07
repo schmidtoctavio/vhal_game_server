@@ -1,6 +1,15 @@
 class_name BasicAttackCoordinator
 extends Node
 
+# =========================================================
+# SIGNALS
+# =========================================================
+
+signal valid_offensive_action_against_mob(
+	peer_id: int,
+	entity_id: String
+)
+
 
 var game_server: GameServer = null
 
@@ -621,6 +630,11 @@ func _on_client_basic_attack_requested(
 
 
 		return
+
+	valid_offensive_action_against_mob.emit(
+		peer_id,
+		mob.entity_id
+	)
 
 
 	# -----------------------------------------------------
