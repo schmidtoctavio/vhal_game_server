@@ -3,27 +3,22 @@ extends RefCounted
 
 
 # =========================================================
-# BASIC ATTACK — PRE-MITIGATION DAMAGE
+# BASIC ATTACK — RAW DAMAGE
 #
-# F22-F3-D1
+# Foundation:
 #
-# En esta foundation, Basic Attack usa:
+# Weapon / Unarmed Base Damage
+# +
+# Physical Power
 #
-# - Base Damage del Attack Profile autoritativo.
-# - Physical Power derivado del personaje.
+# El resultado todavía NO incluye:
 #
-# Todavía NO participan:
+# - Critical
+# - Armor
+# - Element Resistance
+# - future PvP modifiers
 #
-# - defensa del objetivo
-# - armor
-# - critical
-# - block
-# - penetration
-# - buffs/debuffs
-# - multiplicadores de skill
-#
-# Esos sistemas deberán consumir este resultado
-# en etapas posteriores.
+# Esas capas pertenecen a ServerDamageResolver.
 # =========================================================
 
 static func calculate_pre_mitigation_damage(
@@ -63,3 +58,73 @@ static func calculate_pre_mitigation_damage(
 		+
 		derived_stats.physical_power
 	)
+
+
+# =========================================================
+# DAMAGE RESOLUTION CONTEXT
+# =========================================================
+
+static func build_resolution_context(
+	attack_profile: Dictionary,
+	derived_stats: ServerCharacterDerivedStatsState
+) -> ServerDamageResolutionContext:
+	var raw_damage := (
+		calculate_pre_mitigation_damage(
+			attack_profile,
+			derived_stats
+		)
+	)
+
+
+	if raw_damage <= 0:
+		return null
+
+
+	var attack_mode := String(
+		attack_profile.get(
+			"mode",
+			""
+		)
+	).strip_edges().to_lower()
+
+
+	var weapon_item_id := String(
+		attack_profile.get(
+			"weapon_item_id",
+			""
+		)
+	).strip_edges().to_lower()
+
+
+	var source_id := (
+		weapon_item_id
+	)
+
+
+	if source_id.is_empty():
+		source_id = attack_mode
+
+
+	if source_id.is_empty():
+		return null
+
+
+	var context := (
+		ServerDamageResolutionContext.new(
+			raw_damage,
+			ServerDamageTaxonomy.SCHOOL_PHYSICAL,
+			ServerDamageTaxonomy.ELEMENT_NONE,
+			ServerDamageTaxonomy.DELIVERY_DIRECT,
+			true,
+			ServerDamageResolutionContext
+				.SOURCE_BASIC_ATTACK,
+			source_id
+		)
+	)
+
+
+	if not context.is_valid():
+		return null
+
+
+	return context

@@ -331,8 +331,40 @@ func _on_client_basic_attack_requested(
 
 		return
 
+	var damage_context := (
+		ServerBasicAttackDamageRules
+		.build_resolution_context(
+			attack_profile,
+			session.derived_stats
+		)
+	)
+
+
+	if (
+		damage_context == null
+		or
+		not damage_context.is_valid()
+	):
+		_send_result(
+			peer_id,
+			request_id,
+			false,
+			"runtime_failure",
+			target,
+			attack_profile
+		)
+
+
+		return
+
 	# -----------------------------------------------------
-	# ARMOR FÍSICO DEL TARGET
+	# DEFENSA AUTORITATIVA DEL TARGET
+	#
+	# El Basic Attack ya no conoce directamente cómo
+	# obtener Armor.
+	#
+	# Resuelve el perfil defensivo completo del target y
+	# ServerDamageResolver decide qué rating consumir.
 	# -----------------------------------------------------
 
 	if mob.definition == null:
@@ -363,9 +395,30 @@ func _on_client_basic_attack_requested(
 		return
 
 
-	var armor_rating := (
-		mob.definition.base_armor_rating
+	var damage_defense_profile := (
+		ServerMobDamageDefenseProfileResolver
+		.resolve(
+			mob.definition
+		)
 	)
+
+
+	if (
+		damage_defense_profile == null
+		or
+		not damage_defense_profile.is_valid()
+	):
+		_send_result(
+			peer_id,
+			request_id,
+			false,
+			"runtime_failure",
+			target,
+			attack_profile
+		)
+
+
+		return
 
 	# -----------------------------------------------------
 	# RANGO AUTORITATIVO
@@ -481,38 +534,38 @@ func _on_client_basic_attack_requested(
 		return
 
 	# -----------------------------------------------------
-	# CRITICAL STRIKE AUTORITATIVO
+	# UNIFIED DAMAGE RESOLUTION
 	#
-	# El roll ocurre sólo después de que:
+	# El roll sigue siendo generado por Game Server.
 	#
-	# - target fue validado
-	# - rango fue validado
-	# - cooldown fue aceptado
+	# ServerDamageResolver aplica:
 	#
-	# Requests inválidos no consumen Critical Rolls.
+	# Raw
+	# → Critical
+	# → Physical School / Armor
+	# → Element none
+	# → Final Damage
 	# -----------------------------------------------------
 
 	var critical_roll := randf()
 
 
-	var is_critical := (
-		ServerCriticalStrikeRules.is_critical_roll(
+	var damage_resolution := (
+		ServerDamageResolver.resolve(
+			damage_context,
+			damage_defense_profile,
 			session.derived_stats.critical_strike_chance,
+			session.derived_stats.critical_damage_multiplier,
 			critical_roll
 		)
 	)
 
 
-	var pre_mitigation_damage := (
-		ServerCriticalStrikeRules.calculate_critical_damage(
-			pre_critical_damage,
-			is_critical,
-			session.derived_stats.critical_damage_multiplier
-		)
-	)
-
-
-	if pre_mitigation_damage <= 0:
+	if (
+		damage_resolution == null
+		or
+		not damage_resolution.is_valid()
+	):
 		session.basic_attack_runtime.reset()
 
 
@@ -529,34 +582,24 @@ func _on_client_basic_attack_requested(
 		return
 
 
-	# -----------------------------------------------------
-	# PHYSICAL ARMOR MITIGATION
-	# -----------------------------------------------------
+	var is_critical := (
+		damage_resolution.critical_applied
+	)
+
+
+	var pre_mitigation_damage := (
+		damage_resolution.pre_mitigation_damage
+	)
+
+
+	var armor_rating := (
+		damage_resolution.school_rating
+	)
+
 
 	var post_mitigation_damage := (
-		ServerPhysicalDamageMitigationRules
-		.calculate_post_mitigation_damage(
-			pre_mitigation_damage,
-			armor_rating
-		)
+		damage_resolution.final_damage
 	)
-
-
-	if post_mitigation_damage <= 0:
-		session.basic_attack_runtime.reset()
-
-
-		_send_result(
-			peer_id,
-			request_id,
-			false,
-			"runtime_failure",
-			target,
-			attack_profile
-		)
-
-
-		return
 
 	# -----------------------------------------------------
 	# DAMAGE AUTORITATIVO
@@ -593,6 +636,19 @@ func _on_client_basic_attack_requested(
 						""
 					)
 				),
+
+				"school": (
+					damage_resolution.school
+				),
+
+				"element": (
+					damage_resolution.element
+				),
+
+				"delivery": (
+					damage_resolution.delivery
+				),
+
 			}
 		)
 	)
@@ -721,6 +777,10 @@ func _on_client_basic_attack_requested(
 		pre_mitigation_damage,
 		" | Armor: ",
 		armor_rating,
+		" | School: ",
+		damage_resolution.school,
+		" | Element: ",
+		damage_resolution.element,
 		" | Post-Mitigation: ",
 		post_mitigation_damage,
 		" | Damage: ",

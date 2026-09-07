@@ -317,9 +317,9 @@ func _on_client_skill_cast_requested(
 
 	var requested_heal_amount: int = 0
 
-	var raw_damage_amount: int = 0
+	var direct_damage_context: ServerDamageResolutionContext = null
 
-	var periodic_tick_damage: int = 0
+	var periodic_damage_context: ServerDamageResolutionContext = null
 
 	var damage_target: WorldMobRuntimeState = null
 
@@ -358,16 +358,20 @@ func _on_client_skill_cast_requested(
 		==
 		ServerSkillCatalog.FIRE_BALL_ID
 	):
-		raw_damage_amount = (
+		direct_damage_context = (
 			ServerSkillDamageRules
-			.calculate_raw_damage(
+			.build_resolution_context(
 				definition,
 				session.derived_stats
 			)
 		)
 
 
-		if raw_damage_amount <= 0:
+		if (
+			direct_damage_context == null
+			or
+			not direct_damage_context.is_valid()
+		):
 			_send_result(
 				peer_id,
 				request_id,
@@ -387,16 +391,20 @@ func _on_client_skill_cast_requested(
 		==
 		ServerSkillCatalog.POISON_ID
 	):
-		periodic_tick_damage = (
+		periodic_damage_context = (
 			ServerSkillPeriodicDamageRules
-			.calculate_tick_damage(
+			.build_tick_resolution_context(
 				definition,
 				session.derived_stats
 			)
 		)
 
 
-		if periodic_tick_damage <= 0:
+		if (
+			periodic_damage_context == null
+			or
+			not periodic_damage_context.is_valid()
+		):
 			_send_result(
 				peer_id,
 				request_id,
@@ -650,7 +658,79 @@ func _on_client_skill_cast_requested(
 		==
 		ServerSkillCatalog.FIRE_BALL_ID
 	):
-		if damage_target == null:
+		if (
+			damage_target == null
+			or
+			direct_damage_context == null
+		):
+			_rollback_committed_skill_costs(
+				session,
+				definition
+			)
+
+
+			_send_result(
+				peer_id,
+				request_id,
+				definition.skill_id,
+				false,
+				"runtime_failure",
+				session,
+				0.0,
+				{}
+			)
+
+
+			return
+
+
+		var damage_defense_profile := (
+			ServerMobDamageDefenseProfileResolver
+			.resolve(
+				damage_target.definition
+			)
+		)
+
+
+		if (
+			damage_defense_profile == null
+			or
+			not damage_defense_profile.is_valid()
+		):
+			_rollback_committed_skill_costs(
+				session,
+				definition
+			)
+
+
+			_send_result(
+				peer_id,
+				request_id,
+				definition.skill_id,
+				false,
+				"runtime_failure",
+				session,
+				0.0,
+				{}
+			)
+
+
+			return
+
+
+		var damage_resolution := (
+			ServerDamageResolver.resolve(
+				direct_damage_context,
+				damage_defense_profile
+			)
+		)
+
+
+		if (
+			damage_resolution == null
+			or
+			not damage_resolution.is_valid()
+		):
 			_rollback_committed_skill_costs(
 				session,
 				definition
@@ -675,7 +755,7 @@ func _on_client_skill_cast_requested(
 		var damage_result := (
 			world_mob_registry.apply_damage_to_mob(
 				damage_target.entity_id,
-				raw_damage_amount,
+				damage_resolution.final_damage,
 				{
 					"kind": "player_skill",
 
@@ -691,10 +771,23 @@ func _on_client_skill_cast_requested(
 						definition.skill_id
 					),
 
+					# Legacy metadata temporal.
 					"damage_type": (
 						definition
 						.damage_profile
 						.damage_type
+					),
+
+					"school": (
+						damage_resolution.school
+					),
+
+					"element": (
+						damage_resolution.element
+					),
+
+					"delivery": (
+						damage_resolution.delivery
 					),
 				}
 			)
@@ -784,9 +877,39 @@ func _on_client_skill_cast_requested(
 				"amount": applied_damage,
 
 				"raw_amount": (
-					raw_damage_amount
+					damage_resolution.raw_damage
 				),
 
+				"pre_mitigation_amount": (
+					damage_resolution
+					.pre_mitigation_damage
+				),
+
+				"school": (
+					damage_resolution.school
+				),
+
+				"school_rating": (
+					damage_resolution.school_rating
+				),
+
+				"post_school_amount": (
+					damage_resolution.post_school_damage
+				),
+
+				"element": (
+					damage_resolution.element
+				),
+
+				"element_rating": (
+					damage_resolution.element_rating
+				),
+
+				"resolved_amount": (
+					damage_resolution.final_damage
+				),
+
+				# Legacy metadata temporal.
 				"damage_type": (
 					definition
 					.damage_profile
@@ -820,11 +943,21 @@ func _on_client_skill_cast_requested(
 			" | Magic Power: ",
 			session.derived_stats.magic_power,
 			" | Raw Damage: ",
-			raw_damage_amount,
+			damage_resolution.raw_damage,
+			" | School: ",
+			damage_resolution.school,
+			" | School Rating: ",
+			damage_resolution.school_rating,
+			" | Post School: ",
+			damage_resolution.post_school_damage,
+			" | Element: ",
+			damage_resolution.element,
+			" | Element Rating: ",
+			damage_resolution.element_rating,
+			" | Final Damage: ",
+			damage_resolution.final_damage,
 			" | Applied Damage: ",
 			applied_damage,
-			" | Damage Type: ",
-			definition.damage_profile.damage_type,
 			" | HP restante: ",
 			damage_target.vitals.hp,
 			"/",
@@ -838,6 +971,7 @@ func _on_client_skill_cast_requested(
 			" | Cooldown: ",
 			cooldown_remaining
 		)
+
 
 		return
 
@@ -854,6 +988,8 @@ func _on_client_skill_cast_requested(
 			damage_target == null
 			or
 			definition.status_effect_profile == null
+			or
+			periodic_damage_context == null
 		):
 			_rollback_committed_skill_costs(
 				session,
@@ -877,7 +1013,7 @@ func _on_client_skill_cast_requested(
 		var status_effect := (
 			WorldMobStatusEffectRuntime.create(
 				definition.status_effect_profile,
-				periodic_tick_damage,
+				periodic_damage_context,
 				{
 					"kind": "player_skill_periodic",
 
@@ -898,6 +1034,19 @@ func _on_client_skill_cast_requested(
 						.status_effect_profile
 						.damage_type
 					),
+
+					"school": (
+						periodic_damage_context.school
+					),
+
+					"element": (
+						periodic_damage_context.element
+					),
+
+					"delivery": (
+						periodic_damage_context.delivery
+					),
+
 				},
 				Time.get_ticks_msec()
 			)
@@ -982,7 +1131,19 @@ func _on_client_skill_cast_requested(
 				),
 
 				"tick_damage": (
-					periodic_tick_damage
+					periodic_damage_context.raw_damage
+				),
+
+				"school": (
+					periodic_damage_context.school
+				),
+
+				"element": (
+					periodic_damage_context.element
+				),
+
+				"delivery": (
+					periodic_damage_context.delivery
 				),
 
 				"tick_count": (
@@ -1022,8 +1183,12 @@ func _on_client_skill_cast_requested(
 			damage_target.entity_id,
 			" | Physical Power: ",
 			session.derived_stats.physical_power,
-			" | Damage/Tick: ",
-			periodic_tick_damage,
+			" | Raw Damage/Tick: ",
+			periodic_damage_context.raw_damage,
+			" | School: ",
+			periodic_damage_context.school,
+			" | Element: ",
+			periodic_damage_context.element,
 			" | Ticks: ",
 			definition.status_effect_profile.tick_count,
 			" | Interval: ",

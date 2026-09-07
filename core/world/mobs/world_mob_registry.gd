@@ -805,10 +805,14 @@ func apply_status_effect_to_mob(
 		mob.entity_id,
 		" | Effect: ",
 		status_effect.effect_id,
-		" | Damage/Tick: ",
+		" | Raw Damage/Tick: ",
 		status_effect.damage_per_tick,
 		" | Ticks: ",
-		status_effect.ticks_remaining
+		status_effect.ticks_remaining,
+		" | School: ",
+		status_effect.damage_context.school,
+		" | Element: ",
+		status_effect.damage_context.element,
 	)
 
 	_arm_next_status_effect_tick()
@@ -926,6 +930,73 @@ func _on_status_effect_timer_timeout() -> void:
 					now_msec
 				)
 			):
+				var damage_defense_profile := (
+					ServerMobDamageDefenseProfileResolver
+					.resolve(
+						mob.definition
+					)
+				)
+
+
+				if (
+					damage_defense_profile == null
+					or
+					not damage_defense_profile.is_valid()
+				):
+					push_warning(
+						(
+							"WorldMobRegistry | "
+							+
+							"No se pudo resolver Damage Defense "
+							+
+							"para Status Effect '%s'."
+						)
+						%
+						status_effect.effect_id
+					)
+
+
+					mob.remove_status_effect(
+						status_effect.effect_id
+					)
+
+
+					break
+
+
+				var damage_resolution := (
+					ServerDamageResolver.resolve(
+						status_effect.damage_context,
+						damage_defense_profile
+					)
+				)
+
+
+				if (
+					damage_resolution == null
+					or
+					not damage_resolution.is_valid()
+				):
+					push_warning(
+						(
+							"WorldMobRegistry | "
+							+
+							"No se pudo resolver Periodic Damage "
+							+
+							"para Status Effect '%s'."
+						)
+						%
+						status_effect.effect_id
+					)
+
+
+					mob.remove_status_effect(
+						status_effect.effect_id
+					)
+
+
+					break
+					
 				if not status_effect.consume_due_tick(
 					now_msec
 				):
@@ -950,11 +1021,24 @@ func _on_status_effect_timer_timeout() -> void:
 					"damage_type"
 				] = status_effect.damage_type
 
+				source[
+					"school"
+				] = damage_resolution.school
+
+
+				source[
+					"element"
+				] = damage_resolution.element
+
+
+				source[
+					"delivery"
+				] = damage_resolution.delivery
 
 				var damage_result := (
 					apply_damage_to_mob(
 						mob.entity_id,
-						status_effect.damage_per_tick,
+						damage_resolution.final_damage,
 						source
 					)
 				)
@@ -1002,6 +1086,20 @@ func _on_status_effect_timer_timeout() -> void:
 					mob.entity_id,
 					" | Effect: ",
 					status_effect.effect_id,
+					" | Raw Damage: ",
+					damage_resolution.raw_damage,
+					" | School: ",
+					damage_resolution.school,
+					" | School Rating: ",
+					damage_resolution.school_rating,
+					" | Post School: ",
+					damage_resolution.post_school_damage,
+					" | Element: ",
+					damage_resolution.element,
+					" | Element Rating: ",
+					damage_resolution.element_rating,
+					" | Final Damage: ",
+					damage_resolution.final_damage,
 					" | Damage: ",
 					applied_damage,
 					" | Ticks restantes: ",
