@@ -771,13 +771,6 @@ func _on_client_skill_cast_requested(
 						definition.skill_id
 					),
 
-					# Legacy metadata temporal.
-					"damage_type": (
-						definition
-						.damage_profile
-						.damage_type
-					),
-
 					"school": (
 						damage_resolution.school
 					),
@@ -909,13 +902,6 @@ func _on_client_skill_cast_requested(
 					damage_resolution.final_damage
 				),
 
-				# Legacy metadata temporal.
-				"damage_type": (
-					definition
-					.damage_profile
-					.damage_type
-				),
-
 				"entity_id": (
 					damage_target.entity_id
 				),
@@ -1029,12 +1015,6 @@ func _on_client_skill_cast_requested(
 						definition.skill_id
 					),
 
-					"damage_type": (
-						definition
-						.status_effect_profile
-						.damage_type
-					),
-
 					"school": (
 						periodic_damage_context.school
 					),
@@ -1122,12 +1102,6 @@ func _on_client_skill_cast_requested(
 					definition
 					.status_effect_profile
 					.effect_id
-				),
-
-				"damage_type": (
-					definition
-					.status_effect_profile
-					.damage_type
 				),
 
 				"tick_damage": (

@@ -51,6 +51,18 @@ static func validate_contract() -> String:
 		.validate_contract()
 	)
 
+	var combat_damage_error := (
+		ServerCombatDamageContract
+		.validate_contract()
+	)
+
+
+	if not combat_damage_error.is_empty():
+		return (
+			"Combat Damage | "
+			+
+			combat_damage_error
+		)
 
 	if not unified_damage_error.is_empty():
 		return (

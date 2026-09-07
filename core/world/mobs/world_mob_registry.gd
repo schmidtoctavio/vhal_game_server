@@ -806,7 +806,7 @@ func apply_status_effect_to_mob(
 		" | Effect: ",
 		status_effect.effect_id,
 		" | Raw Damage/Tick: ",
-		status_effect.damage_per_tick,
+		status_effect.damage_context.raw_damage,
 		" | Ticks: ",
 		status_effect.ticks_remaining,
 		" | School: ",
@@ -1016,10 +1016,6 @@ func _on_status_effect_timer_timeout() -> void:
 				source[
 					"status_effect_id"
 				] = status_effect.effect_id
-
-				source[
-					"damage_type"
-				] = status_effect.damage_type
 
 				source[
 					"school"

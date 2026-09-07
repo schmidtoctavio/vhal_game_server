@@ -13,21 +13,6 @@ var damage_context: ServerDamageResolutionContext = null
 
 
 # =========================================================
-# LEGACY READ VIEW
-#
-# Se conserva temporalmente hasta F24-E.
-#
-# damage_per_tick
-# =
-# RAW damage por tick
-# =========================================================
-
-var damage_type: String = ""
-
-var damage_per_tick: int = 0
-
-
-# =========================================================
 # SCHEDULER
 # =========================================================
 
@@ -125,13 +110,10 @@ static func create(
 	)
 
 
-	state.effect_id = profile.effect_id
+	state.effect_id = (
+		profile.effect_id
+	)
 
-
-	# -----------------------------------------------------
-	# Copiamos el contexto para que el Status Runtime posea
-	# su propio snapshot ofensivo.
-	# -----------------------------------------------------
 
 	state.damage_context = (
 		ServerDamageResolutionContext.new(
@@ -152,18 +134,6 @@ static func create(
 		not state.damage_context.is_valid()
 	):
 		return null
-
-
-	# Legacy aliases temporales.
-
-	state.damage_type = (
-		profile.damage_type
-	)
-
-
-	state.damage_per_tick = (
-		state.damage_context.raw_damage
-	)
 
 
 	state.tick_interval_msec = maxi(
@@ -239,13 +209,7 @@ func is_valid() -> bool:
 
 		and
 
-		damage_per_tick
-		==
-		damage_context.raw_damage
-
-		and
-
-		damage_per_tick > 0
+		damage_context.raw_damage > 0
 
 		and
 

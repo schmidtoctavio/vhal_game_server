@@ -16,22 +16,6 @@ var tick_count: int = 0
 var refresh_policy: String = ""
 
 
-# =========================================================
-# LEGACY DAMAGE TYPE
-#
-# WorldMobStatusEffectRuntime y los payloads actuales
-# todavía consumen este shorthand.
-# =========================================================
-
-var damage_type: String:
-	get:
-		if damage_profile == null:
-			return ""
-
-
-		return damage_profile.damage_type
-
-
 func _init(
 	p_effect_id: String = "",
 	p_damage_profile: ServerSkillDamageProfile = null,

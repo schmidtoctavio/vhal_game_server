@@ -355,7 +355,11 @@ static func validate_contract() -> String:
 
 
 	# -----------------------------------------------------
-	# POISON TODAVÍA NO IMPLEMENTADO
+	# POISON NO ES DIRECT DAMAGE
+	#
+	# Poison utiliza ServerSkillPeriodicDamageRules.
+	# Por lo tanto no debe producir Raw Damage directo
+	# mediante este resolver.
 	# -----------------------------------------------------
 
 	var poison := (
@@ -376,7 +380,7 @@ static func validate_contract() -> String:
 		mage_derived
 	) != 0:
 		return (
-			"Poison todavía no debe producir "
+			"Poison no debe producir "
 			+
 			"Raw Damage directo."
 		)

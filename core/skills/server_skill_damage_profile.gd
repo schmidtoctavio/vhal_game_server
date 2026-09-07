@@ -3,25 +3,6 @@ extends RefCounted
 
 
 # =========================================================
-# LEGACY DAMAGE TYPES
-#
-# Compatibilidad temporal F23.
-#
-# El dominio canónico nuevo usa:
-#
-# school
-# element
-# delivery
-# =========================================================
-
-const DAMAGE_PHYSICAL: String = "physical"
-
-const DAMAGE_MAGIC: String = "magic"
-
-const DAMAGE_POISON: String = "poison"
-
-
-# =========================================================
 # DAMAGE TAXONOMY
 # =========================================================
 
@@ -39,117 +20,35 @@ var can_critical: bool = false
 
 
 # =========================================================
-# LEGACY VIEW
-# =========================================================
-
-var damage_type: String:
-	get:
-		if (
-			element
-			==
-			ServerDamageTaxonomy.ELEMENT_POISON
-		):
-			return DAMAGE_POISON
-
-
-		if (
-			school
-			==
-			ServerDamageTaxonomy.SCHOOL_MAGICAL
-		):
-			return DAMAGE_MAGIC
-
-
-		return DAMAGE_PHYSICAL
-
-
-# =========================================================
 # CONSTRUCTOR
 # =========================================================
 
 func _init(
-	p_school_or_legacy_type: String = "",
+	p_school: String = "",
 	p_element: String = ServerDamageTaxonomy.ELEMENT_NONE,
 	p_delivery: String = ServerDamageTaxonomy.DELIVERY_DIRECT,
 	p_can_critical: bool = false
 ) -> void:
-	var normalized_type := (
-		p_school_or_legacy_type
+	school = (
+		p_school
 		.strip_edges()
 		.to_lower()
 	)
 
 
-	var resolved_school := normalized_type
-
-
-	var resolved_element := (
+	element = (
 		p_element
 		.strip_edges()
 		.to_lower()
 	)
 
 
-	var resolved_delivery := (
+	delivery = (
 		p_delivery
 		.strip_edges()
 		.to_lower()
 	)
 
-
-	# -----------------------------------------------------
-	# LEGACY:
-	#
-	# "magic"
-	# →
-	# magical
-	# -----------------------------------------------------
-
-	if normalized_type == DAMAGE_MAGIC:
-		resolved_school = (
-			ServerDamageTaxonomy.SCHOOL_MAGICAL
-		)
-
-
-	# -----------------------------------------------------
-	# LEGACY:
-	#
-	# "poison"
-	# →
-	# magical / poison / periodic
-	# -----------------------------------------------------
-
-	elif normalized_type == DAMAGE_POISON:
-		resolved_school = (
-			ServerDamageTaxonomy.SCHOOL_MAGICAL
-		)
-
-
-		if (
-			resolved_element
-			==
-			ServerDamageTaxonomy.ELEMENT_NONE
-		):
-			resolved_element = (
-				ServerDamageTaxonomy.ELEMENT_POISON
-			)
-
-
-		if (
-			resolved_delivery
-			==
-			ServerDamageTaxonomy.DELIVERY_DIRECT
-		):
-			resolved_delivery = (
-				ServerDamageTaxonomy.DELIVERY_PERIODIC
-			)
-
-
-	school = resolved_school
-
-	element = resolved_element
-
-	delivery = resolved_delivery
 
 	can_critical = p_can_critical
 
