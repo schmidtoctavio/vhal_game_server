@@ -28,6 +28,14 @@ signal mob_periodic_damage_applied(
 	status_effect_id: String
 )
 
+signal mob_damaged(
+	entity_id: String,
+	map_id: String,
+	source: Dictionary,
+	mob_snapshot: Dictionary,
+	applied_damage: int
+)
+
 # =========================================================
 # DEFINICIONES
 # =========================================================
@@ -87,7 +95,28 @@ func initialize() -> Error:
 			5_000,
 			50,
 			3.0,
-			100
+
+			# Damage Defense
+			100,
+			0,
+			0,
+			0,
+			0,
+			0,
+
+			# Hit Profile
+			100,
+			0,
+			0.0,
+			0.0,
+
+			# PvE Combat
+			5.0,
+			10.0,
+			2.5,
+			1.5,
+			1.25,
+			200
 		)
 	)
 
@@ -570,6 +599,28 @@ func get_mob(
 		as WorldMobRuntimeState
 	)
 
+func get_all_mobs() -> Array[WorldMobRuntimeState]:
+	var result: Array[WorldMobRuntimeState] = []
+
+
+	for value: Variant in mobs_by_entity_id.values():
+		var mob := (
+			value
+			as WorldMobRuntimeState
+		)
+
+
+		if mob == null:
+			continue
+
+
+		result.append(
+			mob
+		)
+
+
+	return result
+
 # =========================================================
 # DAMAGE AUTORITATIVO DE MOB
 # =========================================================
@@ -624,6 +675,23 @@ func apply_damage_to_mob(
 		not mob.is_alive()
 	)
 
+	var damage_snapshot := (
+		mob.to_snapshot()
+	)
+
+
+	if not damage_snapshot.is_empty():
+		mob_damaged.emit(
+			mob.entity_id,
+			mob.map_id,
+			source.duplicate(
+				true
+			),
+			damage_snapshot.duplicate(
+				true
+			),
+			applied_damage
+		)
 
 	# -----------------------------------------------------
 	# TRANSICIÓN ALIVE → DEAD
@@ -635,6 +703,7 @@ func apply_damage_to_mob(
 
 	if died:
 		mob.clear_status_effects()
+		mob.reset_combat()
 		var mob_snapshot := (
 			mob.to_snapshot()
 		)

@@ -33,6 +33,7 @@ var rotation_y: float = 0.0
 
 var vitals: ServerVitalsState = null
 
+var combat_runtime: WorldMobCombatRuntime = null
 
 var status_effects_by_id: Dictionary = {}
 
@@ -107,6 +108,13 @@ static func create(
 		0
 	)
 
+	state.combat_runtime = (
+		WorldMobCombatRuntime.new()
+	)
+
+
+	if not state.combat_runtime.is_valid():
+		return null
 
 	return state
 
@@ -128,6 +136,10 @@ func is_valid() -> bool:
 		vitals != null
 		and
 		vitals.is_valid()
+		and
+		combat_runtime != null
+		and
+		combat_runtime.is_valid()
 	)
 
 
@@ -224,6 +236,17 @@ func clear_status_effects() -> void:
 	status_effects_by_id.clear()
 
 # =========================================================
+# COMBAT RUNTIME
+# =========================================================
+
+func reset_combat() -> void:
+	if combat_runtime == null:
+		return
+
+
+	combat_runtime.reset()
+
+# =========================================================
 # RESPAWN
 # =========================================================
 
@@ -241,6 +264,7 @@ func respawn_at_spawn() -> bool:
 
 
 	clear_status_effects()
+	reset_combat()
 
 	vitals.set_hp(
 		vitals.max_hp

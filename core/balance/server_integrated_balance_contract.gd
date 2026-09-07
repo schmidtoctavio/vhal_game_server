@@ -61,6 +61,18 @@ static func validate_contract() -> String:
 		.validate_contract()
 	)
 
+	var pve_enemy_combat_error := (
+		ServerPveEnemyCombatContract
+		.validate_contract()
+	)
+
+
+	if not pve_enemy_combat_error.is_empty():
+		return (
+			"PvE Enemy Combat | "
+			+
+			pve_enemy_combat_error
+		)
 
 	if not hit_resolution_error.is_empty():
 		return (

@@ -221,6 +221,31 @@ func _on_client_move_requested(
 
 		return
 
+	if (
+		session.vitals == null
+		or
+		not session.vitals.is_valid()
+	):
+		game_server.reject_authenticated_peer(
+			peer_id,
+			"Los Vitals de movimiento son inválidos."
+		)
+
+
+		return
+
+
+	if session.vitals.hp <= 0:
+		_reject_client_move(
+			peer_id,
+			request_id,
+			session,
+			target,
+			"character_not_alive"
+		)
+
+
+		return
 
 	var movement_speed := (
 		session.derived_stats.movement_speed
