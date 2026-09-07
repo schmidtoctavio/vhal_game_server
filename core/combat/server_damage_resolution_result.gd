@@ -23,6 +23,10 @@ var delivery: String = ""
 
 var raw_damage: int = 0
 
+var outcome_damage_multiplier: float = 1.0
+
+var post_outcome_damage: int = 0
+
 var critical_applied: bool = false
 
 var critical_roll: float = 0.0
@@ -71,7 +75,9 @@ func _init(
 	p_post_school_damage: int = 0,
 	p_element_rating: int = 0,
 	p_post_element_damage: int = 0,
-	p_final_damage: int = 0
+	p_final_damage: int = 0,
+	p_outcome_damage_multiplier: float = 1.0,
+	p_post_outcome_damage: int = 0
 ) -> void:
 	source_kind = (
 		p_source_kind
@@ -109,6 +115,14 @@ func _init(
 
 
 	raw_damage = p_raw_damage
+
+	outcome_damage_multiplier = (
+		p_outcome_damage_multiplier
+	)
+
+	post_outcome_damage = (
+		p_post_outcome_damage
+	)
 
 	critical_applied = p_critical_applied
 
@@ -171,6 +185,18 @@ func is_valid() -> bool:
 
 		and
 
+		outcome_damage_multiplier > 0.0
+
+		and
+
+		outcome_damage_multiplier <= 1.0
+
+		and
+
+		post_outcome_damage > 0
+
+		and
+
 		critical_roll >= 0.0
 
 		and
@@ -230,6 +256,16 @@ func to_snapshot() -> Dictionary:
 
 		"damage": {
 			"raw": raw_damage,
+
+			"defensive_outcome": {
+				"damage_multiplier": (
+					outcome_damage_multiplier
+				),
+
+				"post_damage": (
+					post_outcome_damage
+				),
+			},
 
 			"critical": {
 				"applied": critical_applied,

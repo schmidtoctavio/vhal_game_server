@@ -31,6 +31,14 @@ var base_lightning_resistance_rating: int = 0
 
 var base_poison_resistance_rating: int = 0
 
+var base_accuracy_rating: int = 100
+
+var base_evasion_rating: int = 0
+
+var base_dodge_chance: float = 0.0
+
+var base_block_chance: float = 0.0
+
 var experience_reward: int = 0
 
 var respawn_delay_seconds: float = 5.0
@@ -52,7 +60,11 @@ static func create(
 	new_base_fire_resistance_rating: int = 0,
 	new_base_cold_resistance_rating: int = 0,
 	new_base_lightning_resistance_rating: int = 0,
-	new_base_poison_resistance_rating: int = 0
+	new_base_poison_resistance_rating: int = 0,
+	new_base_accuracy_rating: int = 100,
+	new_base_evasion_rating: int = 0,
+	new_base_dodge_chance: float = 0.0,
+	new_base_block_chance: float = 0.0
 ) -> WorldMobDefinition:
 	var definition := WorldMobDefinition.new()
 
@@ -96,6 +108,22 @@ static func create(
 
 	definition.base_poison_resistance_rating = (
 		new_base_poison_resistance_rating
+	)
+
+	definition.base_accuracy_rating = (
+		new_base_accuracy_rating
+	)
+
+	definition.base_evasion_rating = (
+		new_base_evasion_rating
+	)
+
+	definition.base_dodge_chance = (
+		new_base_dodge_chance
+	)
+
+	definition.base_block_chance = (
+		new_base_block_chance
 	)
 
 	definition.experience_reward = (
@@ -154,6 +182,28 @@ func is_valid() -> bool:
 	if base_poison_resistance_rating < 0:
 		return false
 
+	if base_accuracy_rating <= 0:
+		return false
+
+
+	if base_evasion_rating < 0:
+		return false
+
+
+	if (
+		base_dodge_chance < 0.0
+		or
+		base_dodge_chance > 1.0
+	):
+		return false
+
+
+	if (
+		base_block_chance < 0.0
+		or
+		base_block_chance > 1.0
+	):
+		return false
 
 	if respawn_delay_seconds <= 0.0:
 		return false

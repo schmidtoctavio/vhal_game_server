@@ -146,6 +146,22 @@ const POISON_RESISTANCE_RATING: StringName = (
 	&"poison_resistance_rating"
 )
 
+const ACCURACY_RATING: StringName = (
+	&"accuracy_rating"
+)
+
+const EVASION_RATING: StringName = (
+	&"evasion_rating"
+)
+
+const DODGE_CHANCE: StringName = (
+	&"dodge_chance"
+)
+
+const BLOCK_CHANCE: StringName = (
+	&"block_chance"
+)
+
 const CRITICAL_STRIKE_CHANCE: StringName = (
 	&"critical_strike_chance"
 )
@@ -258,6 +274,26 @@ const DEFINITIONS: Dictionary = {
 	POISON_RESISTANCE_RATING: {
 		"domain_id": "combat_secondary",
 		"numeric_kind": "int",
+	},
+
+	ACCURACY_RATING: {
+		"domain_id": "combat_secondary",
+		"numeric_kind": "int",
+	},
+
+	EVASION_RATING: {
+		"domain_id": "combat_secondary",
+		"numeric_kind": "int",
+	},
+
+	DODGE_CHANCE: {
+		"domain_id": "combat_secondary",
+		"numeric_kind": "number",
+	},
+
+	BLOCK_CHANCE: {
+		"domain_id": "combat_secondary",
+		"numeric_kind": "number",
 	},
 
 	CRITICAL_STRIKE_CHANCE: {

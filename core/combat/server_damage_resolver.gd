@@ -30,7 +30,8 @@ static func resolve(
 	defense_profile: ServerDamageDefenseProfile,
 	critical_strike_chance: float = 0.0,
 	critical_damage_multiplier: float = 1.0,
-	critical_roll: float = 0.0
+	critical_roll: float = 0.0,
+	outcome_damage_multiplier: float = 1.0
 ) -> ServerDamageResolutionResult:
 	if context == null:
 		return null
@@ -47,6 +48,40 @@ static func resolve(
 	if not defense_profile.is_valid():
 		return null
 
+	# -----------------------------------------------------
+	# DEFENSIVE OUTCOME DAMAGE MULTIPLIER
+	#
+	# Hit / Block ya fueron decididos antes de entrar al
+	# Damage Resolver.
+	#
+	# hit   → 1.0
+	# block → 0.5 foundation
+	#
+	# Miss / Dodge NO deben llamar al Damage Resolver.
+	# -----------------------------------------------------
+
+	if (
+		outcome_damage_multiplier <= 0.0
+		or
+		outcome_damage_multiplier > 1.0
+	):
+		return null
+
+
+	var post_outcome_damage := int(
+		floor(
+			float(context.raw_damage)
+			*
+			outcome_damage_multiplier
+		)
+	)
+
+
+	post_outcome_damage = maxi(
+		post_outcome_damage,
+		1
+	)
+
 
 	# -----------------------------------------------------
 	# CRITICAL
@@ -59,7 +94,7 @@ static func resolve(
 	var resolved_critical_multiplier := 1.0
 
 	var pre_mitigation_damage := (
-		context.raw_damage
+		post_outcome_damage
 	)
 
 
@@ -106,7 +141,7 @@ static func resolve(
 		pre_mitigation_damage = (
 			ServerCriticalStrikeRules
 			.calculate_critical_damage(
-				context.raw_damage,
+				post_outcome_damage,
 				resolved_critical_applied,
 				critical_damage_multiplier
 			)
@@ -222,7 +257,9 @@ static func resolve(
 			post_school_damage,
 			element_rating,
 			post_element_damage,
-			final_damage
+			final_damage,
+			outcome_damage_multiplier,
+			post_outcome_damage
 		)
 	)
 

@@ -421,6 +421,48 @@ func _on_client_basic_attack_requested(
 		return
 
 	# -----------------------------------------------------
+	# HIT PROFILES AUTORITATIVOS
+	# -----------------------------------------------------
+
+	var attacker_hit_profile := (
+		ServerCharacterCombatHitProfileResolver
+		.resolve(
+			session.primary_stats,
+			session.get_equipment_snapshot()
+		)
+	)
+
+
+	var defender_hit_profile := (
+		ServerMobCombatHitProfileResolver
+		.resolve(
+			mob.definition
+		)
+	)
+
+
+	if (
+		attacker_hit_profile == null
+		or
+		defender_hit_profile == null
+		or
+		not attacker_hit_profile.is_valid()
+		or
+		not defender_hit_profile.is_valid()
+	):
+		_send_result(
+			peer_id,
+			request_id,
+			false,
+			"runtime_failure",
+			target,
+			attack_profile
+		)
+
+
+		return
+
+	# -----------------------------------------------------
 	# RANGO AUTORITATIVO
 	# -----------------------------------------------------
 
@@ -534,6 +576,104 @@ func _on_client_basic_attack_requested(
 		return
 
 	# -----------------------------------------------------
+	# HIT / DEFENSIVE OUTCOME
+	#
+	# El ataque ya fue autorizado y consume cooldown
+	# aunque resulte Miss o Dodge.
+	#
+	# Todos los rolls pertenecen al Game Server.
+	# -----------------------------------------------------
+
+	var hit_roll := randf()
+
+	var dodge_roll := randf()
+
+	var block_roll := randf()
+
+
+	var hit_resolution := (
+		ServerHitResolutionRules.resolve(
+			attacker_hit_profile,
+			defender_hit_profile,
+			hit_roll,
+			dodge_roll,
+			block_roll
+		)
+	)
+
+
+	if (
+		hit_resolution == null
+		or
+		not hit_resolution.is_valid()
+	):
+		session.basic_attack_runtime.reset()
+
+
+		_send_result(
+			peer_id,
+			request_id,
+			false,
+			"runtime_failure",
+			target,
+			attack_profile
+		)
+
+
+		return
+
+
+	# -----------------------------------------------------
+	# MISS / DODGE
+	#
+	# La acción fue correctamente ejecutada.
+	#
+	# accepted = true
+	#
+	# pero no existe mutación de HP.
+	# -----------------------------------------------------
+
+	if not hit_resolution.deals_damage():
+		_send_result(
+			peer_id,
+			request_id,
+			true,
+			"ok",
+			target,
+			attack_profile
+		)
+
+
+		print(
+			"BasicAttackCoordinator | Ataque resuelto sin daño",
+			" | Request: ",
+			request_id,
+			" | Peer: ",
+			peer_id,
+			" | Personaje: ",
+			session.character_name,
+			" | Entity: ",
+			mob.entity_id,
+			" | Accuracy: ",
+			attacker_hit_profile.accuracy_rating,
+			" | Evasion: ",
+			defender_hit_profile.evasion_rating,
+			" | Hit Chance: ",
+			hit_resolution.hit_chance,
+			" | Hit Roll: ",
+			hit_resolution.hit_roll,
+			" | Dodge Chance: ",
+			hit_resolution.dodge_chance,
+			" | Dodge Roll: ",
+			hit_resolution.dodge_roll,
+			" | Outcome: ",
+			hit_resolution.outcome
+		)
+
+
+		return
+
+	# -----------------------------------------------------
 	# UNIFIED DAMAGE RESOLUTION
 	#
 	# El roll sigue siendo generado por Game Server.
@@ -556,7 +696,8 @@ func _on_client_basic_attack_requested(
 			damage_defense_profile,
 			session.derived_stats.critical_strike_chance,
 			session.derived_stats.critical_damage_multiplier,
-			critical_roll
+			critical_roll,
+			hit_resolution.damage_multiplier
 		)
 	)
 
@@ -649,6 +790,10 @@ func _on_client_basic_attack_requested(
 					damage_resolution.delivery
 				),
 
+				"hit_outcome": (
+					hit_resolution.outcome
+				),
+
 			}
 		)
 	)
@@ -737,6 +882,24 @@ func _on_client_basic_attack_requested(
 		session.character_name,
 		" | Entity: ",
 		mob.entity_id,
+		" | Accuracy: ",
+		attacker_hit_profile.accuracy_rating,
+		" | Evasion: ",
+		defender_hit_profile.evasion_rating,
+		" | Hit Chance: ",
+		hit_resolution.hit_chance,
+		" | Hit Roll: ",
+		hit_resolution.hit_roll,
+		" | Dodge Chance: ",
+		hit_resolution.dodge_chance,
+		" | Dodge Roll: ",
+		hit_resolution.dodge_roll,
+		" | Block Chance: ",
+		hit_resolution.block_chance,
+		" | Block Roll: ",
+		hit_resolution.block_roll,
+		" | Outcome: ",
+		hit_resolution.outcome,
 		" | Mode: ",
 		String(
 			attack_profile.get(
@@ -765,6 +928,10 @@ func _on_client_basic_attack_requested(
 		session.derived_stats.physical_power,
 		" | Pre-Crit: ",
 		pre_critical_damage,
+		" | Outcome Multiplier: ",
+		hit_resolution.damage_multiplier,
+		" | Post Outcome: ",
+		damage_resolution.post_outcome_damage,
 		" | Crit Chance: ",
 		session.derived_stats.critical_strike_chance,
 		" | Crit Roll: ",

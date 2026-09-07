@@ -56,6 +56,19 @@ static func validate_contract() -> String:
 		.validate_contract()
 	)
 
+	var hit_resolution_error := (
+		ServerHitResolutionContract
+		.validate_contract()
+	)
+
+
+	if not hit_resolution_error.is_empty():
+		return (
+			"Hit Resolution | "
+			+
+			hit_resolution_error
+		)
+
 
 	if not combat_damage_error.is_empty():
 		return (
