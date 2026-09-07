@@ -59,6 +59,44 @@ static func calculate_raw_damage(
 		)
 	)
 
+# =========================================================
+# DAMAGE RESOLUTION CONTEXT
+# =========================================================
+
+static func build_resolution_context(
+	definition: ServerSkillDefinition,
+	derived_stats: ServerCharacterDerivedStatsState
+) -> ServerDamageResolutionContext:
+	if definition == null:
+		return null
+
+
+	if definition.damage_profile == null:
+		return null
+
+
+	var raw_damage := (
+		calculate_raw_damage(
+			definition,
+			derived_stats
+		)
+	)
+
+
+	if raw_damage <= 0:
+		return null
+
+
+	return (
+		definition
+		.damage_profile
+		.build_resolution_context(
+			raw_damage,
+			ServerDamageResolutionContext.SOURCE_SKILL,
+			definition.skill_id
+		)
+	)
+
 
 # =========================================================
 # CONTRACT
@@ -89,12 +127,38 @@ static func validate_contract() -> String:
 
 
 	if (
-		fire_ball.damage_profile.damage_type
+		fire_ball.damage_profile.school
 		!=
-		ServerSkillDamageProfile.DAMAGE_MAGIC
+		ServerDamageTaxonomy.SCHOOL_MAGICAL
 	):
 		return (
-			"Fire Ball debe utilizar Magic Damage."
+			"Fire Ball debe utilizar Magical School."
+		)
+
+
+	if (
+		fire_ball.damage_profile.element
+		!=
+		ServerDamageTaxonomy.ELEMENT_FIRE
+	):
+		return (
+			"Fire Ball debe utilizar Fire Element."
+		)
+
+
+	if (
+		fire_ball.damage_profile.delivery
+		!=
+		ServerDamageTaxonomy.DELIVERY_DIRECT
+	):
+		return (
+			"Fire Ball debe utilizar Direct Delivery."
+		)
+
+
+	if fire_ball.damage_profile.can_critical:
+		return (
+			"Fire Ball foundation todavía no debe criticar."
 		)
 
 	if (
@@ -211,6 +275,58 @@ static func validate_contract() -> String:
 			"debe resolver Raw Damage 90."
 		)
 
+	var fire_ball_context := (
+		build_resolution_context(
+			fire_ball,
+			mage_derived
+		)
+	)
+
+
+	if (
+		fire_ball_context == null
+		or
+		not fire_ball_context.is_valid()
+	):
+		return (
+			"No se pudo construir Fire Ball Damage Context."
+		)
+
+
+	if fire_ball_context.raw_damage != 90:
+		return (
+			"Fire Ball Damage Context debe conservar Raw Damage 90."
+		)
+
+
+	if (
+		fire_ball_context.school
+		!=
+		ServerDamageTaxonomy.SCHOOL_MAGICAL
+	):
+		return (
+			"Fire Ball Context debe ser Magical."
+		)
+
+
+	if (
+		fire_ball_context.element
+		!=
+		ServerDamageTaxonomy.ELEMENT_FIRE
+	):
+		return (
+			"Fire Ball Context debe ser Fire."
+		)
+
+
+	if (
+		fire_ball_context.delivery
+		!=
+		ServerDamageTaxonomy.DELIVERY_DIRECT
+	):
+		return (
+			"Fire Ball Context debe ser Direct."
+		)
 
 	# -----------------------------------------------------
 	# HEAL NO ES DAMAGE

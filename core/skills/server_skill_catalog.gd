@@ -42,7 +42,10 @@ static func get_definition(
 				),
 
 				ServerSkillDamageProfile.new(
-					ServerSkillDamageProfile.DAMAGE_MAGIC
+					ServerDamageTaxonomy.SCHOOL_MAGICAL,
+					ServerDamageTaxonomy.ELEMENT_FIRE,
+					ServerDamageTaxonomy.DELIVERY_DIRECT,
+					false
 				),
 
 				6.0
@@ -67,7 +70,14 @@ static func get_definition(
 
 				ServerSkillStatusEffectProfile.new(
 					POISON_ID,
-					ServerSkillDamageProfile.DAMAGE_POISON,
+
+					ServerSkillDamageProfile.new(
+						ServerDamageTaxonomy.SCHOOL_MAGICAL,
+						ServerDamageTaxonomy.ELEMENT_POISON,
+						ServerDamageTaxonomy.DELIVERY_PERIODIC,
+						false
+					),
+
 					1.0,
 					5,
 					ServerSkillStatusEffectProfile.REFRESH_REPLACE

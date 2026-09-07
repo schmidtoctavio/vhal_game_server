@@ -14,7 +14,7 @@ const TRAINING_GOBLIN_ARMOR: int = 100
 
 
 # =========================================================
-# VALIDAR F22 INTEGRADO
+# VALIDAR BALANCE INTEGRADO
 # =========================================================
 
 static func validate_contract() -> String:
@@ -22,6 +22,18 @@ static func validate_contract() -> String:
 		_validate_class_profiles()
 	)
 
+	var damage_context_error := (
+		ServerDamageResolutionContext
+		.validate_contract()
+	)
+
+
+	if not damage_context_error.is_empty():
+		return (
+			"Damage Domain | "
+			+
+			damage_context_error
+		)
 
 	if not class_profile_error.is_empty():
 		return (

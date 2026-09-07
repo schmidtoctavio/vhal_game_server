@@ -32,6 +32,55 @@ static func calculate_tick_damage(
 		)
 	)
 
+# =========================================================
+# PERIODIC DAMAGE RESOLUTION CONTEXT
+# =========================================================
+
+static func build_tick_resolution_context(
+	definition: ServerSkillDefinition,
+	derived_stats: ServerCharacterDerivedStatsState
+) -> ServerDamageResolutionContext:
+	if definition == null:
+		return null
+
+
+	if definition.status_effect_profile == null:
+		return null
+
+
+	if (
+		definition
+		.status_effect_profile
+		.damage_profile
+		==
+		null
+	):
+		return null
+
+
+	var tick_damage := (
+		calculate_tick_damage(
+			definition,
+			derived_stats
+		)
+	)
+
+
+	if tick_damage <= 0:
+		return null
+
+
+	return (
+		definition
+		.status_effect_profile
+		.damage_profile
+		.build_resolution_context(
+			tick_damage,
+			ServerDamageResolutionContext.SOURCE_STATUS_EFFECT,
+			definition.status_effect_profile.effect_id
+		)
+	)
+
 
 static func validate_contract() -> String:
 	var poison := (
@@ -66,12 +115,53 @@ static func validate_contract() -> String:
 	):
 		return "Poison debe utilizar effect_id poison."
 
+	var poison_damage_profile := (
+		poison
+		.status_effect_profile
+		.damage_profile
+	)
+
+
+	if poison_damage_profile == null:
+		return (
+			"Poison no posee Damage Profile periódico."
+		)
+
+
 	if (
-		poison.status_effect_profile.damage_type
+		poison_damage_profile.school
 		!=
-		ServerSkillDamageProfile.DAMAGE_POISON
+		ServerDamageTaxonomy.SCHOOL_MAGICAL
 	):
-		return "Poison debe utilizar Poison Damage."
+		return (
+			"Poison debe utilizar Magical School."
+		)
+
+
+	if (
+		poison_damage_profile.element
+		!=
+		ServerDamageTaxonomy.ELEMENT_POISON
+	):
+		return (
+			"Poison debe utilizar Poison Element."
+		)
+
+
+	if (
+		poison_damage_profile.delivery
+		!=
+		ServerDamageTaxonomy.DELIVERY_PERIODIC
+	):
+		return (
+			"Poison debe utilizar Periodic Delivery."
+		)
+
+
+	if poison_damage_profile.can_critical:
+		return (
+			"Poison foundation no debe criticar por tick."
+		)
 
 	if not is_equal_approx(
 		poison.status_effect_profile.tick_interval_seconds,
@@ -147,6 +237,59 @@ static func validate_contract() -> String:
 			"Poison con Physical Power 93 "
 			+
 			"debe producir 18 Damage por tick."
+		)
+
+	var poison_context := (
+		build_tick_resolution_context(
+			poison,
+			archer_derived
+		)
+	)
+
+
+	if (
+		poison_context == null
+		or
+		not poison_context.is_valid()
+	):
+		return (
+			"No se pudo construir Poison Damage Context."
+		)
+
+
+	if poison_context.raw_damage != 18:
+		return (
+			"Poison Context debe conservar Damage 18."
+		)
+
+
+	if (
+		poison_context.school
+		!=
+		ServerDamageTaxonomy.SCHOOL_MAGICAL
+	):
+		return (
+			"Poison Context debe ser Magical."
+		)
+
+
+	if (
+		poison_context.element
+		!=
+		ServerDamageTaxonomy.ELEMENT_POISON
+	):
+		return (
+			"Poison Context debe ser Poison."
+		)
+
+
+	if (
+		poison_context.delivery
+		!=
+		ServerDamageTaxonomy.DELIVERY_PERIODIC
+	):
+		return (
+			"Poison Context debe ser Periodic."
 		)
 
 	return ""

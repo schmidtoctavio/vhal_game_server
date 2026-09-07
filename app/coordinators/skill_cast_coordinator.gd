@@ -410,7 +410,26 @@ func _on_client_skill_cast_requested(
 
 			return
 
+	# -----------------------------------------------------
+	# DAMAGE TARGET AUTORITATIVO
+	#
+	# Fire Ball y Poison comparten el mismo target runtime.
+	#
+	# La validación semántica/map/range ya ocurrió antes.
+	# Acá resolvemos la instancia que será mutada.
+	# -----------------------------------------------------
 
+	if (
+		definition.skill_id
+		==
+		ServerSkillCatalog.FIRE_BALL_ID
+
+		or
+
+		definition.skill_id
+		==
+		ServerSkillCatalog.POISON_ID
+	):
 		var target_entity_id := String(
 			target.get(
 				"entity_id",
@@ -441,6 +460,7 @@ func _on_client_skill_cast_requested(
 				0.0,
 				{}
 			)
+
 
 			return
 
