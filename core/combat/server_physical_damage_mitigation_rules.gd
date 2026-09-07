@@ -5,77 +5,30 @@ extends RefCounted
 # =========================================================
 # PHYSICAL DAMAGE — ARMOR MITIGATION
 #
-# F22-G1-B
+# Compatibility wrapper.
 #
-# Foundation:
+# La curva genérica vive ahora en:
 #
-# reduction
-# =
-# armor
-# /
-# (armor + K)
+# ServerResistanceMitigationRules
 #
-# Equivalent:
-#
-# post_mitigation_damage
-# =
-# pre_mitigation_damage
-# *
-# K
-# /
-# (armor + K)
-#
-# K queda centralizado aquí.
-# Más adelante podrá evolucionar según Level,
-# Content Tier o PvP Profile sin duplicar fórmula.
+# Basic Attack conserva esta API hasta que F24-C/F24-D
+# migren todo al Unified Damage Resolver.
 # =========================================================
 
-const ARMOR_MITIGATION_CONSTANT: float = 1000.0
+const ARMOR_MITIGATION_CONSTANT: float = (
+	ServerResistanceMitigationRules
+	.RATING_MITIGATION_CONSTANT
+)
 
-
-# =========================================================
-# CALCULAR POST-MITIGATION DAMAGE
-# =========================================================
 
 static func calculate_post_mitigation_damage(
 	pre_mitigation_damage: int,
 	armor_rating: int
 ) -> int:
-	if pre_mitigation_damage <= 0:
-		return 0
-
-
-	if armor_rating < 0:
-		return 0
-
-
-	if armor_rating == 0:
-		return pre_mitigation_damage
-
-
-	var denominator := (
-		ARMOR_MITIGATION_CONSTANT
-		+
-		float(armor_rating)
-	)
-
-
-	if denominator <= 0.0:
-		return 0
-
-
-	var mitigated_damage := int(
-		floor(
-			float(pre_mitigation_damage)
-			*
-			ARMOR_MITIGATION_CONSTANT
-			/
-			denominator
+	return (
+		ServerResistanceMitigationRules
+		.calculate_post_mitigation_damage(
+			pre_mitigation_damage,
+			armor_rating
 		)
-	)
-
-
-	return maxi(
-		mitigated_damage,
-		1
 	)

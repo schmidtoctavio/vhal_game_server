@@ -21,9 +21,20 @@ var max_hp: int = 1
 
 var base_armor_rating: int = 0
 
+var base_magic_resistance_rating: int = 0
+
+var base_fire_resistance_rating: int = 0
+
+var base_cold_resistance_rating: int = 0
+
+var base_lightning_resistance_rating: int = 0
+
+var base_poison_resistance_rating: int = 0
+
 var experience_reward: int = 0
 
 var respawn_delay_seconds: float = 5.0
+
 
 # =========================================================
 # CREAR
@@ -36,7 +47,12 @@ static func create(
 	new_max_hp: int,
 	new_experience_reward: int,
 	new_respawn_delay_seconds: float = 5.0,
-	new_base_armor_rating: int = 0
+	new_base_armor_rating: int = 0,
+	new_base_magic_resistance_rating: int = 0,
+	new_base_fire_resistance_rating: int = 0,
+	new_base_cold_resistance_rating: int = 0,
+	new_base_lightning_resistance_rating: int = 0,
+	new_base_poison_resistance_rating: int = 0
 ) -> WorldMobDefinition:
 	var definition := WorldMobDefinition.new()
 
@@ -62,6 +78,26 @@ static func create(
 		new_base_armor_rating
 	)
 
+	definition.base_magic_resistance_rating = (
+		new_base_magic_resistance_rating
+	)
+
+	definition.base_fire_resistance_rating = (
+		new_base_fire_resistance_rating
+	)
+
+	definition.base_cold_resistance_rating = (
+		new_base_cold_resistance_rating
+	)
+
+	definition.base_lightning_resistance_rating = (
+		new_base_lightning_resistance_rating
+	)
+
+	definition.base_poison_resistance_rating = (
+		new_base_poison_resistance_rating
+	)
+
 	definition.experience_reward = (
 		new_experience_reward
 	)
@@ -69,6 +105,7 @@ static func create(
 	definition.respawn_delay_seconds = (
 		new_respawn_delay_seconds
 	)
+
 
 	return definition
 
@@ -93,13 +130,37 @@ func is_valid() -> bool:
 	if max_hp <= 0:
 		return false
 
+
 	if base_armor_rating < 0:
 		return false
+
+
+	if base_magic_resistance_rating < 0:
+		return false
+
+
+	if base_fire_resistance_rating < 0:
+		return false
+
+
+	if base_cold_resistance_rating < 0:
+		return false
+
+
+	if base_lightning_resistance_rating < 0:
+		return false
+
+
+	if base_poison_resistance_rating < 0:
+		return false
+
 
 	if respawn_delay_seconds <= 0.0:
 		return false
 
+
 	if experience_reward < 0:
 		return false
+
 
 	return true

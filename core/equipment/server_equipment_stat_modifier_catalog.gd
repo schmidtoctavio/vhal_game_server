@@ -126,6 +126,26 @@ const ARMOR_RATING: StringName = (
 	&"armor_rating"
 )
 
+const MAGIC_RESISTANCE_RATING: StringName = (
+	&"magic_resistance_rating"
+)
+
+const FIRE_RESISTANCE_RATING: StringName = (
+	&"fire_resistance_rating"
+)
+
+const COLD_RESISTANCE_RATING: StringName = (
+	&"cold_resistance_rating"
+)
+
+const LIGHTNING_RESISTANCE_RATING: StringName = (
+	&"lightning_resistance_rating"
+)
+
+const POISON_RESISTANCE_RATING: StringName = (
+	&"poison_resistance_rating"
+)
+
 const CRITICAL_STRIKE_CHANCE: StringName = (
 	&"critical_strike_chance"
 )
@@ -211,6 +231,31 @@ const DEFINITIONS: Dictionary = {
 	},
 
 	ARMOR_RATING: {
+		"domain_id": "combat_secondary",
+		"numeric_kind": "int",
+	},
+
+	MAGIC_RESISTANCE_RATING: {
+		"domain_id": "combat_secondary",
+		"numeric_kind": "int",
+	},
+
+	FIRE_RESISTANCE_RATING: {
+		"domain_id": "combat_secondary",
+		"numeric_kind": "int",
+	},
+
+	COLD_RESISTANCE_RATING: {
+		"domain_id": "combat_secondary",
+		"numeric_kind": "int",
+	},
+
+	LIGHTNING_RESISTANCE_RATING: {
+		"domain_id": "combat_secondary",
+		"numeric_kind": "int",
+	},
+
+	POISON_RESISTANCE_RATING: {
 		"domain_id": "combat_secondary",
 		"numeric_kind": "int",
 	},

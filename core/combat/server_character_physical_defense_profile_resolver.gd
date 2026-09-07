@@ -55,46 +55,26 @@ const ARMOR_RATING_KEY: String = (
 static func resolve(
 	equipment_snapshot: Dictionary
 ) -> Dictionary:
-	if equipment_snapshot.is_empty():
-		return {}
-
-
-	var contributions := (
-		ServerEquipmentResolvedContributionRules
-		.resolve_equipment_snapshot(
+	var damage_defense_profile := (
+		ServerCharacterDamageDefenseProfileResolver
+		.resolve(
 			equipment_snapshot
 		)
 	)
 
 
-	if contributions.is_empty():
+	if damage_defense_profile == null:
 		return {}
 
 
-	var armor_value: Variant = (
-		ServerEquipmentResolvedContributionRules
-		.get_stat_total(
-			contributions,
-			ServerEquipmentStatModifierCatalog.ARMOR_RATING
-		)
-	)
-
-
-	if typeof(armor_value) != TYPE_INT:
-		return {}
-
-
-	var armor_rating := int(
-		armor_value
-	)
-
-
-	if armor_rating < 0:
+	if not damage_defense_profile.is_valid():
 		return {}
 
 
 	return {
-		ARMOR_RATING_KEY: armor_rating,
+		ARMOR_RATING_KEY: (
+			damage_defense_profile.armor_rating
+		),
 	}
 
 

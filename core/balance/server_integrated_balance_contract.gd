@@ -27,6 +27,61 @@ static func validate_contract() -> String:
 		.validate_contract()
 	)
 
+	var damage_defense_error := (
+		ServerDamageDefenseProfile
+		.validate_contract()
+	)
+
+
+	if not damage_defense_error.is_empty():
+		return (
+			"Damage Defense | "
+			+
+			damage_defense_error
+		)
+
+
+	var resistance_mitigation_error := (
+		ServerResistanceMitigationRules
+		.validate_contract()
+	)
+
+
+	if not resistance_mitigation_error.is_empty():
+		return (
+			"Resistance Mitigation | "
+			+
+			resistance_mitigation_error
+		)
+
+
+	var character_damage_defense_error := (
+		ServerCharacterDamageDefenseProfileResolver
+		.validate_contract()
+	)
+
+
+	if not character_damage_defense_error.is_empty():
+		return (
+			"Character Damage Defense | "
+			+
+			character_damage_defense_error
+		)
+
+
+	var mob_damage_defense_error := (
+		ServerMobDamageDefenseProfileResolver
+		.validate_contract()
+	)
+
+
+	if not mob_damage_defense_error.is_empty():
+		return (
+			"Mob Damage Defense | "
+			+
+			mob_damage_defense_error
+		)
+
 
 	if not damage_context_error.is_empty():
 		return (
