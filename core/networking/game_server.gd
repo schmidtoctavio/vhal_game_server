@@ -1097,7 +1097,21 @@ func send_movement_decision(
 		return ERR_INVALID_PARAMETER
 
 
-	if request_id <= 0:
+	# -----------------------------------------------------
+	# REQUEST ID
+	# -----------------------------------------------------
+	#
+	# request_id > 0
+	# → movimiento solicitado explícitamente por Client.
+	#
+	# request_id == 0
+	# → movimiento iniciado autoritativamente por
+	#   Game Server, por ejemplo Action Approach.
+	#
+	# Valores negativos siguen siendo inválidos.
+	# -----------------------------------------------------
+
+	if request_id < 0:
 		return ERR_INVALID_PARAMETER
 
 

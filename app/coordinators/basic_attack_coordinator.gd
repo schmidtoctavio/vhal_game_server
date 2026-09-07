@@ -5,6 +5,18 @@ extends Node
 # SIGNALS
 # =========================================================
 
+signal basic_attack_request_started(
+	peer_id: int,
+	request_id: int
+)
+
+signal basic_attack_approach_requested(
+	peer_id: int,
+	request_id: int,
+	target: Dictionary,
+	attack_range: float
+)
+
 signal valid_offensive_action_against_mob(
 	peer_id: int,
 	entity_id: String
@@ -77,6 +89,33 @@ func _on_client_basic_attack_requested(
 	request_id: int,
 	target: Dictionary
 ) -> void:
+	_process_basic_attack_request(
+		peer_id,
+		request_id,
+		target,
+		false
+	)
+
+
+func execute_approached_basic_attack(
+	peer_id: int,
+	request_id: int,
+	target: Dictionary
+) -> void:
+	_process_basic_attack_request(
+		peer_id,
+		request_id,
+		target,
+		true
+	)
+
+
+func _process_basic_attack_request(
+	peer_id: int,
+	request_id: int,
+	target: Dictionary,
+	request_id_already_accepted: bool
+) -> void:
 	var session := (
 		world_session_registry.get_session(
 			peer_id
@@ -97,21 +136,34 @@ func _on_client_basic_attack_requested(
 	# -----------------------------------------------------
 	# REQUEST ID
 	# -----------------------------------------------------
+	#
+	# Una intención que vuelve desde ActionApproach ya fue
+	# aceptada previamente.
+	#
+	# Nunca consumimos dos veces el mismo Request ID.
+	# -----------------------------------------------------
 
-	if not session.accept_basic_attack_request_id(
-		request_id
-	):
-		_send_result(
+	if not request_id_already_accepted:
+		if not session.accept_basic_attack_request_id(
+			request_id
+		):
+			_send_result(
+				peer_id,
+				request_id,
+				false,
+				"stale_request",
+				target,
+				_default_profile()
+			)
+
+
+			return
+
+
+		basic_attack_request_started.emit(
 			peer_id,
-			request_id,
-			false,
-			"stale_request",
-			target,
-			_default_profile()
+			request_id
 		)
-
-
-		return
 
 
 	# -----------------------------------------------------
@@ -507,6 +559,37 @@ func _on_client_basic_attack_requested(
 			attack_range
 		)
 
+
+		# -------------------------------------------------
+		# REQUEST ORIGINAL
+		#
+		# Todavía NO rechazamos la acción.
+		#
+		# ActionApproach conservará esta misma intención,
+		# acercará al personaje y la ejecutará una sola vez
+		# al alcanzar rango.
+		# -------------------------------------------------
+
+		if not request_id_already_accepted:
+			basic_attack_approach_requested.emit(
+				peer_id,
+				request_id,
+				target.duplicate(
+					true
+				),
+				attack_range
+			)
+
+
+			return
+
+
+		# -------------------------------------------------
+		# REEJECUCIÓN DESDE APPROACH
+		#
+		# Si excepcionalmente dejó de estar en rango antes
+		# de ejecutar, no creamos una recursión infinita.
+		# -------------------------------------------------
 
 		_send_result(
 			peer_id,
@@ -1041,6 +1124,98 @@ func _broadcast_mob_state(
 		mob.vitals.max_hp
 	)
 
+
+# =========================================================
+# ACTION APPROACH — ATTACK RANGE
+# =========================================================
+
+func get_authoritative_attack_range(
+	peer_id: int
+) -> float:
+	if world_session_registry == null:
+		return 0.0
+
+
+	var session := (
+		world_session_registry.get_session(
+			peer_id
+		)
+	)
+
+
+	if session == null:
+		return 0.0
+
+
+	var attack_profile := (
+		ServerBasicAttackProfileResolver.resolve(
+			session.get_equipment_snapshot()
+		)
+	)
+
+
+	if attack_profile.is_empty():
+		return 0.0
+
+
+	var attack_range := float(
+		attack_profile.get(
+			"attack_range",
+			0.0
+		)
+	)
+
+
+	if attack_range <= 0.0:
+		return 0.0
+
+
+	return attack_range
+
+
+# =========================================================
+# ACTION APPROACH — CANCELAR REQUEST PENDIENTE
+# =========================================================
+
+func cancel_approached_basic_attack(
+	peer_id: int,
+	request_id: int,
+	target: Dictionary,
+	reason: String
+) -> void:
+	var attack_profile := (
+		_default_profile()
+	)
+
+
+	if world_session_registry != null:
+		var session := (
+			world_session_registry.get_session(
+				peer_id
+			)
+		)
+
+
+		if session != null:
+			var resolved_profile := (
+				ServerBasicAttackProfileResolver.resolve(
+					session.get_equipment_snapshot()
+				)
+			)
+
+
+			if not resolved_profile.is_empty():
+				attack_profile = resolved_profile
+
+
+	_send_result(
+		peer_id,
+		request_id,
+		false,
+		reason,
+		target,
+		attack_profile
+	)
 
 func _default_profile() -> Dictionary:
 	return {

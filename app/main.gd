@@ -65,6 +65,10 @@ extends Node
 	$BasicAttackCoordinator
 )
 
+@onready var action_approach_coordinator: ActionApproachCoordinator = (
+	$ActionApproachCoordinator
+)
+
 @onready var mob_combat_coordinator: MobCombatCoordinator = (
 	$MobCombatCoordinator
 )
@@ -1512,6 +1516,38 @@ func _ready() -> void:
 
 		return
 
+	if action_approach_coordinator == null:
+		push_error(
+			"ServerMain | No existe ActionApproachCoordinator."
+		)
+
+
+		get_tree().quit(
+			48
+		)
+
+
+		return
+
+
+	if not action_approach_coordinator.setup(
+		game_server,
+		world_session_registry,
+		world_mob_registry,
+		movement_coordinator,
+		basic_attack_coordinator
+	):
+		push_error(
+			"ServerMain | No se pudo inicializar ActionApproachCoordinator."
+		)
+
+
+		get_tree().quit(
+			48
+		)
+
+
+		return
 
 	if world_presence_coordinator == null:
 		push_error(

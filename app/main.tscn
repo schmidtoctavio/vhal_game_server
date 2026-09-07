@@ -36,6 +36,7 @@
 [ext_resource type="Script" uid="uid://chbo3flc73n4e" path="res://app/coordinators/primary_stat_allocation_coordinator.gd" id="33_8ggac"]
 [ext_resource type="Script" uid="uid://crlddu68y6h5g" path="res://app/coordinators/mob_combat_coordinator.gd" id="35_qyih8"]
 [ext_resource type="Script" uid="uid://b3w3iea8s62ue" path="res://app/coordinators/character_regen_coordinator.gd" id="36_ks0v6"]
+[ext_resource type="Script" uid="uid://cxghhjdmxqudu" path="res://app/coordinators/action_approach_coordinator.gd" id="37_jyioa"]
 
 [node name="ServerMain" type="Node" unique_id=1483147024]
 script = ExtResource("1_s58fy")
@@ -145,3 +146,6 @@ script = ExtResource("35_qyih8")
 
 [node name="CharacterRegenCoordinator" type="Node" parent="." unique_id=1369442888]
 script = ExtResource("36_ks0v6")
+
+[node name="ActionApproachCoordinator" type="Node" parent="." unique_id=1105595079]
+script = ExtResource("37_jyioa")

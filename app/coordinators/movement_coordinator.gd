@@ -3,6 +3,15 @@ extends Node
 
 
 # =========================================================
+# SIGNALS
+# =========================================================
+
+signal client_movement_intent_started(
+	peer_id: int,
+	request_id: int
+)
+
+# =========================================================
 # DEPENDENCIAS
 # =========================================================
 
@@ -260,6 +269,19 @@ func _on_client_move_requested(
 
 
 		return
+
+	# -----------------------------------------------------
+	# NUEVO INPUT MANUAL
+	#
+	# Permite cancelar cualquier Action Approach pendiente
+	# ANTES de reemplazar el movimiento autoritativo.
+	# -----------------------------------------------------
+
+	client_movement_intent_started.emit(
+		peer_id,
+		request_id
+	)
+
 
 	# -----------------------------------------------------
 	# REGISTRAR INTENCIÓN RAW
@@ -628,4 +650,307 @@ func _on_authoritative_movement_state_sampled(
 		position,
 		rotation_y,
 		true
+	)
+
+
+# =========================================================
+# ACTION APPROACH — AUTORIZAR MOVIMIENTO SERVER-SIDE
+# =========================================================
+
+func begin_action_approach_movement(
+	peer_id: int,
+	target: Vector3
+) -> Dictionary:
+	var failure := {
+		"ok": false,
+		"reason": "runtime_failure",
+	}
+
+
+	if world_session_registry == null:
+		return failure
+
+
+	if world_navigation_registry == null:
+		return failure
+
+
+	if game_server == null:
+		return failure
+
+
+	var session := (
+		world_session_registry.get_session(
+			peer_id
+		)
+	)
+
+
+	if session == null:
+		failure["reason"] = "session_not_found"
+
+
+		return failure
+
+
+	if (
+		session.vitals == null
+		or
+		not session.vitals.is_valid()
+	):
+		failure["reason"] = "invalid_vitals"
+
+
+		return failure
+
+
+	if session.vitals.hp <= 0:
+		failure["reason"] = "character_not_alive"
+
+
+		return failure
+
+
+	if (
+		session.derived_stats == null
+		or
+		not session.derived_stats.is_valid()
+	):
+		failure["reason"] = "invalid_derived_stats"
+
+
+		return failure
+
+
+	var movement_speed := (
+		session.derived_stats.movement_speed
+	)
+
+
+	if movement_speed <= 0.0:
+		failure["reason"] = "invalid_movement_speed"
+
+
+		return failure
+
+
+	# -----------------------------------------------------
+	# REUTILIZAR EL MISMO ESTADO DE MOVIMIENTO DE SESIÓN
+	# -----------------------------------------------------
+
+	session.request_move_to(
+		target
+	)
+
+
+	# -----------------------------------------------------
+	# NAVIGATION AUTORITATIVA EXISTENTE
+	# -----------------------------------------------------
+
+	var resolution := (
+		world_navigation_registry.resolve_reachable_target(
+			session.map_id,
+			session.position,
+			target
+		)
+	)
+
+
+	if not bool(
+		resolution.get(
+			"ok",
+			false
+		)
+	):
+		session.reject_move_request()
+
+
+		failure["reason"] = String(
+			resolution.get(
+				"reason",
+				"navigation_failed"
+			)
+		)
+
+
+		return failure
+
+
+	var resolved_value: Variant = (
+		resolution.get(
+			"resolved_target",
+			null
+		)
+	)
+
+
+	if typeof(resolved_value) != TYPE_VECTOR3:
+		session.reject_move_request()
+
+
+		failure["reason"] = "resolved_target_invalid"
+
+
+		return failure
+
+
+	var resolved_target: Vector3 = (
+		resolved_value
+	)
+
+
+	var path_value: Variant = (
+		resolution.get(
+			"path",
+			null
+		)
+	)
+
+
+	if (
+		typeof(path_value)
+		!=
+		TYPE_PACKED_VECTOR3_ARRAY
+	):
+		session.reject_move_request()
+
+
+		failure["reason"] = "path_invalid"
+
+
+		return failure
+
+
+	var authorized_path: PackedVector3Array = (
+		path_value
+	)
+
+
+	if authorized_path.is_empty():
+		session.reject_move_request()
+
+
+		failure["reason"] = "path_empty"
+
+
+		return failure
+
+
+	var path_final_target: Vector3 = (
+		authorized_path[
+			authorized_path.size() - 1
+		]
+	)
+
+
+	if not path_final_target.is_equal_approx(
+		resolved_target
+	):
+		session.reject_move_request()
+
+
+		failure["reason"] = "resolved_target_mismatch"
+
+
+		return failure
+
+
+	if not session.authorize_move_path(
+		authorized_path
+	):
+		session.reject_move_request()
+
+
+		failure["reason"] = "path_authorization_failed"
+
+
+		return failure
+
+
+	# -----------------------------------------------------
+	# request_id = 0
+	#
+	# Reservado para movimiento iniciado por Game Server.
+	# El Client lo utiliza únicamente para prediction /
+	# presentación; la ruta real sigue siendo server-side.
+	# -----------------------------------------------------
+
+	var decision_result := (
+		game_server.send_movement_decision(
+			peer_id,
+			0,
+			true,
+			session.position,
+			session.rotation_y,
+			movement_speed,
+			session.authorized_move_target,
+			"action_approach"
+		)
+	)
+
+
+	if decision_result != OK:
+		session.clear_move_request()
+
+
+		failure["reason"] = "movement_decision_failed"
+
+
+		return failure
+
+
+	return {
+		"ok": true,
+		"reason": "ok",
+		"resolved_target": resolved_target,
+		"movement_speed": movement_speed,
+	}
+
+
+# =========================================================
+# ACTION APPROACH — DETENER MOVIMIENTO
+# =========================================================
+
+func stop_action_approach_movement(
+	peer_id: int
+) -> void:
+	if world_session_registry == null:
+		return
+
+
+	var session := (
+		world_session_registry.get_session(
+			peer_id
+		)
+	)
+
+
+	if session == null:
+		return
+
+
+	var was_moving := (
+		session.has_authorized_move_target
+	)
+
+
+	session.clear_move_request()
+
+
+	if not was_moving:
+		return
+
+
+	# -----------------------------------------------------
+	# El WorldMovementSystem deja de mover la sesión.
+	#
+	# Además enviamos inmediatamente moving=false para que
+	# Client y remote peers detengan su representación.
+	# -----------------------------------------------------
+
+	_replicate_movement_state_to_map(
+		peer_id,
+		session.position,
+		session.rotation_y,
+		false
 	)
