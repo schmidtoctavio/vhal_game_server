@@ -22,6 +22,10 @@ signal valid_offensive_action_against_mob(
 	entity_id: String
 )
 
+signal valid_offensive_action_against_player(
+	attacker_peer_id: int,
+	target_peer_id: int
+)
 
 var game_server: GameServer = null
 
@@ -195,6 +199,40 @@ func _process_basic_attack_request(
 		)
 	).strip_edges().to_lower()
 
+	# -----------------------------------------------------
+	# PLAYER TARGET PvP
+	# -----------------------------------------------------
+
+	if entity_id.begins_with(
+		ServerCombatEntityRef.PLAYER_PREFIX
+	):
+		if not ServerCombatEntityRef.is_player_entity_id(
+			entity_id
+		):
+			_send_result(
+				peer_id,
+				request_id,
+				false,
+				"invalid_target",
+				target,
+				_default_profile()
+			)
+
+
+			return
+
+
+		_process_player_basic_attack_request(
+			session,
+			peer_id,
+			request_id,
+			target,
+			entity_id,
+			request_id_already_accepted
+		)
+
+
+		return
 
 	var mob := (
 		world_mob_registry.get_mob(
@@ -1106,6 +1144,778 @@ func _process_basic_attack_request(
 		target_died
 	)
 
+# =========================================================
+# BASIC ATTACK PvP
+# =========================================================
+
+func _process_player_basic_attack_request(
+	session: PlayerWorldSession,
+	peer_id: int,
+	request_id: int,
+	target: Dictionary,
+	entity_id: String,
+	request_id_already_accepted: bool
+) -> void:
+	var target_peer_id := (
+		ServerCombatEntityRef.get_player_peer_id(
+			entity_id
+		)
+	)
+
+
+	var target_session := (
+		world_session_registry.get_session(
+			target_peer_id
+		)
+	)
+
+
+	# -----------------------------------------------------
+	# PvP POLICY
+	# -----------------------------------------------------
+
+	var pvp_reason := (
+		ServerPvpPolicy.validate_engagement(
+			session,
+			target_session
+		)
+	)
+
+
+	if not pvp_reason.is_empty():
+		_send_result(
+			peer_id,
+			request_id,
+			false,
+			pvp_reason,
+			target,
+			_default_profile()
+		)
+
+
+		print(
+			"BasicAttackCoordinator | PvP rechazado",
+			" | Request: ",
+			request_id,
+			" | Attacker Peer: ",
+			peer_id,
+			" | Target: ",
+			entity_id,
+			" | Reason: ",
+			pvp_reason
+		)
+
+
+		return
+
+
+	if (
+		target_session == null
+		or
+		not target_session.is_valid()
+	):
+		_send_result(
+			peer_id,
+			request_id,
+			false,
+			"target_not_ready",
+			target,
+			_default_profile()
+		)
+
+
+		return
+
+
+	# -----------------------------------------------------
+	# ATTACK PROFILE
+	# -----------------------------------------------------
+
+	var attack_profile := (
+		ServerBasicAttackProfileResolver.resolve(
+			session.get_equipment_snapshot()
+		)
+	)
+
+
+	if attack_profile.is_empty():
+		_send_result(
+			peer_id,
+			request_id,
+			false,
+			"invalid_equipment_state",
+			target,
+			_default_profile()
+		)
+
+
+		return
+
+
+	var base_damage := int(
+		attack_profile.get(
+			"base_damage",
+			0
+		)
+	)
+
+
+	var attack_range := float(
+		attack_profile.get(
+			"attack_range",
+			0.0
+		)
+	)
+
+
+	var cooldown_duration_seconds := float(
+		attack_profile.get(
+			"cooldown_duration_seconds",
+			0.0
+		)
+	)
+
+
+	if (
+		base_damage <= 0
+		or
+		attack_range <= 0.0
+		or
+		cooldown_duration_seconds < 0.0
+	):
+		_send_result(
+			peer_id,
+			request_id,
+			false,
+			"invalid_attack_profile",
+			target,
+			attack_profile
+		)
+
+
+		return
+
+
+	# -----------------------------------------------------
+	# ATTACKER DERIVED STATS
+	# -----------------------------------------------------
+
+	if (
+		session.derived_stats == null
+		or
+		not session.derived_stats.is_valid()
+	):
+		_send_result(
+			peer_id,
+			request_id,
+			false,
+			"runtime_failure",
+			target,
+			attack_profile
+		)
+
+
+		return
+
+
+	var effective_cooldown_duration_seconds := (
+		ServerBasicAttackSpeedRules
+		.calculate_effective_cooldown_seconds(
+			cooldown_duration_seconds,
+			session.derived_stats.attack_speed_multiplier
+		)
+	)
+
+
+	if effective_cooldown_duration_seconds < 0.0:
+		_send_result(
+			peer_id,
+			request_id,
+			false,
+			"runtime_failure",
+			target,
+			attack_profile
+		)
+
+
+		return
+
+
+	var pre_critical_damage := (
+		ServerBasicAttackDamageRules
+		.calculate_pre_mitigation_damage(
+			attack_profile,
+			session.derived_stats
+		)
+	)
+
+
+	if pre_critical_damage <= 0:
+		_send_result(
+			peer_id,
+			request_id,
+			false,
+			"runtime_failure",
+			target,
+			attack_profile
+		)
+
+
+		return
+
+
+	var damage_context := (
+		ServerBasicAttackDamageRules
+		.build_resolution_context(
+			attack_profile,
+			session.derived_stats
+		)
+	)
+
+
+	if (
+		damage_context == null
+		or
+		not damage_context.is_valid()
+	):
+		_send_result(
+			peer_id,
+			request_id,
+			false,
+			"runtime_failure",
+			target,
+			attack_profile
+		)
+
+
+		return
+
+
+	# -----------------------------------------------------
+	# DEFENSA DEL PLAYER OBJETIVO
+	# -----------------------------------------------------
+
+	var target_equipment_snapshot := (
+		target_session.get_equipment_snapshot()
+	)
+
+
+	if target_equipment_snapshot.is_empty():
+		_send_result(
+			peer_id,
+			request_id,
+			false,
+			"target_not_ready",
+			target,
+			attack_profile
+		)
+
+
+		return
+
+
+	var damage_defense_profile := (
+		ServerCharacterDamageDefenseProfileResolver
+		.resolve(
+			target_equipment_snapshot
+		)
+	)
+
+
+	if (
+		damage_defense_profile == null
+		or
+		not damage_defense_profile.is_valid()
+	):
+		_send_result(
+			peer_id,
+			request_id,
+			false,
+			"runtime_failure",
+			target,
+			attack_profile
+		)
+
+
+		return
+
+
+	# -----------------------------------------------------
+	# HIT PROFILES
+	# -----------------------------------------------------
+
+	var attacker_hit_profile := (
+		ServerCharacterCombatHitProfileResolver
+		.resolve(
+			session.primary_stats,
+			session.get_equipment_snapshot()
+		)
+	)
+
+
+	var defender_hit_profile := (
+		ServerCharacterCombatHitProfileResolver
+		.resolve(
+			target_session.primary_stats,
+			target_equipment_snapshot
+		)
+	)
+
+
+	if (
+		attacker_hit_profile == null
+		or
+		defender_hit_profile == null
+		or
+		not attacker_hit_profile.is_valid()
+		or
+		not defender_hit_profile.is_valid()
+	):
+		_send_result(
+			peer_id,
+			request_id,
+			false,
+			"runtime_failure",
+			target,
+			attack_profile
+		)
+
+
+		return
+
+
+	# -----------------------------------------------------
+	# RANGE
+	# -----------------------------------------------------
+
+	var attacker_position := Vector2(
+		session.position.x,
+		session.position.z
+	)
+
+
+	var target_position := Vector2(
+		target_session.position.x,
+		target_session.position.z
+	)
+
+
+	var distance := (
+		attacker_position.distance_to(
+			target_position
+		)
+	)
+
+
+	if distance > attack_range:
+		print(
+			"BasicAttackCoordinator | PvP fuera de rango",
+			" | Request: ",
+			request_id,
+			" | Attacker: ",
+			session.character_name,
+			" | Target: ",
+			target_session.character_name,
+			" | Distancia: ",
+			distance,
+			" | Rango: ",
+			attack_range
+		)
+
+
+		if not request_id_already_accepted:
+			basic_attack_approach_requested.emit(
+				peer_id,
+				request_id,
+				target.duplicate(
+					true
+				),
+				attack_range
+			)
+
+
+			return
+
+
+		_send_result(
+			peer_id,
+			request_id,
+			false,
+			"out_of_range",
+			target,
+			attack_profile
+		)
+
+
+		return
+
+
+	# -----------------------------------------------------
+	# LOS
+	#
+	# Igual que PvE:
+	# sólo Ranged Basic Attack exige LOS.
+	# -----------------------------------------------------
+
+	var attack_mode := String(
+		attack_profile.get(
+			"mode",
+			""
+		)
+	).strip_edges().to_lower()
+
+
+	if (
+		attack_mode
+		==
+		ServerBasicAttackProfileResolver.MODE_RANGED
+	):
+		if not ServerWorldLineOfSight.has_line_of_sight(
+			session.map_id,
+			session.position,
+			target_session.position
+		):
+			_send_result(
+				peer_id,
+				request_id,
+				false,
+				"line_of_sight_blocked",
+				target,
+				attack_profile
+			)
+
+
+			print(
+				"BasicAttackCoordinator | PvP LOS bloqueado",
+				" | Request: ",
+				request_id,
+				" | Attacker Peer: ",
+				peer_id,
+				" | Target Peer: ",
+				target_peer_id,
+				" | Mode: ",
+				attack_mode
+			)
+
+
+			return
+
+
+	# -----------------------------------------------------
+	# COOLDOWN
+	# -----------------------------------------------------
+
+	if session.basic_attack_runtime == null:
+		_send_result(
+			peer_id,
+			request_id,
+			false,
+			"runtime_failure",
+			target,
+			attack_profile
+		)
+
+
+		return
+
+
+	var cooldown_remaining := (
+		session
+		.basic_attack_runtime
+		.get_cooldown_remaining_seconds()
+	)
+
+
+	if cooldown_remaining > 0.0:
+		_send_result(
+			peer_id,
+			request_id,
+			false,
+			"attack_cooldown_active",
+			target,
+			attack_profile
+		)
+
+
+		return
+
+
+	if not session.basic_attack_runtime.start_cooldown(
+		effective_cooldown_duration_seconds
+	):
+		_send_result(
+			peer_id,
+			request_id,
+			false,
+			"runtime_failure",
+			target,
+			attack_profile
+		)
+
+
+		return
+
+
+	# -----------------------------------------------------
+	# HIT RESOLUTION
+	# -----------------------------------------------------
+
+	var hit_roll := randf()
+
+	var dodge_roll := randf()
+
+	var block_roll := randf()
+
+
+	var hit_resolution := (
+		ServerHitResolutionRules.resolve(
+			attacker_hit_profile,
+			defender_hit_profile,
+			hit_roll,
+			dodge_roll,
+			block_roll
+		)
+	)
+
+
+	if (
+		hit_resolution == null
+		or
+		not hit_resolution.is_valid()
+	):
+		session.basic_attack_runtime.reset()
+
+
+		_send_result(
+			peer_id,
+			request_id,
+			false,
+			"runtime_failure",
+			target,
+			attack_profile
+		)
+
+
+		return
+
+
+	# Una acción PvP correctamente autorizada mantiene
+	# a ambos Players en Combat aunque termine en miss/dodge.
+
+	valid_offensive_action_against_player.emit(
+		peer_id,
+		target_peer_id
+	)
+
+
+	if not hit_resolution.deals_damage():
+		_send_result(
+			peer_id,
+			request_id,
+			true,
+			"ok",
+			target,
+			attack_profile
+		)
+
+
+		print(
+			"BasicAttackCoordinator | PvP resuelto sin daño",
+			" | Request: ",
+			request_id,
+			" | Attacker: ",
+			session.character_name,
+			" | Target: ",
+			target_session.character_name,
+			" | Outcome: ",
+			hit_resolution.outcome,
+			" | Hit Chance: ",
+			hit_resolution.hit_chance,
+			" | Hit Roll: ",
+			hit_resolution.hit_roll
+		)
+
+
+		return
+
+
+	# -----------------------------------------------------
+	# UNIFIED DAMAGE RESOLVER
+	# -----------------------------------------------------
+
+	var critical_roll := randf()
+
+
+	var damage_resolution := (
+		ServerDamageResolver.resolve(
+			damage_context,
+			damage_defense_profile,
+			session.derived_stats.critical_strike_chance,
+			session.derived_stats.critical_damage_multiplier,
+			critical_roll,
+			hit_resolution.damage_multiplier
+		)
+	)
+
+
+	if (
+		damage_resolution == null
+		or
+		not damage_resolution.is_valid()
+	):
+		session.basic_attack_runtime.reset()
+
+
+		_send_result(
+			peer_id,
+			request_id,
+			false,
+			"runtime_failure",
+			target,
+			attack_profile
+		)
+
+
+		return
+
+
+	var applied_damage := (
+		target_session.vitals.apply_damage(
+			damage_resolution.final_damage
+		)
+	)
+
+
+	if applied_damage <= 0:
+		session.basic_attack_runtime.reset()
+
+
+		_send_result(
+			peer_id,
+			request_id,
+			false,
+			"runtime_failure",
+			target,
+			attack_profile
+		)
+
+
+		return
+
+
+	var target_died := (
+		target_session.vitals.hp <= 0
+	)
+
+
+	# -----------------------------------------------------
+	# RESULTADO AL ATACANTE
+	# -----------------------------------------------------
+
+	_send_result(
+		peer_id,
+		request_id,
+		true,
+		"ok",
+		target,
+		attack_profile
+	)
+
+
+	# -----------------------------------------------------
+	# VITALS AL PLAYER AFECTADO
+	# -----------------------------------------------------
+
+	_send_player_vitals(
+		target_session
+	)
+
+
+	print(
+		"BasicAttackCoordinator | PvP Attack ejecutado",
+		" | Request: ",
+		request_id,
+		" | Attacker Peer: ",
+		peer_id,
+		" | Attacker: ",
+		session.character_name,
+		" | Target Peer: ",
+		target_peer_id,
+		" | Target: ",
+		target_session.character_name,
+		" | Mode: ",
+		attack_mode,
+		" | Weapon: ",
+		String(
+			attack_profile.get(
+				"weapon_item_id",
+				""
+			)
+		),
+		" | Distancia: ",
+		distance,
+		" | Accuracy: ",
+		attacker_hit_profile.accuracy_rating,
+		" | Evasion: ",
+		defender_hit_profile.evasion_rating,
+		" | Outcome: ",
+		hit_resolution.outcome,
+		" | Critical: ",
+		damage_resolution.critical_applied,
+		" | Pre-Mitigation: ",
+		damage_resolution.pre_mitigation_damage,
+		" | Armor: ",
+		damage_resolution.school_rating,
+		" | Final Damage: ",
+		damage_resolution.final_damage,
+		" | Applied Damage: ",
+		applied_damage,
+		" | Target HP: ",
+		target_session.vitals.hp,
+		"/",
+		target_session.vitals.max_hp,
+		" | Target Dead: ",
+		target_died
+	)
+
+
+# =========================================================
+# PLAYER VITALS
+# =========================================================
+
+func _send_player_vitals(
+	session: PlayerWorldSession
+) -> void:
+	if session == null:
+		return
+
+
+	if session.vitals == null:
+		return
+
+
+	var result := (
+		game_server.send_character_vitals_updated(
+			session.peer_id,
+			session.character_id,
+			session.vitals.to_snapshot()
+		)
+	)
+
+
+	if result == OK:
+		return
+
+
+	push_warning(
+		(
+			"BasicAttackCoordinator | "
+			+
+			"No se pudieron replicar Vitals PvP. Error: %d"
+		)
+		%
+		result
+	)
 
 func _broadcast_mob_state(
 	mob: WorldMobRuntimeState

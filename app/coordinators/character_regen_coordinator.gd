@@ -139,6 +139,20 @@ func setup(
 			)
 		)
 
+	if not (
+		basic_attack_coordinator
+		.valid_offensive_action_against_player
+		.is_connected(
+			_on_valid_offensive_action_against_player
+		)
+	):
+		(
+			basic_attack_coordinator
+			.valid_offensive_action_against_player
+			.connect(
+				_on_valid_offensive_action_against_player
+			)
+		)
 
 	if not mob_combat_coordinator.player_mob_aggro_acquired.is_connected(
 		_on_player_mob_aggro_acquired
@@ -617,6 +631,32 @@ func _on_valid_offensive_action_against_mob(
 		)
 	)
 
+func _on_valid_offensive_action_against_player(
+	attacker_peer_id: int,
+	target_peer_id: int
+) -> void:
+	_register_hostile_activity(
+		attacker_peer_id,
+		(
+			"pvp_basic_attack:"
+			+
+			str(
+				target_peer_id
+			)
+		)
+	)
+
+
+	_register_hostile_activity(
+		target_peer_id,
+		(
+			"pvp_targeted_by:"
+			+
+			str(
+				attacker_peer_id
+			)
+		)
+	)
 
 func _on_player_mob_aggro_acquired(
 	peer_id: int,
