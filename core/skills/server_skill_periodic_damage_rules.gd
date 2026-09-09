@@ -115,6 +115,25 @@ static func validate_contract() -> String:
 	):
 		return "Poison debe utilizar effect_id poison."
 
+	if (
+		poison.status_effect_profile.category
+		!=
+		ServerStatusEffectProfile.CATEGORY_DOT
+	):
+		return (
+			"Poison debe utilizar categoría DoT."
+		)
+
+
+	if (
+		poison.status_effect_profile.stacking_policy
+		!=
+		ServerStatusEffectProfile.STACK_SINGLE
+	):
+		return (
+			"Poison debe conservar Single Stack."
+		)
+
 	var poison_damage_profile := (
 		poison
 		.status_effect_profile
@@ -175,7 +194,7 @@ static func validate_contract() -> String:
 	if (
 		poison.status_effect_profile.refresh_policy
 		!=
-		ServerSkillStatusEffectProfile.REFRESH_REPLACE
+		ServerStatusEffectProfile.REFRESH_REPLACE
 	):
 		return "Poison debe utilizar refresh replace."
 

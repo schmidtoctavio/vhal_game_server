@@ -58,7 +58,7 @@ var scaling_profile: ServerSkillScalingProfile = null
 
 var damage_profile: ServerSkillDamageProfile = null
 
-var status_effect_profile: ServerSkillStatusEffectProfile = null
+var status_effect_profile: ServerStatusEffectProfile = null
 
 
 # =========================================================
@@ -73,7 +73,7 @@ func _init(
 	p_scaling_profile: ServerSkillScalingProfile = null,
 	p_damage_profile: ServerSkillDamageProfile = null,
 	p_cast_range: float = 0.0,
-	p_status_effect_profile: ServerSkillStatusEffectProfile = null,
+	p_status_effect_profile: ServerStatusEffectProfile = null,
 	p_area_radius: float = 0.0
 ) -> void:
 	skill_id = (

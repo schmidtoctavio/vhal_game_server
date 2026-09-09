@@ -893,9 +893,22 @@ func _advance_mob_along_path(
 	if not mob.combat_runtime.has_navigation_path():
 		return false
 
+	if mob.is_movement_blocked():
+		return false
+
+
+	var movement_speed_multiplier := (
+		mob.get_movement_speed_multiplier()
+	)
+
+
+	if movement_speed_multiplier <= 0.0:
+		return false
 
 	var remaining_distance := (
 		mob.definition.combat_movement_speed
+		*
+		movement_speed_multiplier
 		*
 		delta
 	)
@@ -1062,6 +1075,30 @@ func _try_mob_attack(
 		mob.combat_runtime
 	)
 
+	if mob.are_actions_blocked():
+		return
+
+
+	var attack_speed_multiplier := (
+		mob.get_attack_speed_multiplier()
+	)
+
+
+	if attack_speed_multiplier <= 0.0:
+		return
+
+
+	var effective_attack_cooldown_seconds := (
+		mob.definition.attack_cooldown_seconds
+		/
+		attack_speed_multiplier
+	)
+
+
+	effective_attack_cooldown_seconds = maxf(
+		effective_attack_cooldown_seconds,
+		0.05
+	)
 
 	if not runtime.can_attack(
 		now_msec
@@ -1070,7 +1107,7 @@ func _try_mob_attack(
 
 
 	if not runtime.start_attack_cooldown(
-		mob.definition.attack_cooldown_seconds,
+		effective_attack_cooldown_seconds,
 		now_msec
 	):
 		return

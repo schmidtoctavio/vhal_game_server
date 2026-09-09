@@ -561,6 +561,30 @@ func _ready() -> void:
 		.validate_contract()
 	)
 
+	var status_effect_contract_error := (
+		ServerStatusEffectContract
+		.validate_contract()
+	)
+
+
+	if not status_effect_contract_error.is_empty():
+		push_error(
+			(
+				"ServerMain | "
+				+
+				"Status Effect Contract inválido: "
+				+
+				status_effect_contract_error
+			)
+		)
+
+
+		get_tree().quit(
+			50
+		)
+
+
+		return
 
 	if not line_of_sight_contract_error.is_empty():
 		push_error(
@@ -769,6 +793,10 @@ func _ready() -> void:
 
 	print(
 		"ServerMain | Line Of Sight Contract validado."
+	)
+
+	print(
+		"ServerMain | Status Effect Contract validado."
 	)
 
 	print(

@@ -8,6 +8,10 @@ extends RefCounted
 
 const FIRE_BALL_ID: String = "fire_ball"
 
+const FIRE_BALL_STUN_EFFECT_ID: String = (
+	"fire_ball_stun"
+)
+
 const POISON_ID: String = "poison"
 
 const HEAL_ID: String = "heal"
@@ -50,7 +54,14 @@ static func get_definition(
 
 				6.0,
 
-				null,
+				ServerStatusEffectProfile
+				.create_hard_control(
+					FIRE_BALL_STUN_EFFECT_ID,
+					1.25,
+					true,
+					true,
+					true
+				),
 
 				2.5
 			)
@@ -72,7 +83,8 @@ static func get_definition(
 
 				6.0,
 
-				ServerSkillStatusEffectProfile.new(
+				ServerStatusEffectProfile
+				.create_periodic_damage(
 					POISON_ID,
 
 					ServerSkillDamageProfile.new(
@@ -84,7 +96,11 @@ static func get_definition(
 
 					1.0,
 					5,
-					ServerSkillStatusEffectProfile.REFRESH_REPLACE
+					ServerStatusEffectProfile
+						.REFRESH_REPLACE,
+					ServerStatusEffectProfile
+						.STACK_SINGLE,
+					1
 				)
 			)
 

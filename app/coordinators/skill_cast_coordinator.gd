@@ -908,7 +908,7 @@ func _process_skill_cast_request(
 
 
 	# =====================================================
-	# EJECUTAR FIRE BALL AoE POSITION
+	# EJECUTAR FIRE BALL AoE POSITION + HARD CC
 	# =====================================================
 
 	if (
@@ -916,7 +916,11 @@ func _process_skill_cast_request(
 		==
 		ServerSkillCatalog.FIRE_BALL_ID
 	):
-		if direct_damage_context == null:
+		if (
+			direct_damage_context == null
+			or
+			definition.status_effect_profile == null
+		):
 			_rollback_committed_skill_costs(
 				session,
 				definition
@@ -941,6 +945,8 @@ func _process_skill_cast_request(
 		var total_applied_damage := 0
 
 		var applied_target_count := 0
+
+		var applied_status_target_count := 0
 
 
 		for entry_value: Variant in area_damage_entries:
@@ -1057,9 +1063,114 @@ func _process_skill_cast_request(
 			applied_target_count += 1
 
 
-			_broadcast_mob_state(
-				area_mob
-			)
+			# -------------------------------------------------
+			# HARD CC
+			#
+			# Sólo se aplica a víctimas que sobrevivieron.
+			# -------------------------------------------------
+
+			var status_replicated := false
+
+			var status_operation := "none"
+
+
+			if area_mob.is_alive():
+				var status_effect := (
+					ServerStatusEffectRuntime.create(
+						definition.status_effect_profile,
+						null,
+						{
+							"kind": (
+								"player_skill_status"
+							),
+
+							"peer_id": peer_id,
+
+							"character_id": (
+								session.character_id
+							),
+
+							"request_id": (
+								request_id
+							),
+
+							"skill_id": (
+								definition.skill_id
+							),
+						},
+						Time.get_ticks_msec()
+					)
+				)
+
+
+				if status_effect == null:
+					push_warning(
+						(
+							"SkillCastCoordinator | "
+							+
+							"No se pudo crear Fire Ball Stun."
+						)
+					)
+
+				else:
+					var status_result := (
+						world_mob_registry
+						.apply_status_effect_to_mob(
+							area_mob.entity_id,
+							status_effect
+						)
+					)
+
+
+					if bool(
+						status_result.get(
+							"ok",
+							false
+						)
+					):
+						status_operation = String(
+							status_result.get(
+								"operation",
+								""
+							)
+						)
+
+
+						status_replicated = bool(
+							status_result.get(
+								"changed",
+								false
+							)
+						)
+
+
+						if status_replicated:
+							applied_status_target_count += 1
+
+					else:
+						push_warning(
+							(
+								"SkillCastCoordinator | "
+								+
+								"No se pudo aplicar "
+								+
+								"Fire Ball Stun."
+							)
+						)
+
+
+			# -------------------------------------------------
+			# Si Status Effect cambió, WorldPresence ya mandó
+			# el snapshot HP + Status.
+			#
+			# Si no cambió por immunity/death, replicamos HP
+			# mediante el pipeline normal de la Skill.
+			# -------------------------------------------------
+
+			if not status_replicated:
+				_broadcast_mob_state(
+					area_mob
+				)
 
 
 			print(
@@ -1070,6 +1181,10 @@ func _process_skill_cast_request(
 				area_mob.entity_id,
 				" | Applied Damage: ",
 				applied_damage,
+				" | Status: ",
+				definition.status_effect_profile.effect_id,
+				" | Status Operation: ",
+				status_operation,
 				" | HP restante: ",
 				area_mob.vitals.hp,
 				"/",
@@ -1103,6 +1218,16 @@ func _process_skill_cast_request(
 					applied_target_count
 				),
 
+				"status_effect_id": (
+					definition
+					.status_effect_profile
+					.effect_id
+				),
+
+				"status_target_count": (
+					applied_status_target_count
+				),
+
 				"center": {
 					"x": area_damage_center.x,
 					"y": area_damage_center.y,
@@ -1130,6 +1255,8 @@ func _process_skill_cast_request(
 			definition.area_radius,
 			" | Targets: ",
 			applied_target_count,
+			" | Stunned: ",
+			applied_status_target_count,
 			" | Total Damage: ",
 			total_applied_damage,
 			" | MP: ",
@@ -1164,6 +1291,7 @@ func _process_skill_cast_request(
 				definition
 			)
 
+
 			_send_result(
 				peer_id,
 				request_id,
@@ -1175,11 +1303,12 @@ func _process_skill_cast_request(
 				{}
 			)
 
+
 			return
 
 
 		var status_effect := (
-			WorldMobStatusEffectRuntime.create(
+			ServerStatusEffectRuntime.create(
 				definition.status_effect_profile,
 				periodic_damage_context,
 				{
@@ -1208,7 +1337,6 @@ func _process_skill_cast_request(
 					"delivery": (
 						periodic_damage_context.delivery
 					),
-
 				},
 				Time.get_ticks_msec()
 			)
@@ -1221,6 +1349,7 @@ func _process_skill_cast_request(
 				definition
 			)
 
+
 			_send_result(
 				peer_id,
 				request_id,
@@ -1232,18 +1361,40 @@ func _process_skill_cast_request(
 				{}
 			)
 
+
 			return
 
 
-		if not world_mob_registry.apply_status_effect_to_mob(
-			damage_target.entity_id,
-			status_effect
+		var status_application := (
+			world_mob_registry
+			.apply_status_effect_to_mob(
+				damage_target.entity_id,
+				status_effect
+			)
+		)
+
+
+		if (
+			not bool(
+				status_application.get(
+					"ok",
+					false
+				)
+			)
+			or
+			not bool(
+				status_application.get(
+					"changed",
+					false
+				)
+			)
 		):
 			_rollback_committed_skill_costs(
 				session,
 				definition
 			)
 
+
 			_send_result(
 				peer_id,
 				request_id,
@@ -1254,6 +1405,44 @@ func _process_skill_cast_request(
 				0.0,
 				{}
 			)
+
+
+			return
+
+
+		var applied_status_value: Variant = (
+			status_application.get(
+				"status_effect",
+				null
+			)
+		)
+
+
+		var applied_status := (
+			applied_status_value
+			as
+			ServerStatusEffectRuntime
+		)
+
+
+		if applied_status == null:
+			_rollback_committed_skill_costs(
+				session,
+				definition
+			)
+
+
+			_send_result(
+				peer_id,
+				request_id,
+				definition.skill_id,
+				false,
+				"runtime_failure",
+				session,
+				0.0,
+				{}
+			)
+
 
 			return
 
@@ -1263,6 +1452,14 @@ func _process_skill_cast_request(
 			.skill_runtime
 			.get_cooldown_remaining_seconds(
 				definition.skill_id
+			)
+		)
+
+
+		var status_operation := String(
+			status_application.get(
+				"operation",
+				""
 			)
 		)
 
@@ -1284,6 +1481,20 @@ func _process_skill_cast_request(
 					definition
 					.status_effect_profile
 					.effect_id
+				),
+
+				"status_category": (
+					definition
+					.status_effect_profile
+					.category
+				),
+
+				"status_operation": (
+					status_operation
+				),
+
+				"stacks": (
+					applied_status.stack_count
 				),
 
 				"tick_damage": (
@@ -1337,6 +1548,10 @@ func _process_skill_cast_request(
 			session.character_name,
 			" | Entity: ",
 			damage_target.entity_id,
+			" | Operation: ",
+			status_operation,
+			" | Stacks: ",
+			applied_status.stack_count,
 			" | Physical Power: ",
 			session.derived_stats.physical_power,
 			" | Raw Damage/Tick: ",

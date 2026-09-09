@@ -28,6 +28,14 @@ signal mob_periodic_damage_applied(
 	status_effect_id: String
 )
 
+signal mob_status_effect_changed(
+	entity_id: String,
+	map_id: String,
+	mob_snapshot: Dictionary,
+	change_type: String,
+	status_effect_snapshot: Dictionary
+)
+
 signal mob_damaged(
 	entity_id: String,
 	map_id: String,
@@ -968,6 +976,7 @@ func _prepare_status_effect_scheduler() -> bool:
 
 	status_effect_timer.stop()
 
+
 	return true
 
 
@@ -977,48 +986,167 @@ func _prepare_status_effect_scheduler() -> bool:
 
 func apply_status_effect_to_mob(
 	entity_id: String,
-	status_effect: WorldMobStatusEffectRuntime
-) -> bool:
+	status_effect: ServerStatusEffectRuntime
+) -> Dictionary:
 	var mob := get_mob(
 		entity_id
 	)
 
-	if mob == null:
-		return false
 
-	if not mob.apply_status_effect(
-		status_effect
+	if mob == null:
+		return {
+			"ok": false,
+		}
+
+
+	if status_effect == null:
+		return {
+			"ok": false,
+		}
+
+
+	var now_msec := (
+		Time.get_ticks_msec()
+	)
+
+
+	var application := (
+		mob.apply_status_effect(
+			status_effect,
+			now_msec
+		)
+	)
+
+
+	if not bool(
+		application.get(
+			"ok",
+			false
+		)
 	):
-		return false
+		return application
+
+
+	var operation := String(
+		application.get(
+			"operation",
+			""
+		)
+	)
+
+
+	var changed := bool(
+		application.get(
+			"changed",
+			false
+		)
+	)
+
+
+	var applied_status_value: Variant = (
+		application.get(
+			"status_effect",
+			null
+		)
+	)
+
+
+	var applied_status := (
+		applied_status_value
+		as
+		ServerStatusEffectRuntime
+	)
+
 
 	print(
-		"WorldMobRegistry | Status Effect aplicado",
+		"WorldMobRegistry | Status Effect resuelto",
 		" | Entity: ",
 		mob.entity_id,
 		" | Effect: ",
 		status_effect.effect_id,
-		" | Raw Damage/Tick: ",
-		status_effect.damage_context.raw_damage,
-		" | Ticks: ",
-		status_effect.ticks_remaining,
-		" | School: ",
-		status_effect.damage_context.school,
-		" | Element: ",
-		status_effect.damage_context.element,
+		" | Category: ",
+		status_effect.category,
+		" | Operation: ",
+		operation,
+		" | Changed: ",
+		changed,
+		" | Stacks: ",
+		(
+			applied_status.stack_count
+			if applied_status != null
+			else 0
+		)
 	)
 
-	_arm_next_status_effect_tick()
 
-	return true
+	if changed:
+		var status_snapshot: Dictionary = {}
+
+
+		if applied_status != null:
+			status_snapshot = (
+				applied_status.to_snapshot(
+					now_msec
+				)
+			)
+
+
+		_emit_status_effect_change(
+			mob,
+			operation,
+			status_snapshot
+		)
+
+
+	_arm_next_status_effect_deadline()
+
+
+	return application
 
 
 # =========================================================
-# ARMAR PRÓXIMO STATUS TICK
+# EMITIR CAMBIO DE STATUS
 # =========================================================
 
-func _arm_next_status_effect_tick() -> void:
+func _emit_status_effect_change(
+	mob: WorldMobRuntimeState,
+	change_type: String,
+	status_effect_snapshot: Dictionary
+) -> void:
+	if mob == null:
+		return
+
+
+	var mob_snapshot := (
+		mob.to_snapshot()
+	)
+
+
+	if mob_snapshot.is_empty():
+		return
+
+
+	mob_status_effect_changed.emit(
+		mob.entity_id,
+		mob.map_id,
+		mob_snapshot.duplicate(
+			true
+		),
+		change_type,
+		status_effect_snapshot.duplicate(
+			true
+		)
+	)
+
+
+# =========================================================
+# ARMAR PRÓXIMO DEADLINE
+# =========================================================
+
+func _arm_next_status_effect_deadline() -> void:
 	if status_effect_timer == null:
 		return
+
 
 	var nearest_deadline_msec: int = 0
 
@@ -1026,41 +1154,51 @@ func _arm_next_status_effect_tick() -> void:
 	for mob_value: Variant in mobs_by_entity_id.values():
 		var mob := (
 			mob_value
-			as WorldMobRuntimeState
+			as
+			WorldMobRuntimeState
 		)
+
 
 		if mob == null:
 			continue
 
+
 		if not mob.is_alive():
 			continue
 
-		for status_effect: WorldMobStatusEffectRuntime in (
+
+		for status_effect: ServerStatusEffectRuntime in (
 			mob.get_status_effects()
 		):
 			if status_effect == null:
 				continue
 
-			if status_effect.is_finished():
-				continue
 
 			var deadline := (
-				status_effect.next_tick_at_msec
+				status_effect
+				.get_next_deadline_msec()
 			)
+
 
 			if deadline <= 0:
 				continue
 
+
 			if (
 				nearest_deadline_msec == 0
 				or
-				deadline < nearest_deadline_msec
+				deadline
+				<
+				nearest_deadline_msec
 			):
-				nearest_deadline_msec = deadline
+				nearest_deadline_msec = (
+					deadline
+				)
 
 
 	if nearest_deadline_msec <= 0:
 		status_effect_timer.stop()
+
 
 		return
 
@@ -1081,7 +1219,7 @@ func _arm_next_status_effect_tick() -> void:
 
 
 # =========================================================
-# EJECUTAR STATUS TICKS
+# EJECUTAR DEADLINES
 # =========================================================
 
 func _on_status_effect_timer_timeout() -> void:
@@ -1093,14 +1231,18 @@ func _on_status_effect_timer_timeout() -> void:
 	for mob_value: Variant in mobs_by_entity_id.values():
 		var mob := (
 			mob_value
-			as WorldMobRuntimeState
+			as
+			WorldMobRuntimeState
 		)
+
 
 		if mob == null:
 			continue
 
+
 		if not mob.is_alive():
 			mob.clear_status_effects()
+
 
 			continue
 
@@ -1110,203 +1252,386 @@ func _on_status_effect_timer_timeout() -> void:
 		)
 
 
-		for status_effect: WorldMobStatusEffectRuntime in status_effects:
+		for status_effect: ServerStatusEffectRuntime in status_effects:
 			if status_effect == null:
 				continue
 
 
-			while (
-				mob.is_alive()
-				and
-				status_effect.is_due(
-					now_msec
-				)
-			):
-				var damage_defense_profile := (
-					ServerMobDamageDefenseProfileResolver
-					.resolve(
-						mob.definition
+			# =================================================
+			# PERIODIC DAMAGE
+			# =================================================
+
+			if status_effect.is_periodic_damage():
+				while (
+					mob.is_alive()
+					and
+					status_effect.is_due(
+						now_msec
 					)
-				)
-
-
-				if (
-					damage_defense_profile == null
-					or
-					not damage_defense_profile.is_valid()
 				):
-					push_warning(
-						(
-							"WorldMobRegistry | "
-							+
-							"No se pudo resolver Damage Defense "
-							+
-							"para Status Effect '%s'."
-						)
-						%
-						status_effect.effect_id
-					)
-
-
-					mob.remove_status_effect(
-						status_effect.effect_id
-					)
-
-
-					break
-
-
-				var damage_resolution := (
-					ServerDamageResolver.resolve(
-						status_effect.damage_context,
-						damage_defense_profile
-					)
-				)
-
-
-				if (
-					damage_resolution == null
-					or
-					not damage_resolution.is_valid()
-				):
-					push_warning(
-						(
-							"WorldMobRegistry | "
-							+
-							"No se pudo resolver Periodic Damage "
-							+
-							"para Status Effect '%s'."
-						)
-						%
-						status_effect.effect_id
-					)
-
-
-					mob.remove_status_effect(
-						status_effect.effect_id
-					)
-
-
-					break
-					
-				if not status_effect.consume_due_tick(
-					now_msec
-				):
-					break
-
-
-				var source := (
-					status_effect.source.duplicate(
-						true
-					)
-				)
-
-				source[
-					"kind"
-				] = "player_skill_periodic"
-
-				source[
-					"status_effect_id"
-				] = status_effect.effect_id
-
-				source[
-					"school"
-				] = damage_resolution.school
-
-
-				source[
-					"element"
-				] = damage_resolution.element
-
-
-				source[
-					"delivery"
-				] = damage_resolution.delivery
-
-				var damage_result := (
-					apply_damage_to_mob(
-						mob.entity_id,
-						damage_resolution.final_damage,
-						source
-					)
-				)
-
-
-				if damage_result.is_empty():
-					break
-
-
-				var applied_damage := int(
-					damage_result.get(
-						"applied_damage",
-						0
-					)
-				)
-
-
-				if applied_damage <= 0:
-					break
-
-
-				var snapshot := (
-					mob.to_snapshot()
-				)
-
-
-				if not snapshot.is_empty():
-					mob_periodic_damage_applied.emit(
-						mob.entity_id,
-						mob.map_id,
-						snapshot.duplicate(
-							true
-						),
-						source.duplicate(
-							true
-						),
-						applied_damage,
-						status_effect.effect_id
-					)
-
-
-				print(
-					"WorldMobRegistry | Status Effect Tick",
-					" | Entity: ",
-					mob.entity_id,
-					" | Effect: ",
-					status_effect.effect_id,
-					" | Raw Damage: ",
-					damage_resolution.raw_damage,
-					" | School: ",
-					damage_resolution.school,
-					" | School Rating: ",
-					damage_resolution.school_rating,
-					" | Post School: ",
-					damage_resolution.post_school_damage,
-					" | Element: ",
-					damage_resolution.element,
-					" | Element Rating: ",
-					damage_resolution.element_rating,
-					" | Final Damage: ",
-					damage_resolution.final_damage,
-					" | Damage: ",
-					applied_damage,
-					" | Ticks restantes: ",
-					status_effect.ticks_remaining,
-					" | HP: ",
-					mob.vitals.hp,
-					"/",
-					mob.vitals.max_hp
-				)
+					if not _process_periodic_status_tick(
+						mob,
+						status_effect,
+						now_msec
+					):
+						break
 
 
 				if not mob.is_alive():
 					break
 
 
-			if status_effect.is_finished():
-				mob.remove_status_effect(
-					status_effect.effect_id
+			# =================================================
+			# EXPIRATION
+			#
+			# Para DoT:
+			# primero consumimos el último tick.
+			#
+			# Después removemos.
+			# =================================================
+
+			if (
+				status_effect.is_periodic_finished()
+				or
+				status_effect.is_expired(
+					now_msec
+				)
+			):
+				_expire_status_effect(
+					mob,
+					status_effect,
+					now_msec
 				)
 
 
-	_arm_next_status_effect_tick()
+	_arm_next_status_effect_deadline()
+
+
+# =========================================================
+# PERIODIC DAMAGE TICK
+# =========================================================
+
+func _process_periodic_status_tick(
+	mob: WorldMobRuntimeState,
+	status_effect: ServerStatusEffectRuntime,
+	now_msec: int
+) -> bool:
+	if mob == null:
+		return false
+
+
+	if status_effect == null:
+		return false
+
+
+	if not status_effect.is_periodic_damage():
+		return false
+
+
+	if status_effect.damage_context == null:
+		_remove_invalid_status_effect(
+			mob,
+			status_effect,
+			now_msec
+		)
+
+
+		return false
+
+
+	var damage_defense_profile := (
+		ServerMobDamageDefenseProfileResolver
+		.resolve(
+			mob.definition
+		)
+	)
+
+
+	if (
+		damage_defense_profile == null
+		or
+		not damage_defense_profile.is_valid()
+	):
+		push_warning(
+			(
+				"WorldMobRegistry | "
+				+
+				"No se pudo resolver Damage Defense "
+				+
+				"para Status Effect '%s'."
+			)
+			%
+			status_effect.effect_id
+		)
+
+
+		_remove_invalid_status_effect(
+			mob,
+			status_effect,
+			now_msec
+		)
+
+
+		return false
+
+
+	var damage_resolution := (
+		ServerDamageResolver.resolve(
+			status_effect.damage_context,
+			damage_defense_profile
+		)
+	)
+
+
+	if (
+		damage_resolution == null
+		or
+		not damage_resolution.is_valid()
+	):
+		push_warning(
+			(
+				"WorldMobRegistry | "
+				+
+				"No se pudo resolver Periodic Damage "
+				+
+				"para Status Effect '%s'."
+			)
+			%
+			status_effect.effect_id
+		)
+
+
+		_remove_invalid_status_effect(
+			mob,
+			status_effect,
+			now_msec
+		)
+
+
+		return false
+
+
+	if not status_effect.consume_due_tick(
+		now_msec
+	):
+		return false
+
+
+	var source := (
+		status_effect.source.duplicate(
+			true
+		)
+	)
+
+
+	source[
+		"kind"
+	] = "player_skill_periodic"
+
+
+	source[
+		"status_effect_id"
+	] = status_effect.effect_id
+
+
+	source[
+		"school"
+	] = damage_resolution.school
+
+
+	source[
+		"element"
+	] = damage_resolution.element
+
+
+	source[
+		"delivery"
+	] = damage_resolution.delivery
+
+
+	var damage_result := (
+		apply_damage_to_mob(
+			mob.entity_id,
+			damage_resolution.final_damage,
+			source
+		)
+	)
+
+
+	if damage_result.is_empty():
+		return false
+
+
+	var applied_damage := int(
+		damage_result.get(
+			"applied_damage",
+			0
+		)
+	)
+
+
+	if applied_damage <= 0:
+		return false
+
+
+	var snapshot := (
+		mob.to_snapshot()
+	)
+
+
+	if not snapshot.is_empty():
+		mob_periodic_damage_applied.emit(
+			mob.entity_id,
+			mob.map_id,
+			snapshot.duplicate(
+				true
+			),
+			source.duplicate(
+				true
+			),
+			applied_damage,
+			status_effect.effect_id
+		)
+
+
+	print(
+		"WorldMobRegistry | Status Effect Tick",
+		" | Entity: ",
+		mob.entity_id,
+		" | Effect: ",
+		status_effect.effect_id,
+		" | Raw Damage: ",
+		damage_resolution.raw_damage,
+		" | School: ",
+		damage_resolution.school,
+		" | School Rating: ",
+		damage_resolution.school_rating,
+		" | Post School: ",
+		damage_resolution.post_school_damage,
+		" | Element: ",
+		damage_resolution.element,
+		" | Element Rating: ",
+		damage_resolution.element_rating,
+		" | Final Damage: ",
+		damage_resolution.final_damage,
+		" | Damage: ",
+		applied_damage,
+		" | Ticks restantes: ",
+		status_effect.ticks_remaining,
+		" | HP: ",
+		mob.vitals.hp,
+		"/",
+		mob.vitals.max_hp
+	)
+
+
+	return true
+
+
+# =========================================================
+# EXPIRAR STATUS
+# =========================================================
+
+func _expire_status_effect(
+	mob: WorldMobRuntimeState,
+	status_effect: ServerStatusEffectRuntime,
+	now_msec: int
+) -> void:
+	if mob == null:
+		return
+
+
+	if status_effect == null:
+		return
+
+
+	var status_snapshot := (
+		status_effect.to_snapshot(
+			now_msec
+		)
+	)
+
+
+	if status_effect.is_hard_control():
+		mob.begin_hard_control_immunity(
+			now_msec
+		)
+
+
+	var removed := (
+		mob.remove_status_effect_by_key(
+			status_effect.runtime_key
+		)
+	)
+
+
+	if removed == null:
+		return
+
+
+	print(
+		"WorldMobRegistry | Status Effect expirado",
+		" | Entity: ",
+		mob.entity_id,
+		" | Effect: ",
+		status_effect.effect_id,
+		" | Category: ",
+		status_effect.category,
+		" | Hard Control Immunity: ",
+		(
+			ServerStatusEffectProfile
+			.HARD_CONTROL_IMMUNITY_SECONDS
+			if status_effect.is_hard_control()
+			else 0.0
+		),
+		" s"
+	)
+
+
+	_emit_status_effect_change(
+		mob,
+		"expired",
+		status_snapshot
+	)
+
+
+# =========================================================
+# REMOVER STATUS INVÁLIDO
+# =========================================================
+
+func _remove_invalid_status_effect(
+	mob: WorldMobRuntimeState,
+	status_effect: ServerStatusEffectRuntime,
+	now_msec: int
+) -> void:
+	if mob == null:
+		return
+
+
+	if status_effect == null:
+		return
+
+
+	var status_snapshot := (
+		status_effect.to_snapshot(
+			now_msec
+		)
+	)
+
+
+	var removed := (
+		mob.remove_status_effect_by_key(
+			status_effect.runtime_key
+		)
+	)
+
+
+	if removed == null:
+		return
+
+
+	_emit_status_effect_change(
+		mob,
+		"removed_invalid",
+		status_snapshot
+	)

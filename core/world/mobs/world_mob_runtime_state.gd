@@ -35,7 +35,8 @@ var vitals: ServerVitalsState = null
 
 var combat_runtime: WorldMobCombatRuntime = null
 
-var status_effects_by_id: Dictionary = {}
+var status_effects: ServerStatusEffectCollection = null
+
 
 # =========================================================
 # CREAR
@@ -93,20 +94,11 @@ static func create(
 	)
 
 
-	# -----------------------------------------------------
-	# Primer mob:
-	#
-	# HP real.
-	# Sin MP por ahora.
-	#
-	# Reutilizamos el mismo primitive de vitals que ya usa
-	# el runtime autoritativo del jugador.
-	# -----------------------------------------------------
-
 	state.vitals = ServerVitalsState.new(
 		new_definition.max_hp,
 		0
 	)
+
 
 	state.combat_runtime = (
 		WorldMobCombatRuntime.new()
@@ -115,6 +107,16 @@ static func create(
 
 	if not state.combat_runtime.is_valid():
 		return null
+
+
+	state.status_effects = (
+		ServerStatusEffectCollection.new()
+	)
+
+
+	if not state.status_effects.is_valid():
+		return null
+
 
 	return state
 
@@ -140,6 +142,10 @@ func is_valid() -> bool:
 		combat_runtime != null
 		and
 		combat_runtime.is_valid()
+		and
+		status_effects != null
+		and
+		status_effects.is_valid()
 	)
 
 
@@ -155,6 +161,7 @@ func is_alive() -> bool:
 	return (
 		vitals.hp > 0
 	)
+
 
 func apply_damage(
 	amount: int
@@ -175,65 +182,150 @@ func apply_damage(
 		amount
 	)
 
+
 # =========================================================
 # STATUS EFFECTS
 # =========================================================
 
 func apply_status_effect(
-	status_effect: WorldMobStatusEffectRuntime
-) -> bool:
-	if status_effect == null:
-		return false
+	status_effect: ServerStatusEffectRuntime,
+	now_msec: int
+) -> Dictionary:
+	if status_effects == null:
+		return {
+			"ok": false,
+		}
 
-	if not status_effect.is_valid():
-		return false
 
 	if not is_alive():
-		return false
-
-	# Foundation:
-	#
-	# Un solo efecto por effect_id.
-	# Un nuevo Poison reemplaza/refresca al anterior.
-
-	status_effects_by_id[
-		status_effect.effect_id
-	] = status_effect
-
-	return true
+		return {
+			"ok": false,
+		}
 
 
-func get_status_effects() -> Array[WorldMobStatusEffectRuntime]:
-	var result: Array[WorldMobStatusEffectRuntime] = []
+	return status_effects.apply_status_effect(
+		status_effect,
+		now_msec
+	)
 
-	for value: Variant in status_effects_by_id.values():
-		var status_effect := (
-			value
-			as WorldMobStatusEffectRuntime
-		)
 
-		if status_effect == null:
-			continue
+func get_status_effects() -> Array[ServerStatusEffectRuntime]:
+	if status_effects == null:
+		return []
 
-		result.append(
-			status_effect
-		)
 
-	return result
+	return status_effects.get_all()
+
+
+func remove_status_effect_by_key(
+	runtime_key: String
+) -> ServerStatusEffectRuntime:
+	if status_effects == null:
+		return null
+
+
+	return status_effects.remove_status_effect_by_key(
+		runtime_key
+	)
 
 
 func remove_status_effect(
 	effect_id: String
-) -> void:
-	status_effects_by_id.erase(
+) -> int:
+	if status_effects == null:
+		return 0
+
+
+	return status_effects.remove_status_effect(
 		effect_id
-		.strip_edges()
-		.to_lower()
 	)
 
 
 func clear_status_effects() -> void:
-	status_effects_by_id.clear()
+	if status_effects == null:
+		return
+
+
+	status_effects.clear()
+
+
+func begin_hard_control_immunity(
+	now_msec: int
+) -> void:
+	if status_effects == null:
+		return
+
+
+	status_effects.begin_hard_control_immunity(
+		now_msec
+	)
+
+
+func is_hard_control_immune(
+	now_msec: int
+) -> bool:
+	if status_effects == null:
+		return false
+
+
+	return status_effects.is_hard_control_immune(
+		now_msec
+	)
+
+
+# =========================================================
+# STATUS EFFECT CONSUMERS
+# =========================================================
+
+func get_movement_speed_multiplier() -> float:
+	if status_effects == null:
+		return 1.0
+
+
+	return status_effects.get_movement_speed_multiplier(
+		Time.get_ticks_msec()
+	)
+
+
+func get_attack_speed_multiplier() -> float:
+	if status_effects == null:
+		return 1.0
+
+
+	return status_effects.get_attack_speed_multiplier(
+		Time.get_ticks_msec()
+	)
+
+
+func is_movement_blocked() -> bool:
+	if status_effects == null:
+		return false
+
+
+	return status_effects.is_movement_blocked(
+		Time.get_ticks_msec()
+	)
+
+
+func are_actions_blocked() -> bool:
+	if status_effects == null:
+		return false
+
+
+	return status_effects.are_actions_blocked(
+		Time.get_ticks_msec()
+	)
+
+
+func are_skills_blocked() -> bool:
+	if status_effects == null:
+		return false
+
+
+	return status_effects.are_skills_blocked(
+		Time.get_ticks_msec()
+	)
+
 
 # =========================================================
 # COMBAT RUNTIME
@@ -245,6 +337,7 @@ func reset_combat() -> void:
 
 
 	combat_runtime.reset()
+
 
 # =========================================================
 # RESPAWN
@@ -264,7 +357,9 @@ func respawn_at_spawn() -> bool:
 
 
 	clear_status_effects()
+
 	reset_combat()
+
 
 	vitals.set_hp(
 		vitals.max_hp
@@ -283,6 +378,7 @@ func respawn_at_spawn() -> bool:
 
 
 	return is_alive()
+
 
 # =========================================================
 # TRANSFORM
@@ -306,6 +402,17 @@ func to_snapshot() -> Dictionary:
 		return {}
 
 
+	var status_effect_snapshots: Array = []
+
+
+	if status_effects != null:
+		status_effect_snapshots = (
+			status_effects.get_snapshots(
+				Time.get_ticks_msec()
+			)
+		)
+
+
 	return {
 		"entity_id": entity_id,
 
@@ -327,6 +434,10 @@ func to_snapshot() -> Dictionary:
 
 		"vitals": (
 			vitals.to_snapshot()
+		),
+
+		"status_effects": (
+			status_effect_snapshots
 		),
 
 		"world": {

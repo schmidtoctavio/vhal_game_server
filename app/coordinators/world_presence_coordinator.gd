@@ -73,6 +73,13 @@ func setup(
 			_on_mob_periodic_damage_applied
 		)
 
+	if not world_mob_registry.mob_status_effect_changed.is_connected(
+		_on_mob_status_effect_changed
+	):
+		world_mob_registry.mob_status_effect_changed.connect(
+			_on_mob_status_effect_changed
+		)
+
 	configured = true
 
 	if not world_drop_registry.world_drop_spawned.is_connected(
@@ -620,6 +627,67 @@ func _on_mob_periodic_damage_applied(
 		status_effect_id,
 		" | Damage: ",
 		applied_damage,
+		" | Recipients: ",
+		recipients
+	)
+
+# =========================================================
+# MOB STATUS EFFECT CHANGED
+# =========================================================
+
+func _on_mob_status_effect_changed(
+	entity_id: String,
+	map_id: String,
+	mob_snapshot: Dictionary,
+	change_type: String,
+	status_effect_snapshot: Dictionary
+) -> void:
+	if not configured:
+		return
+
+
+	if mob_snapshot.is_empty():
+		return
+
+
+	var recipients := 0
+
+
+	for session: PlayerWorldSession in (
+		world_session_registry.get_sessions_in_map(
+			map_id
+		)
+	):
+		if session == null:
+			continue
+
+
+		var result := (
+			game_server.send_mob_state_updated(
+				session.peer_id,
+				mob_snapshot
+			)
+		)
+
+
+		if result != OK:
+			continue
+
+
+		recipients += 1
+
+
+	print(
+		"WorldPresenceCoordinator | Status Effect replicado",
+		" | Entity: ",
+		entity_id,
+		" | Effect: ",
+		status_effect_snapshot.get(
+			"effect_id",
+			"?"
+		),
+		" | Change: ",
+		change_type,
 		" | Recipients: ",
 		recipients
 	)
