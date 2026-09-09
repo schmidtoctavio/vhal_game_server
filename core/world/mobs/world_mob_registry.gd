@@ -126,6 +126,36 @@ func initialize() -> Error:
 	):
 		return ERR_INVALID_DATA
 
+	# -----------------------------------------------------
+	# TRAINING DUMMY
+	#
+	# Mob pasivo:
+	#
+	# - targeteable
+	# - recibe daño
+	# - respawnea
+	# - no aggro
+	# - no chase
+	# - no attack
+	# - no XP
+	# -----------------------------------------------------
+
+	var training_dummy := (
+		WorldMobDefinition.create(
+			"training_dummy",
+			"Training Dummy",
+			1,
+			700,
+			0,
+			3.0
+		)
+	)
+
+
+	if not _register_definition(
+		training_dummy
+	):
+		return ERR_INVALID_DATA
 
 	# -----------------------------------------------------
 	# PRIMERA INSTANCIA REAL DE MUNDO
@@ -151,6 +181,99 @@ func initialize() -> Error:
 	):
 		return ERR_INVALID_DATA
 
+	# -----------------------------------------------------
+	# DUMMIES F28
+	#
+	# LOS:
+	# mob_test_town_dummy_los
+	#
+	# AoE:
+	# mob_test_town_dummy_aoe_a
+	# mob_test_town_dummy_aoe_b
+	# -----------------------------------------------------
+
+	var dummy_spawns: Array = [
+		{
+			"entity_id": "mob_test_town_dummy_los",
+
+			"position": Vector3(
+				4.0,
+				0.0,
+				3.0
+			),
+		},
+
+		{
+			"entity_id": "mob_test_town_dummy_aoe_a",
+
+			"position": Vector3(
+				8.0,
+				0.0,
+				6.0
+			),
+		},
+
+		{
+			"entity_id": "mob_test_town_dummy_aoe_b",
+
+			"position": Vector3(
+				9.5,
+				0.0,
+				6.0
+			),
+		},
+	]
+
+
+	for dummy_spawn_value: Variant in dummy_spawns:
+		if typeof(dummy_spawn_value) != TYPE_DICTIONARY:
+			return ERR_INVALID_DATA
+
+
+		var dummy_spawn: Dictionary = (
+			dummy_spawn_value
+		)
+
+
+		var dummy_entity_id := String(
+			dummy_spawn.get(
+				"entity_id",
+				""
+			)
+		).strip_edges().to_lower()
+
+
+		var dummy_position_value: Variant = (
+			dummy_spawn.get(
+				"position",
+				null
+			)
+		)
+
+
+		if (
+			dummy_entity_id.is_empty()
+			or
+			typeof(dummy_position_value) != TYPE_VECTOR3
+		):
+			return ERR_INVALID_DATA
+
+
+		var dummy := (
+			WorldMobRuntimeState.create(
+				dummy_entity_id,
+				training_dummy,
+				"test_town",
+				dummy_position_value,
+				0.0
+			)
+		)
+
+
+		if not _register_mob(
+			dummy
+		):
+			return ERR_INVALID_DATA
 
 	print(
 		"WorldMobRegistry | Inicializado",

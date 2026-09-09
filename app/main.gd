@@ -556,6 +556,30 @@ func _ready() -> void:
 
 		return
 
+	var line_of_sight_contract_error := (
+		ServerWorldLineOfSight
+		.validate_contract()
+	)
+
+
+	if not line_of_sight_contract_error.is_empty():
+		push_error(
+			(
+				"ServerMain | "
+				+
+				"Line Of Sight Contract inválido: "
+				+
+				line_of_sight_contract_error
+			)
+		)
+
+
+		get_tree().quit(
+			49
+		)
+
+
+		return
 
 	var physical_defense_profile_contract_error := (
 		ServerCharacterPhysicalDefenseProfileResolver
@@ -744,6 +768,10 @@ func _ready() -> void:
 	)
 
 	print(
+		"ServerMain | Line Of Sight Contract validado."
+	)
+
+	print(
 		"ServerMain | Physical Defense Profile Contract validado."
 	)
 
@@ -839,7 +867,8 @@ func _ready() -> void:
 	if not skill_cast_coordinator.setup(
 		game_server,
 		world_session_registry,
-		world_mob_registry
+		world_mob_registry,
+		world_navigation_registry
 	):
 		push_error(
 			"ServerMain | No se pudo inicializar SkillCastCoordinator."

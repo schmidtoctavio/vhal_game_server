@@ -27,6 +27,17 @@ const DROP_TABLES: Dictionary = {
 			"quantity_max": 1,
 		},
 	],
+	"training_dummy": [
+		{
+			"item_id": "bronze_bow",
+
+			"chance": 1.0,
+
+			"quantity_min": 1,
+
+			"quantity_max": 1,
+		},
+	],
 }
 
 

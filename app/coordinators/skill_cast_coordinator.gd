@@ -28,6 +28,8 @@ var world_session_registry: WorldSessionRegistry = null
 
 var world_mob_registry: WorldMobRegistry = null
 
+var world_navigation_registry: WorldNavigationRegistry = null
+
 # =========================================================
 # ESTADO
 # =========================================================
@@ -42,7 +44,8 @@ var configured: bool = false
 func setup(
 	p_game_server: GameServer,
 	p_world_session_registry: WorldSessionRegistry,
-	p_world_mob_registry: WorldMobRegistry
+	p_world_mob_registry: WorldMobRegistry,
+	p_world_navigation_registry: WorldNavigationRegistry
 ) -> bool:
 	if configured:
 		return true
@@ -59,6 +62,8 @@ func setup(
 	if p_world_mob_registry == null:
 		return false
 
+	if p_world_navigation_registry == null:
+		return false
 
 	game_server = p_game_server
 
@@ -72,6 +77,9 @@ func setup(
 		p_world_mob_registry
 	)
 
+	world_navigation_registry = (
+		p_world_navigation_registry
+	)
 
 	_bind_signals()
 
@@ -460,6 +468,9 @@ func _process_skill_cast_request(
 
 	var damage_target: WorldMobRuntimeState = null
 
+	var area_damage_center: Vector3 = Vector3.ZERO
+
+	var area_damage_entries: Array = []
 
 	if (
 		definition.skill_id
@@ -523,6 +534,122 @@ func _process_skill_cast_request(
 
 			return
 
+		var position_result := (
+			_read_target_position(
+				target
+			)
+		)
+
+
+		if not bool(
+			position_result.get(
+				"ok",
+				false
+			)
+		):
+			_send_result(
+				peer_id,
+				request_id,
+				definition.skill_id,
+				false,
+				"runtime_failure",
+				session,
+				0.0,
+				{}
+			)
+
+
+			return
+
+
+		var position_value: Variant = (
+			position_result.get(
+				"position",
+				null
+			)
+		)
+
+
+		if typeof(position_value) != TYPE_VECTOR3:
+			_send_result(
+				peer_id,
+				request_id,
+				definition.skill_id,
+				false,
+				"runtime_failure",
+				session,
+				0.0,
+				{}
+			)
+
+
+			return
+
+
+		area_damage_center = (
+			position_value
+		)
+
+
+		var area_preparation := (
+			_prepare_area_damage_entries(
+				definition,
+				session,
+				area_damage_center,
+				direct_damage_context
+			)
+		)
+
+
+		if not bool(
+			area_preparation.get(
+				"ok",
+				false
+			)
+		):
+			_send_result(
+				peer_id,
+				request_id,
+				definition.skill_id,
+				false,
+				"runtime_failure",
+				session,
+				0.0,
+				{}
+			)
+
+
+			return
+
+
+		var entries_value: Variant = (
+			area_preparation.get(
+				"entries",
+				[]
+			)
+		)
+
+
+		if typeof(entries_value) != TYPE_ARRAY:
+			_send_result(
+				peer_id,
+				request_id,
+				definition.skill_id,
+				false,
+				"runtime_failure",
+				session,
+				0.0,
+				{}
+			)
+
+
+			return
+
+
+		area_damage_entries = (
+			entries_value
+		)
+
 	elif (
 		definition.skill_id
 		==
@@ -565,12 +692,6 @@ func _process_skill_cast_request(
 	# -----------------------------------------------------
 
 	if (
-		definition.skill_id
-		==
-		ServerSkillCatalog.FIRE_BALL_ID
-
-		or
-
 		definition.skill_id
 		==
 		ServerSkillCatalog.POISON_ID
@@ -787,7 +908,7 @@ func _process_skill_cast_request(
 
 
 	# =====================================================
-	# EJECUTAR FIRE BALL
+	# EJECUTAR FIRE BALL AoE POSITION
 	# =====================================================
 
 	if (
@@ -795,11 +916,7 @@ func _process_skill_cast_request(
 		==
 		ServerSkillCatalog.FIRE_BALL_ID
 	):
-		if (
-			damage_target == null
-			or
-			direct_damage_context == null
-		):
+		if direct_damage_context == null:
 			_rollback_committed_skill_costs(
 				session,
 				definition
@@ -821,167 +938,143 @@ func _process_skill_cast_request(
 			return
 
 
-		var damage_defense_profile := (
-			ServerMobDamageDefenseProfileResolver
-			.resolve(
-				damage_target.definition
-			)
-		)
+		var total_applied_damage := 0
+
+		var applied_target_count := 0
 
 
-		if (
-			damage_defense_profile == null
-			or
-			not damage_defense_profile.is_valid()
-		):
-			_rollback_committed_skill_costs(
-				session,
-				definition
+		for entry_value: Variant in area_damage_entries:
+			if typeof(entry_value) != TYPE_DICTIONARY:
+				continue
+
+
+			var entry: Dictionary = (
+				entry_value
 			)
 
 
-			_send_result(
-				peer_id,
+			var mob_value: Variant = (
+				entry.get(
+					"mob",
+					null
+				)
+			)
+
+			var resolution_value: Variant = (
+				entry.get(
+					"resolution",
+					null
+				)
+			)
+
+
+			var area_mob := (
+				mob_value
+				as
+				WorldMobRuntimeState
+			)
+
+			var damage_resolution := (
+				resolution_value
+				as
+				ServerDamageResolutionResult
+			)
+
+
+			if (
+				area_mob == null
+				or
+				damage_resolution == null
+			):
+				continue
+
+
+			if not area_mob.is_alive():
+				continue
+
+
+			if not damage_resolution.is_valid():
+				continue
+
+
+			var damage_result := (
+				world_mob_registry.apply_damage_to_mob(
+					area_mob.entity_id,
+					damage_resolution.final_damage,
+					{
+						"kind": "player_skill",
+
+						"peer_id": peer_id,
+
+						"character_id": (
+							session.character_id
+						),
+
+						"request_id": request_id,
+
+						"skill_id": (
+							definition.skill_id
+						),
+
+						"area": true,
+
+						"school": (
+							damage_resolution.school
+						),
+
+						"element": (
+							damage_resolution.element
+						),
+
+						"delivery": (
+							damage_resolution.delivery
+						),
+					}
+				)
+			)
+
+
+			if damage_result.is_empty():
+				continue
+
+
+			var applied_damage := int(
+				damage_result.get(
+					"applied_damage",
+					0
+				)
+			)
+
+
+			if applied_damage <= 0:
+				continue
+
+
+			total_applied_damage += (
+				applied_damage
+			)
+
+			applied_target_count += 1
+
+
+			_broadcast_mob_state(
+				area_mob
+			)
+
+
+			print(
+				"SkillCastCoordinator | Fire Ball AoE victim",
+				" | Request: ",
 				request_id,
-				definition.skill_id,
-				false,
-				"runtime_failure",
-				session,
-				0.0,
-				{}
+				" | Entity: ",
+				area_mob.entity_id,
+				" | Applied Damage: ",
+				applied_damage,
+				" | HP restante: ",
+				area_mob.vitals.hp,
+				"/",
+				area_mob.vitals.max_hp
 			)
-
-
-			return
-
-
-		var damage_resolution := (
-			ServerDamageResolver.resolve(
-				direct_damage_context,
-				damage_defense_profile
-			)
-		)
-
-
-		if (
-			damage_resolution == null
-			or
-			not damage_resolution.is_valid()
-		):
-			_rollback_committed_skill_costs(
-				session,
-				definition
-			)
-
-
-			_send_result(
-				peer_id,
-				request_id,
-				definition.skill_id,
-				false,
-				"runtime_failure",
-				session,
-				0.0,
-				{}
-			)
-
-
-			return
-
-
-		var damage_result := (
-			world_mob_registry.apply_damage_to_mob(
-				damage_target.entity_id,
-				damage_resolution.final_damage,
-				{
-					"kind": "player_skill",
-
-					"peer_id": peer_id,
-
-					"character_id": (
-						session.character_id
-					),
-
-					"request_id": request_id,
-
-					"skill_id": (
-						definition.skill_id
-					),
-
-					"school": (
-						damage_resolution.school
-					),
-
-					"element": (
-						damage_resolution.element
-					),
-
-					"delivery": (
-						damage_resolution.delivery
-					),
-				}
-			)
-		)
-
-
-		if damage_result.is_empty():
-			_rollback_committed_skill_costs(
-				session,
-				definition
-			)
-
-
-			_send_result(
-				peer_id,
-				request_id,
-				definition.skill_id,
-				false,
-				"runtime_failure",
-				session,
-				0.0,
-				{}
-			)
-
-
-			return
-
-
-		var applied_damage := int(
-			damage_result.get(
-				"applied_damage",
-				0
-			)
-		)
-
-
-		var target_died := bool(
-			damage_result.get(
-				"died",
-				false
-			)
-		)
-
-
-		if applied_damage <= 0:
-			_rollback_committed_skill_costs(
-				session,
-				definition
-			)
-
-
-			_send_result(
-				peer_id,
-				request_id,
-				definition.skill_id,
-				false,
-				"runtime_failure",
-				session,
-				0.0,
-				{}
-			)
-
-
-			return
 
 
 		cooldown_remaining = (
@@ -1002,91 +1095,43 @@ func _process_skill_cast_request(
 			session,
 			cooldown_remaining,
 			{
-				"kind": "damage",
+				"kind": "area_damage",
 
-				"amount": applied_damage,
+				"amount": total_applied_damage,
 
-				"raw_amount": (
-					damage_resolution.raw_damage
+				"target_count": (
+					applied_target_count
 				),
 
-				"pre_mitigation_amount": (
-					damage_resolution
-					.pre_mitigation_damage
-				),
+				"center": {
+					"x": area_damage_center.x,
+					"y": area_damage_center.y,
+					"z": area_damage_center.z,
+				},
 
-				"school": (
-					damage_resolution.school
+				"radius": (
+					definition.area_radius
 				),
-
-				"school_rating": (
-					damage_resolution.school_rating
-				),
-
-				"post_school_amount": (
-					damage_resolution.post_school_damage
-				),
-
-				"element": (
-					damage_resolution.element
-				),
-
-				"element_rating": (
-					damage_resolution.element_rating
-				),
-
-				"resolved_amount": (
-					damage_resolution.final_damage
-				),
-
-				"entity_id": (
-					damage_target.entity_id
-				),
-
-				"killed": target_died,
 			}
 		)
 
 
-		_broadcast_mob_state(
-			damage_target
-		)
-
-
 		print(
-			"SkillCastCoordinator | Fire Ball autoritativo ejecutado",
+			"SkillCastCoordinator | Fire Ball AoE autoritativo ejecutado",
 			" | Request: ",
 			request_id,
 			" | Peer: ",
 			peer_id,
 			" | Personaje: ",
 			session.character_name,
-			" | Entity: ",
-			damage_target.entity_id,
-			" | Magic Power: ",
-			session.derived_stats.magic_power,
-			" | Raw Damage: ",
-			damage_resolution.raw_damage,
-			" | School: ",
-			damage_resolution.school,
-			" | School Rating: ",
-			damage_resolution.school_rating,
-			" | Post School: ",
-			damage_resolution.post_school_damage,
-			" | Element: ",
-			damage_resolution.element,
-			" | Element Rating: ",
-			damage_resolution.element_rating,
-			" | Final Damage: ",
-			damage_resolution.final_damage,
-			" | Applied Damage: ",
-			applied_damage,
-			" | HP restante: ",
-			damage_target.vitals.hp,
-			"/",
-			damage_target.vitals.max_hp,
-			" | Killed: ",
-			target_died,
+			" | Center: ",
+			area_damage_center,
+			" | Radius: ",
+			definition.area_radius,
+			" | Targets: ",
+			applied_target_count,
+			" | Total Damage: ",
+			total_applied_damage,
 			" | MP: ",
 			session.vitals.mp,
 			"/",
@@ -1343,10 +1388,6 @@ func _supports_action_approach(
 	return (
 		definition.skill_id
 		==
-		ServerSkillCatalog.FIRE_BALL_ID
-		or
-		definition.skill_id
-		==
 		ServerSkillCatalog.POISON_ID
 	)
 
@@ -1447,10 +1488,6 @@ func _validate_authoritative_target(
 	).strip_edges().to_lower()
 
 
-	# -----------------------------------------------------
-	# EL TARGET DEBE COINCIDIR CON LA DEFINICIÓN
-	# -----------------------------------------------------
-
 	if target_kind != definition.target_kind:
 		return "invalid_target"
 
@@ -1473,12 +1510,47 @@ func _validate_authoritative_target(
 
 	if (
 		target_kind
-		!=
+		==
 		ServerSkillDefinition.TARGET_ENTITY
 	):
-		return "invalid_target"
+		return _validate_entity_target(
+			definition,
+			session,
+			target,
+			request_id
+		)
 
 
+	# -----------------------------------------------------
+	# POSITION
+	# -----------------------------------------------------
+
+	if (
+		target_kind
+		==
+		ServerSkillDefinition.TARGET_POSITION
+	):
+		return _validate_position_target(
+			definition,
+			session,
+			target,
+			request_id
+		)
+
+
+	return "invalid_target"
+
+
+# =========================================================
+# ENTITY TARGET
+# =========================================================
+
+func _validate_entity_target(
+	definition: ServerSkillDefinition,
+	session: PlayerWorldSession,
+	target: Dictionary,
+	request_id: int
+) -> String:
 	var entity_id := String(
 		target.get(
 			"entity_id",
@@ -1491,10 +1563,6 @@ func _validate_authoritative_target(
 		return "invalid_target"
 
 
-	# -----------------------------------------------------
-	# RESOLVER LA ENTIDAD CONTRA EL REGISTRY AUTORITATIVO
-	# -----------------------------------------------------
-
 	var mob := (
 		world_mob_registry.get_mob(
 			entity_id
@@ -1506,29 +1574,16 @@ func _validate_authoritative_target(
 		return "target_not_found"
 
 
-	# -----------------------------------------------------
-	# MISMO MAPA
-	# -----------------------------------------------------
-
 	if mob.map_id != session.map_id:
 		return "target_wrong_map"
 
 
-	# -----------------------------------------------------
-	# MOB VIVO
-	# -----------------------------------------------------
-
 	if not mob.is_alive():
 		return "target_not_alive"
 
+
 	# -----------------------------------------------------
-	# RANGO AUTORITATIVO
-	#
-	# Algunas entity Skills todavía pueden conservar
-	# cast_range = 0 mientras no estén implementadas.
-	#
-	# Si la definición declara rango positivo,
-	# el Game Server lo hace cumplir.
+	# RANGE
 	# -----------------------------------------------------
 
 	if definition.cast_range > 0.0:
@@ -1537,8 +1592,7 @@ func _validate_authoritative_target(
 			session.position.z
 		)
 
-
-		var target_position := Vector2(
+		var mob_position := Vector2(
 			mob.position.x,
 			mob.position.z
 		)
@@ -1546,7 +1600,7 @@ func _validate_authoritative_target(
 
 		var distance := (
 			caster_position.distance_to(
-				target_position
+				mob_position
 			)
 		)
 
@@ -1571,8 +1625,30 @@ func _validate_authoritative_target(
 
 
 	# -----------------------------------------------------
-	# TARGET VALIDADO
+	# LOS
+	#
+	# F28-C:
+	# Entity Skills requieren LOS.
 	# -----------------------------------------------------
+
+	if not ServerWorldLineOfSight.has_line_of_sight(
+		session.map_id,
+		session.position,
+		mob.position
+	):
+		print(
+			"SkillCastCoordinator | LOS bloqueado",
+			" | Request: ",
+			request_id,
+			" | Skill: ",
+			definition.skill_id,
+			" | Entity: ",
+			mob.entity_id
+		)
+
+
+		return "line_of_sight_blocked"
+
 
 	print(
 		"SkillCastCoordinator | Target autoritativo validado",
@@ -1593,6 +1669,447 @@ func _validate_authoritative_target(
 
 
 	return ""
+
+
+# =========================================================
+# POSITION TARGET
+# =========================================================
+
+func _validate_position_target(
+	definition: ServerSkillDefinition,
+	session: PlayerWorldSession,
+	target: Dictionary,
+	request_id: int
+) -> String:
+	if world_navigation_registry == null:
+		return "runtime_failure"
+
+
+	if definition.cast_range <= 0.0:
+		return "invalid_target"
+
+
+	var position_result := (
+		_read_target_position(
+			target
+		)
+	)
+
+
+	if not bool(
+		position_result.get(
+			"ok",
+			false
+		)
+	):
+		return "invalid_target"
+
+
+	var requested_value: Variant = (
+		position_result.get(
+			"position",
+			null
+		)
+	)
+
+
+	if typeof(requested_value) != TYPE_VECTOR3:
+		return "invalid_target"
+
+
+	var requested_position: Vector3 = (
+		requested_value
+	)
+
+
+	var navigation_result := (
+		world_navigation_registry
+		.resolve_authoritative_target_position(
+			session.map_id,
+			requested_position
+		)
+	)
+
+
+	if not bool(
+		navigation_result.get(
+			"ok",
+			false
+		)
+	):
+		return String(
+			navigation_result.get(
+				"reason",
+				"invalid_target"
+			)
+		)
+
+
+	var resolved_value: Variant = (
+		navigation_result.get(
+			"resolved_target",
+			null
+		)
+	)
+
+
+	if typeof(resolved_value) != TYPE_VECTOR3:
+		return "runtime_failure"
+
+
+	var authoritative_position: Vector3 = (
+		resolved_value
+	)
+
+
+	# -----------------------------------------------------
+	# RANGE
+	# -----------------------------------------------------
+
+	var caster_position_xz := Vector2(
+		session.position.x,
+		session.position.z
+	)
+
+	var target_position_xz := Vector2(
+		authoritative_position.x,
+		authoritative_position.z
+	)
+
+
+	var distance := (
+		caster_position_xz.distance_to(
+			target_position_xz
+		)
+	)
+
+
+	if distance > definition.cast_range:
+		print(
+			"SkillCastCoordinator | Position fuera de rango",
+			" | Request: ",
+			request_id,
+			" | Skill: ",
+			definition.skill_id,
+			" | Requested: ",
+			requested_position,
+			" | Authoritative: ",
+			authoritative_position,
+			" | Distance: ",
+			distance,
+			" | Range: ",
+			definition.cast_range
+		)
+
+
+		return "out_of_range"
+
+
+	# -----------------------------------------------------
+	# LOS HACIA EL CENTRO AUTORITATIVO
+	# -----------------------------------------------------
+
+	if not ServerWorldLineOfSight.has_line_of_sight(
+		session.map_id,
+		session.position,
+		authoritative_position
+	):
+		print(
+			"SkillCastCoordinator | Position LOS bloqueado",
+			" | Request: ",
+			request_id,
+			" | Skill: ",
+			definition.skill_id,
+			" | Position: ",
+			authoritative_position
+		)
+
+
+		return "line_of_sight_blocked"
+
+
+	# -----------------------------------------------------
+	# SOBRESCRIBIR LA PROPUESTA DEL CLIENT
+	#
+	# A partir de acá el resto del cast consume solamente
+	# la posición proyectada por Game Server.
+	# -----------------------------------------------------
+
+	target[
+		"position"
+	] = {
+		"x": authoritative_position.x,
+		"y": authoritative_position.y,
+		"z": authoritative_position.z,
+	}
+
+
+	print(
+		"SkillCastCoordinator | Target position autoritativo validado",
+		" | Request: ",
+		request_id,
+		" | Skill: ",
+		definition.skill_id,
+		" | Requested: ",
+		requested_position,
+		" | Authoritative: ",
+		authoritative_position,
+		" | Range: ",
+		definition.cast_range,
+		" | Area Radius: ",
+		definition.area_radius
+	)
+
+
+	return ""
+
+
+# =========================================================
+# LEER POSITION TARGET
+# =========================================================
+
+func _read_target_position(
+	target: Dictionary
+) -> Dictionary:
+	var position_value: Variant = (
+		target.get(
+			"position",
+			null
+		)
+	)
+
+
+	if typeof(position_value) != TYPE_DICTIONARY:
+		return {
+			"ok": false,
+		}
+
+
+	var position_data: Dictionary = (
+		position_value
+	)
+
+
+	if (
+		not position_data.has("x")
+		or
+		not position_data.has("y")
+		or
+		not position_data.has("z")
+	):
+		return {
+			"ok": false,
+		}
+
+
+	var x_value: Variant = (
+		position_data["x"]
+	)
+
+	var y_value: Variant = (
+		position_data["y"]
+	)
+
+	var z_value: Variant = (
+		position_data["z"]
+	)
+
+
+	if (
+		typeof(x_value) != TYPE_FLOAT
+		and
+		typeof(x_value) != TYPE_INT
+	):
+		return {
+			"ok": false,
+		}
+
+
+	if (
+		typeof(y_value) != TYPE_FLOAT
+		and
+		typeof(y_value) != TYPE_INT
+	):
+		return {
+			"ok": false,
+		}
+
+
+	if (
+		typeof(z_value) != TYPE_FLOAT
+		and
+		typeof(z_value) != TYPE_INT
+	):
+		return {
+			"ok": false,
+		}
+
+
+	return {
+		"ok": true,
+
+		"position": Vector3(
+			float(x_value),
+			float(y_value),
+			float(z_value)
+		),
+	}
+
+
+# =========================================================
+# PREPARAR AoE DAMAGE
+#
+# El Client NO elige víctimas.
+#
+# Game Server:
+#
+# center autoritativo
+# → mismo mapa
+# → vivos
+# → radio
+# → defense profile
+# → Unified Damage Resolver
+# =========================================================
+
+func _prepare_area_damage_entries(
+	definition: ServerSkillDefinition,
+	session: PlayerWorldSession,
+	center: Vector3,
+	damage_context: ServerDamageResolutionContext
+) -> Dictionary:
+	if definition == null:
+		return {
+			"ok": false,
+		}
+
+
+	if session == null:
+		return {
+			"ok": false,
+		}
+
+
+	if damage_context == null:
+		return {
+			"ok": false,
+		}
+
+
+	if not damage_context.is_valid():
+		return {
+			"ok": false,
+		}
+
+
+	if definition.area_radius <= 0.0:
+		return {
+			"ok": false,
+		}
+
+
+	var entries: Array = []
+
+
+	var center_xz := Vector2(
+		center.x,
+		center.z
+	)
+
+
+	for mob: WorldMobRuntimeState in (
+		world_mob_registry.get_mobs_in_map(
+			session.map_id
+		)
+	):
+		if mob == null:
+			continue
+
+
+		if not mob.is_alive():
+			continue
+
+
+		var mob_xz := Vector2(
+			mob.position.x,
+			mob.position.z
+		)
+
+
+		var distance := (
+			center_xz.distance_to(
+				mob_xz
+			)
+		)
+
+
+		if distance > definition.area_radius:
+			continue
+
+
+		if mob.definition == null:
+			return {
+				"ok": false,
+			}
+
+
+		if not mob.definition.is_valid():
+			return {
+				"ok": false,
+			}
+
+
+		var defense_profile := (
+			ServerMobDamageDefenseProfileResolver
+			.resolve(
+				mob.definition
+			)
+		)
+
+
+		if (
+			defense_profile == null
+			or
+			not defense_profile.is_valid()
+		):
+			return {
+				"ok": false,
+			}
+
+
+		var damage_resolution := (
+			ServerDamageResolver.resolve(
+				damage_context,
+				defense_profile
+			)
+		)
+
+
+		if (
+			damage_resolution == null
+			or
+			not damage_resolution.is_valid()
+		):
+			return {
+				"ok": false,
+			}
+
+
+		entries.append(
+			{
+				"mob": mob,
+
+				"resolution": (
+					damage_resolution
+				),
+			}
+		)
+
+
+	return {
+		"ok": true,
+
+		"entries": entries,
+	}
 
 # =========================================================
 # REPLICAR MOB STATE

@@ -81,6 +81,41 @@ const DEFINITIONS: Dictionary = {
 		"basic_attack_mode_id": "none",
 	},
 
+	"bronze_bow": {
+		"grid_width": 1,
+		"grid_height": 3,
+		"max_stack": 1,
+
+		"equipment_category_id": "weapon",
+		"hand_equip_mode_id": "two_hand",
+
+		"allowed_class_ids": [
+			"archer",
+		],
+
+		"base_requirements": {
+			"level": 1,
+			"strength": 0,
+			"agility": 20,
+			"vitality": 0,
+			"energy": 0,
+		},
+
+		"enhancement_profile_id": (
+			"two_hand_weapon_v1"
+		),
+
+		"fixed_modifiers": [],
+
+		"basic_attack_mode_id": "ranged",
+
+		"basic_attack_base_damage": 900,
+
+		"basic_attack_range": 7.0,
+
+		"basic_attack_cooldown_seconds": 1.0,
+	},
+
 	"leather_helmet": {
 		"grid_width": 2,
 		"grid_height": 2,

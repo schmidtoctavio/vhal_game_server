@@ -603,6 +603,55 @@ func _process_basic_attack_request(
 
 		return
 
+	# -----------------------------------------------------
+	# LINE OF SIGHT AUTORITATIVO
+	#
+	# F28-C:
+	#
+	# Sólo Ranged Basic Attack requiere LOS.
+	# Melee / Unarmed conservan su comportamiento actual.
+	# -----------------------------------------------------
+
+	var attack_mode := String(
+		attack_profile.get(
+			"mode",
+			""
+		)
+	).strip_edges().to_lower()
+
+
+	if (
+		attack_mode
+		==
+		ServerBasicAttackProfileResolver.MODE_RANGED
+	):
+		if not ServerWorldLineOfSight.has_line_of_sight(
+			session.map_id,
+			session.position,
+			mob.position
+		):
+			print(
+				"BasicAttackCoordinator | LOS bloqueado",
+				" | Request: ",
+				request_id,
+				" | Entity: ",
+				mob.entity_id,
+				" | Mode: ",
+				attack_mode
+			)
+
+
+			_send_result(
+				peer_id,
+				request_id,
+				false,
+				"line_of_sight_blocked",
+				target,
+				attack_profile
+			)
+
+
+			return
 
 	# -----------------------------------------------------
 	# COOLDOWN AUTORITATIVO

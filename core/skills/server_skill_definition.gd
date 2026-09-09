@@ -10,6 +10,8 @@ const TARGET_SELF: String = "self"
 
 const TARGET_ENTITY: String = "entity"
 
+const TARGET_POSITION: String = "position"
+
 
 # =========================================================
 # IDENTIDAD
@@ -25,6 +27,9 @@ var skill_id: String = ""
 var target_kind: String = TARGET_SELF
 
 var cast_range: float = 0.0
+
+var area_radius: float = 0.0
+
 
 # =========================================================
 # COSTOS
@@ -46,6 +51,7 @@ var cooldown_duration: float = 0.0
 
 var scaling_profile: ServerSkillScalingProfile = null
 
+
 # =========================================================
 # DAMAGE
 # =========================================================
@@ -53,6 +59,7 @@ var scaling_profile: ServerSkillScalingProfile = null
 var damage_profile: ServerSkillDamageProfile = null
 
 var status_effect_profile: ServerSkillStatusEffectProfile = null
+
 
 # =========================================================
 # CONSTRUCTOR
@@ -66,7 +73,8 @@ func _init(
 	p_scaling_profile: ServerSkillScalingProfile = null,
 	p_damage_profile: ServerSkillDamageProfile = null,
 	p_cast_range: float = 0.0,
-	p_status_effect_profile: ServerSkillStatusEffectProfile = null
+	p_status_effect_profile: ServerSkillStatusEffectProfile = null,
+	p_area_radius: float = 0.0
 ) -> void:
 	skill_id = (
 		p_skill_id
@@ -89,21 +97,31 @@ func _init(
 		.to_lower()
 	)
 
+
 	scaling_profile = (
 		p_scaling_profile
 	)
+
 
 	damage_profile = (
 		p_damage_profile
 	)
 
+
 	cast_range = (
 		p_cast_range
 	)
 
+
 	status_effect_profile = (
 		p_status_effect_profile
 	)
+
+
+	area_radius = (
+		p_area_radius
+	)
+
 
 # =========================================================
 # VALIDACIÓN
@@ -124,6 +142,8 @@ func is_valid() -> bool:
 			target_kind == TARGET_SELF
 			or
 			target_kind == TARGET_ENTITY
+			or
+			target_kind == TARGET_POSITION
 		)
 
 		and
@@ -144,10 +164,12 @@ func is_valid() -> bool:
 		cast_range >= 0.0
 
 		and
+		area_radius >= 0.0
+
+		and
 		(
 			status_effect_profile == null
 			or
 			status_effect_profile.is_valid()
 		)
-
 	)

@@ -19,6 +19,10 @@ const ONE_HAND_WEAPON_V1: StringName = (
 	&"one_hand_weapon_v1"
 )
 
+const TWO_HAND_WEAPON_V1: StringName = (
+	&"two_hand_weapon_v1"
+)
+
 const LIGHT_ARMOR_V1: StringName = (
 	&"light_armor_v1"
 )
@@ -105,6 +109,64 @@ const DEFINITIONS: Dictionary = {
 
 		"requirement_bonus_by_level": {
 			"strength": [
+				0,
+				0,
+				1,
+				1,
+				2,
+				2,
+				3,
+				4,
+				5,
+				6,
+				8,
+				10,
+				12,
+				15,
+			],
+		},
+	},
+
+	TWO_HAND_WEAPON_V1: {
+		"max_enhancement_level": 13,
+
+		"allowed_category_ids": [
+			"weapon",
+		],
+
+		"allowed_hand_mode_ids": [
+			"two_hand",
+		],
+
+		"intrinsic_stat_id": "weapon_damage",
+
+		"intrinsic_definition_key": (
+			"basic_attack_base_damage"
+		),
+
+		"requirement_growth_keys": [
+			"agility",
+		],
+
+		"intrinsic_bonus_by_level": [
+			0,
+			20,
+			40,
+			60,
+			80,
+			100,
+			125,
+			150,
+			180,
+			220,
+			270,
+			330,
+			400,
+			500,
+		],
+
+		"requirement_bonus_by_level": {
+			"agility": [
 				0,
 				0,
 				1,

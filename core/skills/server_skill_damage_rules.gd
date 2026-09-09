@@ -164,10 +164,10 @@ static func validate_contract() -> String:
 	if (
 		fire_ball.target_kind
 		!=
-		ServerSkillDefinition.TARGET_ENTITY
+		ServerSkillDefinition.TARGET_POSITION
 	):
 		return (
-			"Fire Ball debe utilizar target entity."
+			"Fire Ball debe utilizar target position."
 		)
 
 
@@ -181,6 +181,15 @@ static func validate_contract() -> String:
 			"cast range 6.0."
 		)
 
+	if not is_equal_approx(
+		fire_ball.area_radius,
+		2.5
+	):
+		return (
+			"Fire Ball foundation debe conservar "
+			+
+			"area radius 2.5."
+		)
 
 	if fire_ball.scaling_profile == null:
 		return (

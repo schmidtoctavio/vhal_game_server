@@ -33,7 +33,7 @@ static func get_definition(
 				FIRE_BALL_ID,
 				30,
 				3.0,
-				ServerSkillDefinition.TARGET_ENTITY,
+				ServerSkillDefinition.TARGET_POSITION,
 
 				ServerSkillScalingProfile.new(
 					0,
@@ -48,7 +48,11 @@ static func get_definition(
 					false
 				),
 
-				6.0
+				6.0,
+
+				null,
+
+				2.5
 			)
 
 		POISON_ID:

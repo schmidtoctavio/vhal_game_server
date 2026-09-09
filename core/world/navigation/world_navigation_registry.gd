@@ -23,6 +23,8 @@ const DEFAULT_NAVIGATION_LAYERS: int = 1
 
 const MAX_SYNC_FRAMES: int = 60
 
+const TARGET_POSITION_MAX_PROJECTION_DISTANCE: float = 0.75
+
 
 # =========================================================
 # ESTADO
@@ -520,6 +522,121 @@ func resolve_reachable_target(
 		"path_points": path.size(),
 
 		"path": path,
+	}
+
+# =========================================================
+# RESOLVER TARGET POSITION AUTORITATIVO
+#
+# F28-D:
+#
+# El Client propone una posición.
+# El Game Server vuelve a proyectarla contra su
+# NavigationMesh autoritativo.
+# =========================================================
+
+func resolve_authoritative_target_position(
+	map_id: String,
+	requested_target: Vector3
+) -> Dictionary:
+	var normalized_map_id := (
+		map_id
+		.strip_edges()
+	)
+
+
+	if normalized_map_id.is_empty():
+		return {
+			"ok": false,
+			"reason": "map_not_found",
+		}
+
+
+	if not has_map(
+		normalized_map_id
+	):
+		return {
+			"ok": false,
+			"reason": "map_not_found",
+		}
+
+
+	if not is_map_ready(
+		normalized_map_id
+	):
+		return {
+			"ok": false,
+			"reason": "map_not_ready",
+		}
+
+
+	var map_rid := (
+		get_navigation_map(
+			normalized_map_id
+		)
+	)
+
+
+	if not map_rid.is_valid():
+		return {
+			"ok": false,
+			"reason": "map_not_found",
+		}
+
+
+	var resolved_target := (
+		NavigationServer3D.map_get_closest_point(
+			map_rid,
+			requested_target
+		)
+	)
+
+
+	var requested_xz := Vector2(
+		requested_target.x,
+		requested_target.z
+	)
+
+	var resolved_xz := Vector2(
+		resolved_target.x,
+		resolved_target.z
+	)
+
+
+	var projection_distance := (
+		requested_xz.distance_to(
+			resolved_xz
+		)
+	)
+
+
+	if (
+		projection_distance
+		>
+		TARGET_POSITION_MAX_PROJECTION_DISTANCE
+	):
+		return {
+			"ok": false,
+
+			"reason": "position_not_reachable",
+
+			"requested_target": requested_target,
+
+			"resolved_target": resolved_target,
+
+			"projection_distance": projection_distance,
+		}
+
+
+	return {
+		"ok": true,
+
+		"reason": "ok",
+
+		"requested_target": requested_target,
+
+		"resolved_target": resolved_target,
+
+		"projection_distance": projection_distance,
 	}
 
 # =========================================================

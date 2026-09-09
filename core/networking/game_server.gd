@@ -2911,6 +2911,115 @@ func _process_skill_cast_request(
 	# KIND NO SOPORTADO
 	# -----------------------------------------------------
 
+	# -----------------------------------------------------
+	# POSITION TARGET
+	# -----------------------------------------------------
+
+	elif target_kind == "position":
+		var position_value: Variant = (
+			target.get(
+				"position",
+				null
+			)
+		)
+
+
+		if typeof(position_value) != TYPE_DICTIONARY:
+			reject_authenticated_peer(
+				peer_id,
+				"Cast position sin posición válida."
+			)
+
+
+			return
+
+
+		var position_data: Dictionary = (
+			position_value
+		)
+
+
+		if (
+			not position_data.has("x")
+			or
+			not position_data.has("y")
+			or
+			not position_data.has("z")
+		):
+			reject_authenticated_peer(
+				peer_id,
+				"Cast position con coordenadas incompletas."
+			)
+
+
+			return
+
+
+		var x_value: Variant = (
+			position_data["x"]
+		)
+
+		var y_value: Variant = (
+			position_data["y"]
+		)
+
+		var z_value: Variant = (
+			position_data["z"]
+		)
+
+
+		if (
+			typeof(x_value) != TYPE_FLOAT
+			and
+			typeof(x_value) != TYPE_INT
+		):
+			reject_authenticated_peer(
+				peer_id,
+				"Cast position con coordenada X inválida."
+			)
+
+
+			return
+
+
+		if (
+			typeof(y_value) != TYPE_FLOAT
+			and
+			typeof(y_value) != TYPE_INT
+		):
+			reject_authenticated_peer(
+				peer_id,
+				"Cast position con coordenada Y inválida."
+			)
+
+
+			return
+
+
+		if (
+			typeof(z_value) != TYPE_FLOAT
+			and
+			typeof(z_value) != TYPE_INT
+		):
+			reject_authenticated_peer(
+				peer_id,
+				"Cast position con coordenada Z inválida."
+			)
+
+
+			return
+
+
+		normalized_target = {
+			"kind": "position",
+
+			"position": {
+				"x": float(x_value),
+				"y": float(y_value),
+				"z": float(z_value),
+			},
+		}
+
 	else:
 		reject_authenticated_peer(
 			peer_id,

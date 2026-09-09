@@ -209,6 +209,151 @@ static func validate_contract() -> String:
 		)
 
 
+	# -----------------------------------------------------
+	# BRONZE BOW +0
+	# -----------------------------------------------------
+
+	var bow_zero_snapshot := {
+		"account_id": 1,
+
+		"character_id": 1,
+
+		"container": "equipment",
+
+		"items": [
+			{
+				"uid": "basic-attack-bow-zero",
+
+				"item_id": "bronze_bow",
+
+				"quantity": 1,
+
+				"equipment_slot": "main_hand",
+
+				"state": {
+					"enhancement_level": 0,
+				},
+			},
+		],
+	}
+
+
+	var bow_zero_profile := (
+		resolve(
+			bow_zero_snapshot
+		)
+	)
+
+
+	if bow_zero_profile.is_empty():
+		return (
+			"No se pudo resolver Bronze Bow +0."
+		)
+
+
+	if String(
+		bow_zero_profile.get(
+			"mode",
+			""
+		)
+	) != MODE_RANGED:
+		return (
+			"Bronze Bow debe resolver modo ranged."
+		)
+
+
+	if int(
+		bow_zero_profile.get(
+			"base_damage",
+			0
+		)
+	) != 900:
+		return (
+			"Bronze Bow +0 no resolvió Weapon Damage 900."
+		)
+
+
+	if not is_equal_approx(
+		float(
+			bow_zero_profile.get(
+				"attack_range",
+				0.0
+			)
+		),
+		7.0
+	):
+		return (
+			"Bronze Bow debe conservar Attack Range 7.0."
+		)
+
+
+	if not is_equal_approx(
+		float(
+			bow_zero_profile.get(
+				"cooldown_duration_seconds",
+				-1.0
+			)
+		),
+		1.0
+	):
+		return (
+			"Bronze Bow debe conservar cooldown base 1.0."
+		)
+
+
+	# -----------------------------------------------------
+	# BRONZE BOW +7
+	# -----------------------------------------------------
+
+	var bow_plus_seven_snapshot := {
+		"account_id": 1,
+
+		"character_id": 1,
+
+		"container": "equipment",
+
+		"items": [
+			{
+				"uid": "basic-attack-bow-plus-seven",
+
+				"item_id": "bronze_bow",
+
+				"quantity": 1,
+
+				"equipment_slot": "main_hand",
+
+				"state": {
+					"enhancement_level": 7,
+				},
+			},
+		],
+	}
+
+
+	var bow_plus_seven_profile := (
+		resolve(
+			bow_plus_seven_snapshot
+		)
+	)
+
+
+	if bow_plus_seven_profile.is_empty():
+		return (
+			"No se pudo resolver Bronze Bow +7."
+		)
+
+
+	if int(
+		bow_plus_seven_profile.get(
+			"base_damage",
+			0
+		)
+	) != 1050:
+		return (
+			"Bronze Bow +7 no resolvió Weapon Damage 1050."
+		)
+
+
 	return ""
 
 static func resolve(
