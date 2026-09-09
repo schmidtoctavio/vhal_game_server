@@ -1,6 +1,22 @@
 class_name SkillCastCoordinator
 extends Node
 
+# =========================================================
+# SIGNALS
+# =========================================================
+
+signal skill_cast_request_started(
+	peer_id: int,
+	request_id: int
+)
+
+signal skill_cast_approach_requested(
+	peer_id: int,
+	request_id: int,
+	skill_id: String,
+	target: Dictionary,
+	cast_range: float
+)
 
 # =========================================================
 # DEPENDENCIAS
@@ -94,6 +110,37 @@ func _on_client_skill_cast_requested(
 	skill_id: String,
 	target: Dictionary
 ) -> void:
+	_process_skill_cast_request(
+		peer_id,
+		request_id,
+		skill_id,
+		target,
+		false
+	)
+
+
+func execute_approached_skill_cast(
+	peer_id: int,
+	request_id: int,
+	skill_id: String,
+	target: Dictionary
+) -> void:
+	_process_skill_cast_request(
+		peer_id,
+		request_id,
+		skill_id,
+		target,
+		true
+	)
+
+
+func _process_skill_cast_request(
+	peer_id: int,
+	request_id: int,
+	skill_id: String,
+	target: Dictionary,
+	request_id_already_accepted: bool
+) -> void:
 	var session := (
 		world_session_registry.get_session(
 			peer_id
@@ -114,23 +161,34 @@ func _on_client_skill_cast_requested(
 	# -----------------------------------------------------
 	# REQUEST ID
 	# -----------------------------------------------------
+	#
+	# Un cast reejecutado desde Action Approach conserva
+	# el Request ID original ya aceptado.
+	# -----------------------------------------------------
 
-	if not session.accept_skill_cast_request_id(
-		request_id
-	):
-		_send_result(
+	if not request_id_already_accepted:
+		if not session.accept_skill_cast_request_id(
+			request_id
+		):
+			_send_result(
+				peer_id,
+				request_id,
+				skill_id,
+				false,
+				"stale_request",
+				session,
+				0.0,
+				{}
+			)
+
+
+			return
+
+
+		skill_cast_request_started.emit(
 			peer_id,
-			request_id,
-			skill_id,
-			false,
-			"stale_request",
-			session,
-			0.0,
-			{}
+			request_id
 		)
-
-
-		return
 
 
 	# -----------------------------------------------------
@@ -245,6 +303,85 @@ func _on_client_skill_cast_requested(
 
 
 	if not target_error.is_empty():
+		# -------------------------------------------------
+		# ACTION APPROACH
+		#
+		# Solamente las entity skills actualmente
+		# implementadas participan:
+		#
+		# Fire Ball
+		# Poison
+		#
+		# No gastamos Mana ni iniciamos Cooldown hasta
+		# alcanzar rango y ejecutar realmente el cast.
+		# -------------------------------------------------
+
+		if (
+			target_error == "out_of_range"
+			and
+			not request_id_already_accepted
+			and
+			_supports_action_approach(
+				definition
+			)
+		):
+			var approach_cooldown_remaining := (
+				session
+				.skill_runtime
+				.get_cooldown_remaining_seconds(
+					definition.skill_id
+				)
+			)
+
+
+			if approach_cooldown_remaining > 0.0:
+				_send_result(
+					peer_id,
+					request_id,
+					definition.skill_id,
+					false,
+					"cooldown_active",
+					session,
+					approach_cooldown_remaining,
+					{}
+				)
+
+
+				return
+
+
+			if not session.vitals.has_enough_mana(
+				definition.mana_cost
+			):
+				_send_result(
+					peer_id,
+					request_id,
+					definition.skill_id,
+					false,
+					"insufficient_mana",
+					session,
+					0.0,
+					{}
+				)
+
+
+				return
+
+
+			skill_cast_approach_requested.emit(
+				peer_id,
+				request_id,
+				definition.skill_id,
+				target.duplicate(
+					true
+				),
+				definition.cast_range
+			)
+
+
+			return
+
+
 		_send_result(
 			peer_id,
 			request_id,
@@ -1179,6 +1316,82 @@ func _on_client_skill_cast_requested(
 
 
 		return
+
+# =========================================================
+# ACTION APPROACH
+# =========================================================
+
+func _supports_action_approach(
+	definition: ServerSkillDefinition
+) -> bool:
+	if definition == null:
+		return false
+
+
+	if (
+		definition.target_kind
+		!=
+		ServerSkillDefinition.TARGET_ENTITY
+	):
+		return false
+
+
+	if definition.cast_range <= 0.0:
+		return false
+
+
+	return (
+		definition.skill_id
+		==
+		ServerSkillCatalog.FIRE_BALL_ID
+		or
+		definition.skill_id
+		==
+		ServerSkillCatalog.POISON_ID
+	)
+
+
+func cancel_approached_skill_cast(
+	peer_id: int,
+	request_id: int,
+	skill_id: String,
+	_target: Dictionary,
+	reason: String
+) -> void:
+	var session := (
+		world_session_registry.get_session(
+			peer_id
+		)
+	)
+
+
+	if session == null:
+		return
+
+
+	var cooldown_remaining := 0.0
+
+
+	if session.skill_runtime != null:
+		cooldown_remaining = (
+			session
+			.skill_runtime
+			.get_cooldown_remaining_seconds(
+				skill_id
+			)
+		)
+
+
+	_send_result(
+		peer_id,
+		request_id,
+		skill_id,
+		false,
+		reason,
+		session,
+		cooldown_remaining,
+		{}
+	)
 
 # =========================================================
 # ROLLBACK DE COSTOS DE SKILL

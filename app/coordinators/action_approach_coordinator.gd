@@ -29,6 +29,7 @@ var movement_coordinator: MovementCoordinator = null
 
 var basic_attack_coordinator: BasicAttackCoordinator = null
 
+var skill_cast_coordinator: SkillCastCoordinator = null
 
 # =========================================================
 # ESTADO RUNTIME
@@ -38,6 +39,7 @@ var configured: bool = false
 
 var pending_basic_attacks: Dictionary = {}
 
+var pending_skill_casts: Dictionary = {}
 
 # =========================================================
 # SETUP
@@ -48,7 +50,8 @@ func setup(
 	p_world_session_registry: WorldSessionRegistry,
 	p_world_mob_registry: WorldMobRegistry,
 	p_movement_coordinator: MovementCoordinator,
-	p_basic_attack_coordinator: BasicAttackCoordinator
+	p_basic_attack_coordinator: BasicAttackCoordinator,
+	p_skill_cast_coordinator: SkillCastCoordinator
 ) -> bool:
 	if configured:
 		return true
@@ -74,6 +77,9 @@ func setup(
 		return false
 
 
+	if p_skill_cast_coordinator == null:
+		return false
+
 	game_server = p_game_server
 
 	world_session_registry = (
@@ -92,6 +98,9 @@ func setup(
 		p_basic_attack_coordinator
 	)
 
+	skill_cast_coordinator = (
+		p_skill_cast_coordinator
+	)
 
 	_bind_signals()
 
@@ -127,6 +136,20 @@ func _bind_signals() -> void:
 			_on_basic_attack_approach_requested
 		)
 
+	if not skill_cast_coordinator.skill_cast_request_started.is_connected(
+		_on_skill_cast_request_started
+	):
+		skill_cast_coordinator.skill_cast_request_started.connect(
+			_on_skill_cast_request_started
+		)
+
+
+	if not skill_cast_coordinator.skill_cast_approach_requested.is_connected(
+		_on_skill_cast_approach_requested
+	):
+		skill_cast_coordinator.skill_cast_approach_requested.connect(
+			_on_skill_cast_approach_requested
+		)
 
 	if not movement_coordinator.client_movement_intent_started.is_connected(
 		_on_client_movement_intent_started
@@ -149,14 +172,6 @@ func _bind_signals() -> void:
 	):
 		world_mob_registry.mob_died.connect(
 			_on_mob_died
-		)
-
-
-	if not game_server.client_skill_cast_requested.is_connected(
-		_on_client_skill_cast_requested
-	):
-		game_server.client_skill_cast_requested.connect(
-			_on_client_skill_cast_requested
 		)
 
 
@@ -187,7 +202,11 @@ func _physics_process(
 		return
 
 
-	if pending_basic_attacks.is_empty():
+	if (
+		pending_basic_attacks.is_empty()
+		and
+		pending_skill_casts.is_empty()
+	):
 		return
 
 
@@ -207,6 +226,21 @@ func _physics_process(
 			false
 		)
 
+	var skill_peer_ids: Array = (
+		pending_skill_casts.keys()
+	)
+
+
+	for peer_id_value: Variant in skill_peer_ids:
+		var peer_id := int(
+			peer_id_value
+		)
+
+
+		_process_pending_skill_cast(
+			peer_id,
+			false
+		)
 
 # =========================================================
 # BASIC ATTACK NUEVO
@@ -216,6 +250,13 @@ func _on_basic_attack_request_started(
 	peer_id: int,
 	request_id: int
 ) -> void:
+	_cancel_pending_skill_cast(
+		peer_id,
+		"replaced_by_basic_attack",
+		true
+	)
+
+
 	if not pending_basic_attacks.has(
 		peer_id
 	):
@@ -814,6 +855,570 @@ func _build_approach_target(
 		stop_distance
 	)
 
+# =========================================================
+# SKILL CAST NUEVO
+# =========================================================
+
+func _on_skill_cast_request_started(
+	peer_id: int,
+	request_id: int
+) -> void:
+	_cancel_pending_basic_attack(
+		peer_id,
+		"replaced_by_skill_cast",
+		true
+	)
+
+
+	if not pending_skill_casts.has(
+		peer_id
+	):
+		return
+
+
+	var pending_state: Dictionary = (
+		pending_skill_casts[
+			peer_id
+		]
+	)
+
+
+	var previous_request_id := int(
+		pending_state.get(
+			"request_id",
+			0
+		)
+	)
+
+
+	if previous_request_id == request_id:
+		return
+
+
+	_cancel_pending_skill_cast(
+		peer_id,
+		"replaced_by_new_action",
+		true
+	)
+
+
+# =========================================================
+# APPROACH SOLICITADO POR SKILL
+# =========================================================
+
+func _on_skill_cast_approach_requested(
+	peer_id: int,
+	request_id: int,
+	skill_id: String,
+	target: Dictionary,
+	cast_range: float
+) -> void:
+	var entity_id := String(
+		target.get(
+			"entity_id",
+			""
+		)
+	).strip_edges().to_lower()
+
+
+	if (
+		entity_id.is_empty()
+		or
+		cast_range <= 0.0
+	):
+		skill_cast_coordinator.cancel_approached_skill_cast(
+			peer_id,
+			request_id,
+			skill_id,
+			target,
+			"invalid_target"
+		)
+
+
+		return
+
+
+	pending_skill_casts[
+		peer_id
+	] = {
+		"request_id": request_id,
+
+		"skill_id": skill_id,
+
+		"target": target.duplicate(
+			true
+		),
+
+		"entity_id": entity_id,
+
+		"cast_range": cast_range,
+
+		"last_target_position": Vector3.ZERO,
+
+		"last_retarget_msec": 0,
+	}
+
+
+	print(
+		"ActionApproachCoordinator | Approach started",
+		" | Peer: ",
+		peer_id,
+		" | Request: ",
+		request_id,
+		" | Action: skill:",
+		skill_id,
+		" | Entity: ",
+		entity_id
+	)
+
+
+	_process_pending_skill_cast(
+		peer_id,
+		true
+	)
+
+
+# =========================================================
+# PROCESAR SKILL PENDIENTE
+# =========================================================
+
+func _process_pending_skill_cast(
+	peer_id: int,
+	force_retarget: bool
+) -> void:
+	if not pending_skill_casts.has(
+		peer_id
+	):
+		return
+
+
+	var pending_state: Dictionary = (
+		pending_skill_casts[
+			peer_id
+		]
+	)
+
+
+	var session := (
+		world_session_registry.get_session(
+			peer_id
+		)
+	)
+
+
+	if session == null:
+		pending_skill_casts.erase(
+			peer_id
+		)
+
+
+		return
+
+
+	if (
+		session.vitals == null
+		or
+		not session.vitals.is_valid()
+	):
+		_cancel_pending_skill_cast(
+			peer_id,
+			"runtime_failure",
+			true
+		)
+
+
+		return
+
+
+	if session.vitals.hp <= 0:
+		_cancel_pending_skill_cast(
+			peer_id,
+			"character_not_alive",
+			true
+		)
+
+
+		return
+
+
+	var entity_id := String(
+		pending_state.get(
+			"entity_id",
+			""
+		)
+	).strip_edges().to_lower()
+
+
+	var skill_id := String(
+		pending_state.get(
+			"skill_id",
+			""
+		)
+	).strip_edges().to_lower()
+
+
+	var cast_range := float(
+		pending_state.get(
+			"cast_range",
+			0.0
+		)
+	)
+
+
+	if (
+		entity_id.is_empty()
+		or
+		skill_id.is_empty()
+		or
+		cast_range <= 0.0
+	):
+		_cancel_pending_skill_cast(
+			peer_id,
+			"runtime_failure",
+			true
+		)
+
+
+		return
+
+
+	var mob := (
+		world_mob_registry.get_mob(
+			entity_id
+		)
+	)
+
+
+	if mob == null:
+		_cancel_pending_skill_cast(
+			peer_id,
+			"target_not_found",
+			true
+		)
+
+
+		return
+
+
+	if mob.map_id != session.map_id:
+		_cancel_pending_skill_cast(
+			peer_id,
+			"target_wrong_map",
+			true
+		)
+
+
+		return
+
+
+	if not mob.is_alive():
+		_cancel_pending_skill_cast(
+			peer_id,
+			"target_not_alive",
+			true
+		)
+
+
+		return
+
+
+	var player_position_2d := Vector2(
+		session.position.x,
+		session.position.z
+	)
+
+
+	var mob_position_2d := Vector2(
+		mob.position.x,
+		mob.position.z
+	)
+
+
+	var distance := (
+		player_position_2d.distance_to(
+			mob_position_2d
+		)
+	)
+
+
+	if distance <= cast_range:
+		var request_id := int(
+			pending_state.get(
+				"request_id",
+				0
+			)
+		)
+
+
+		var target: Dictionary = {}
+
+
+		var target_value: Variant = (
+			pending_state.get(
+				"target",
+				{}
+			)
+		)
+
+
+		if typeof(target_value) == TYPE_DICTIONARY:
+			target = (
+				target_value as Dictionary
+			).duplicate(
+				true
+			)
+
+
+		pending_skill_casts.erase(
+			peer_id
+		)
+
+
+		movement_coordinator.stop_action_approach_movement(
+			peer_id
+		)
+
+
+		print(
+			"ActionApproachCoordinator | Range reached",
+			" | Peer: ",
+			peer_id,
+			" | Request: ",
+			request_id,
+			" | Action: skill:",
+			skill_id,
+			" | Entity: ",
+			entity_id,
+			" | Distance: ",
+			distance,
+			" | Range: ",
+			cast_range
+		)
+
+
+		skill_cast_coordinator.execute_approached_skill_cast(
+			peer_id,
+			request_id,
+			skill_id,
+			target
+		)
+
+
+		return
+
+
+	var now_msec := (
+		Time.get_ticks_msec()
+	)
+
+
+	var last_retarget_msec := int(
+		pending_state.get(
+			"last_retarget_msec",
+			0
+		)
+	)
+
+
+	var last_target_position := (
+		mob.position
+	)
+
+
+	var last_position_value: Variant = (
+		pending_state.get(
+			"last_target_position",
+			null
+		)
+	)
+
+
+	if typeof(last_position_value) == TYPE_VECTOR3:
+		last_target_position = (
+			last_position_value
+		)
+
+
+	var target_moved_distance := (
+		Vector2(
+			last_target_position.x,
+			last_target_position.z
+		)
+		.distance_to(
+			mob_position_2d
+		)
+	)
+
+
+	var retarget_time_elapsed := (
+		now_msec
+		-
+		last_retarget_msec
+		>=
+		RETARGET_INTERVAL_MSEC
+	)
+
+
+	var target_moved_enough := (
+		target_moved_distance
+		>=
+		TARGET_RETARGET_DISTANCE
+	)
+
+
+	var movement_missing := (
+		not session.has_authorized_move_target
+	)
+
+
+	if (
+		not force_retarget
+		and
+		not movement_missing
+		and
+		not (
+			retarget_time_elapsed
+			and
+			target_moved_enough
+		)
+	):
+		return
+
+
+	_retarget_skill_cast_approach(
+		peer_id,
+		session,
+		mob,
+		cast_range,
+		now_msec
+	)
+
+
+# =========================================================
+# RETARGET DE SKILL
+# =========================================================
+
+func _retarget_skill_cast_approach(
+	peer_id: int,
+	session: PlayerWorldSession,
+	mob: WorldMobRuntimeState,
+	cast_range: float,
+	now_msec: int
+) -> void:
+	if not pending_skill_casts.has(
+		peer_id
+	):
+		return
+
+
+	var approach_target := (
+		_build_approach_target(
+			session.position,
+			mob.position,
+			cast_range
+		)
+	)
+
+
+	var movement_result := (
+		movement_coordinator
+		.begin_action_approach_movement(
+			peer_id,
+			approach_target
+		)
+	)
+
+
+	if not bool(
+		movement_result.get(
+			"ok",
+			false
+		)
+	):
+		_cancel_pending_skill_cast(
+			peer_id,
+			"approach_unreachable",
+			true
+		)
+
+
+		return
+
+
+	var resolved_value: Variant = (
+		movement_result.get(
+			"resolved_target",
+			null
+		)
+	)
+
+
+	if typeof(resolved_value) != TYPE_VECTOR3:
+		_cancel_pending_skill_cast(
+			peer_id,
+			"approach_unreachable",
+			true
+		)
+
+
+		return
+
+
+	var resolved_target: Vector3 = (
+		resolved_value
+	)
+
+
+	var resolved_distance_to_mob := (
+		Vector2(
+			resolved_target.x,
+			resolved_target.z
+		)
+		.distance_to(
+			Vector2(
+				mob.position.x,
+				mob.position.z
+			)
+		)
+	)
+
+
+	if (
+		resolved_distance_to_mob
+		>
+		cast_range
+		+
+		NAVIGATION_RANGE_TOLERANCE
+	):
+		_cancel_pending_skill_cast(
+			peer_id,
+			"approach_unreachable",
+			true
+		)
+
+
+		return
+
+
+	var pending_state: Dictionary = (
+		pending_skill_casts[
+			peer_id
+		]
+	)
+
+
+	pending_state[
+		"last_target_position"
+	] = mob.position
+
+	pending_state[
+		"last_retarget_msec"
+	] = now_msec
+
+
+	pending_skill_casts[
+		peer_id
+	] = pending_state
 
 # =========================================================
 # MOVIMIENTO MANUAL
@@ -830,19 +1435,9 @@ func _on_client_movement_intent_started(
 	)
 
 
-# =========================================================
-# SKILL MANUAL
-# =========================================================
-
-func _on_client_skill_cast_requested(
-	peer_id: int,
-	_request_id: int,
-	_skill_id: String,
-	_target: Dictionary
-) -> void:
-	_cancel_pending_basic_attack(
+	_cancel_pending_skill_cast(
 		peer_id,
-		"replaced_by_skill_cast",
+		"replaced_by_movement",
 		true
 	)
 
@@ -863,6 +1458,13 @@ func _on_client_npc_interaction_requested(
 	)
 
 
+	_cancel_pending_skill_cast(
+		peer_id,
+		"replaced_by_npc_interaction",
+		true
+	)
+
+
 # =========================================================
 # DROP INPUT
 # =========================================================
@@ -873,6 +1475,13 @@ func _on_client_world_drop_pickup_requested(
 	_entity_id: String
 ) -> void:
 	_cancel_pending_basic_attack(
+		peer_id,
+		"replaced_by_world_drop_pickup",
+		true
+	)
+
+
+	_cancel_pending_skill_cast(
 		peer_id,
 		"replaced_by_world_drop_pickup",
 		true
@@ -940,6 +1549,47 @@ func _on_mob_died(
 			true
 		)
 
+	var skill_peer_ids: Array = (
+		pending_skill_casts.keys()
+	)
+
+
+	for peer_id_value: Variant in skill_peer_ids:
+		var peer_id := int(
+			peer_id_value
+		)
+
+
+		if not pending_skill_casts.has(
+			peer_id
+		):
+			continue
+
+
+		var pending_state: Dictionary = (
+			pending_skill_casts[
+				peer_id
+			]
+		)
+
+
+		var pending_entity_id := String(
+			pending_state.get(
+				"entity_id",
+				""
+			)
+		).strip_edges().to_lower()
+
+
+		if pending_entity_id != normalized_entity_id:
+			continue
+
+
+		_cancel_pending_skill_cast(
+			peer_id,
+			"target_not_alive",
+			true
+		)
 
 # =========================================================
 # SESSION REMOVED
@@ -948,13 +1598,12 @@ func _on_mob_died(
 func _on_session_removed(
 	peer_id: int
 ) -> void:
-	if not pending_basic_attacks.has(
-		peer_id
-	):
-		return
-
-
 	pending_basic_attacks.erase(
+		peer_id
+	)
+
+
+	pending_skill_casts.erase(
 		peer_id
 	)
 
@@ -1046,6 +1695,109 @@ func _cancel_pending_basic_attack(
 		" | Request: ",
 		request_id,
 		" | Action: basic_attack",
+		" | Entity: ",
+		entity_id,
+		" | Reason: ",
+		reason
+	)
+
+# =========================================================
+# CANCELAR SKILL PENDIENTE
+# =========================================================
+
+func _cancel_pending_skill_cast(
+	peer_id: int,
+	reason: String,
+	send_result: bool
+) -> void:
+	if not pending_skill_casts.has(
+		peer_id
+	):
+		return
+
+
+	var pending_state: Dictionary = (
+		pending_skill_casts[
+			peer_id
+		]
+	)
+
+
+	var request_id := int(
+		pending_state.get(
+			"request_id",
+			0
+		)
+	)
+
+
+	var skill_id := String(
+		pending_state.get(
+			"skill_id",
+			""
+		)
+	)
+
+
+	var entity_id := String(
+		pending_state.get(
+			"entity_id",
+			""
+		)
+	)
+
+
+	var target: Dictionary = {}
+
+
+	var target_value: Variant = (
+		pending_state.get(
+			"target",
+			{}
+		)
+	)
+
+
+	if typeof(target_value) == TYPE_DICTIONARY:
+		target = (
+			target_value as Dictionary
+		).duplicate(
+			true
+		)
+
+
+	pending_skill_casts.erase(
+		peer_id
+	)
+
+
+	movement_coordinator.stop_action_approach_movement(
+		peer_id
+	)
+
+
+	if (
+		send_result
+		and
+		request_id > 0
+	):
+		skill_cast_coordinator.cancel_approached_skill_cast(
+			peer_id,
+			request_id,
+			skill_id,
+			target,
+			reason
+		)
+
+
+	print(
+		"ActionApproachCoordinator | Approach cancelled",
+		" | Peer: ",
+		peer_id,
+		" | Request: ",
+		request_id,
+		" | Action: skill:",
+		skill_id,
 		" | Entity: ",
 		entity_id,
 		" | Reason: ",

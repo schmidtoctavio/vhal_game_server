@@ -1535,7 +1535,8 @@ func _ready() -> void:
 		world_session_registry,
 		world_mob_registry,
 		movement_coordinator,
-		basic_attack_coordinator
+		basic_attack_coordinator,
+		skill_cast_coordinator
 	):
 		push_error(
 			"ServerMain | No se pudo inicializar ActionApproachCoordinator."
