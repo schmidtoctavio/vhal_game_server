@@ -586,6 +586,31 @@ func _ready() -> void:
 
 		return
 
+	var pvp_foundation_contract_error := (
+		ServerPvpFoundationContract
+		.validate_contract()
+	)
+
+
+	if not pvp_foundation_contract_error.is_empty():
+		push_error(
+			(
+				"ServerMain | "
+				+
+				"PvP Foundation Contract inválido: "
+				+
+				pvp_foundation_contract_error
+			)
+		)
+
+
+		get_tree().quit(
+			51
+		)
+
+
+		return
+
 	if not line_of_sight_contract_error.is_empty():
 		push_error(
 			(
@@ -797,6 +822,10 @@ func _ready() -> void:
 
 	print(
 		"ServerMain | Status Effect Contract validado."
+	)
+
+	print(
+		"ServerMain | PvP Foundation Contract validado."
 	)
 
 	print(
