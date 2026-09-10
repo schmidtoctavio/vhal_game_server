@@ -61,6 +61,10 @@ extends Node
 	$SkillCastCoordinator
 )
 
+@onready var player_status_effect_coordinator: PlayerStatusEffectCoordinator = (
+	$PlayerStatusEffectCoordinator
+)
+
 @onready var basic_attack_coordinator: BasicAttackCoordinator = (
 	$BasicAttackCoordinator
 )
@@ -907,6 +911,40 @@ func _ready() -> void:
 
 		return
 
+	if player_status_effect_coordinator == null:
+		push_error(
+			"ServerMain | No existe PlayerStatusEffectCoordinator."
+		)
+
+
+		get_tree().quit(
+			52
+		)
+
+
+		return
+
+
+	if not player_status_effect_coordinator.setup(
+		game_server,
+		world_session_registry
+	):
+		push_error(
+			(
+				"ServerMain | No se pudo inicializar "
+				+
+				"PlayerStatusEffectCoordinator."
+			)
+		)
+
+
+		get_tree().quit(
+			52
+		)
+
+
+		return
+
 	if skill_cast_coordinator == null:
 		push_error(
 			"ServerMain | No existe SkillCastCoordinator."
@@ -925,7 +963,8 @@ func _ready() -> void:
 		game_server,
 		world_session_registry,
 		world_mob_registry,
-		world_navigation_registry
+		world_navigation_registry,
+		player_status_effect_coordinator
 	):
 		push_error(
 			"ServerMain | No se pudo inicializar SkillCastCoordinator."
@@ -1366,6 +1405,8 @@ func _ready() -> void:
 		world_session_registry,
 		world_mob_registry,
 		basic_attack_coordinator,
+		skill_cast_coordinator,
+		player_status_effect_coordinator,
 		mob_combat_coordinator
 	):
 		push_error(

@@ -25,6 +25,10 @@ var world_mob_registry: WorldMobRegistry = null
 
 var basic_attack_coordinator: BasicAttackCoordinator = null
 
+var skill_cast_coordinator: SkillCastCoordinator = null
+
+var player_status_effect_coordinator: PlayerStatusEffectCoordinator = null
+
 var mob_combat_coordinator: MobCombatCoordinator = null
 
 
@@ -55,6 +59,8 @@ func setup(
 	p_world_session_registry: WorldSessionRegistry,
 	p_world_mob_registry: WorldMobRegistry,
 	p_basic_attack_coordinator: BasicAttackCoordinator,
+	p_skill_cast_coordinator: SkillCastCoordinator,
+	p_player_status_effect_coordinator: PlayerStatusEffectCoordinator,
 	p_mob_combat_coordinator: MobCombatCoordinator
 ) -> bool:
 	if configured:
@@ -76,6 +82,12 @@ func setup(
 	if p_basic_attack_coordinator == null:
 		return false
 
+	if p_skill_cast_coordinator == null:
+		return false
+
+
+	if p_player_status_effect_coordinator == null:
+		return false
 
 	if p_mob_combat_coordinator == null:
 		return false
@@ -93,6 +105,15 @@ func setup(
 
 	basic_attack_coordinator = (
 		p_basic_attack_coordinator
+	)
+
+	skill_cast_coordinator = (
+		p_skill_cast_coordinator
+	)
+
+
+	player_status_effect_coordinator = (
+		p_player_status_effect_coordinator
 	)
 
 	mob_combat_coordinator = (
@@ -151,6 +172,37 @@ func setup(
 			.valid_offensive_action_against_player
 			.connect(
 				_on_valid_offensive_action_against_player
+			)
+		)
+
+	if not (
+		skill_cast_coordinator
+		.valid_offensive_skill_against_player
+		.is_connected(
+			_on_valid_offensive_skill_against_player
+		)
+	):
+		(
+			skill_cast_coordinator
+			.valid_offensive_skill_against_player
+			.connect(
+				_on_valid_offensive_skill_against_player
+			)
+		)
+
+
+	if not (
+		player_status_effect_coordinator
+		.player_periodic_damage_applied
+		.is_connected(
+			_on_player_periodic_damage_applied
+		)
+	):
+		(
+			player_status_effect_coordinator
+			.player_periodic_damage_applied
+			.connect(
+				_on_player_periodic_damage_applied
 			)
 		)
 
@@ -655,6 +707,76 @@ func _on_valid_offensive_action_against_player(
 			str(
 				attacker_peer_id
 			)
+		)
+	)
+
+func _on_valid_offensive_skill_against_player(
+	attacker_peer_id: int,
+	target_peer_id: int,
+	skill_id: String
+) -> void:
+	_register_hostile_activity(
+		attacker_peer_id,
+		(
+			"pvp_skill:"
+			+
+			skill_id
+			+
+			":"
+			+
+			str(target_peer_id)
+		)
+	)
+
+
+	_register_hostile_activity(
+		target_peer_id,
+		(
+			"pvp_targeted_by_skill:"
+			+
+			skill_id
+			+
+			":"
+			+
+			str(attacker_peer_id)
+		)
+	)
+
+
+func _on_player_periodic_damage_applied(
+	attacker_peer_id: int,
+	target_peer_id: int,
+	effect_id: String,
+	applied_damage: int
+) -> void:
+	if applied_damage <= 0:
+		return
+
+
+	_register_hostile_activity(
+		target_peer_id,
+		(
+			"pvp_periodic_received:"
+			+
+			effect_id
+			+
+			":"
+			+
+			str(attacker_peer_id)
+		)
+	)
+
+
+	_register_hostile_activity(
+		target_peer_id,
+		(
+			"pvp_periodic_received:"
+			+
+			effect_id
+			+
+			":"
+			+
+			str(attacker_peer_id)
 		)
 	)
 

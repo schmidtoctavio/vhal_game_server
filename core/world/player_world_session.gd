@@ -77,6 +77,15 @@ var vitals: ServerVitalsState = null
 
 
 # =========================================================
+# STATUS EFFECTS AUTORITATIVOS
+#
+# Runtime únicamente.
+# NO forman parte del checkpoint durable.
+# =========================================================
+
+var status_effects: ServerStatusEffectCollection = null
+
+# =========================================================
 # SKILLS AUTORITATIVAS
 # =========================================================
 
@@ -521,6 +530,77 @@ func clear_equipment_snapshot() -> void:
 	equipment_snapshot = {}
 
 # =========================================================
+# STATUS EFFECTS
+# =========================================================
+
+func apply_status_effect(
+	status_effect: ServerStatusEffectRuntime,
+	now_msec: int
+) -> Dictionary:
+	if status_effects == null:
+		return {
+			"ok": false,
+		}
+
+
+	if vitals == null:
+		return {
+			"ok": false,
+		}
+
+
+	if vitals.hp <= 0:
+		return {
+			"ok": false,
+		}
+
+
+	return status_effects.apply_status_effect(
+		status_effect,
+		now_msec
+	)
+
+
+func get_status_effects() -> Array[ServerStatusEffectRuntime]:
+	if status_effects == null:
+		return []
+
+
+	return status_effects.get_all()
+
+
+func remove_status_effect_by_key(
+	runtime_key: String
+) -> ServerStatusEffectRuntime:
+	if status_effects == null:
+		return null
+
+
+	return status_effects.remove_status_effect_by_key(
+		runtime_key
+	)
+
+
+func clear_status_effects() -> void:
+	if status_effects == null:
+		return
+
+
+	status_effects.clear()
+
+
+func begin_hard_control_immunity(
+	now_msec: int
+) -> void:
+	if status_effects == null:
+		return
+
+
+	status_effects.begin_hard_control_immunity(
+		now_msec
+	)
+
+# =========================================================
 # INTENCIÓN DE MOVIMIENTO
 # =========================================================
 
@@ -751,6 +831,10 @@ func _init(
 
 	basic_attack_runtime = (
 		ServerCharacterRuntimeBootstrap.create_basic_attack_runtime()
+	)
+
+	status_effects = (
+		ServerStatusEffectCollection.new()
 	)
 
 	map_id = (
@@ -1136,6 +1220,10 @@ func is_valid() -> bool:
 		basic_attack_runtime != null
 		and
 		basic_attack_runtime.is_valid()
+		and
+		status_effects != null
+		and
+		status_effects.is_valid()
 		and
 		runtime_bootstrap_valid
 	)

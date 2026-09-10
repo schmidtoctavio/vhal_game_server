@@ -1208,17 +1208,28 @@ func _process_pending_skill_cast(
 		return
 
 
-	var mob := (
-		world_mob_registry.get_mob(
+	var target_resolution := (
+		_resolve_skill_cast_target(
+			session,
 			entity_id
 		)
 	)
 
 
-	if mob == null:
+	if not bool(
+		target_resolution.get(
+			"ok",
+			false
+		)
+	):
 		_cancel_pending_skill_cast(
 			peer_id,
-			"target_not_found",
+			String(
+				target_resolution.get(
+					"reason",
+					"target_not_found"
+				)
+			),
 			true
 		)
 
@@ -1226,10 +1237,18 @@ func _process_pending_skill_cast(
 		return
 
 
-	if mob.map_id != session.map_id:
+	var target_position_value: Variant = (
+		target_resolution.get(
+			"position",
+			null
+		)
+	)
+
+
+	if typeof(target_position_value) != TYPE_VECTOR3:
 		_cancel_pending_skill_cast(
 			peer_id,
-			"target_wrong_map",
+			"runtime_failure",
 			true
 		)
 
@@ -1237,15 +1256,9 @@ func _process_pending_skill_cast(
 		return
 
 
-	if not mob.is_alive():
-		_cancel_pending_skill_cast(
-			peer_id,
-			"target_not_alive",
-			true
-		)
-
-
-		return
+	var target_position: Vector3 = (
+		target_position_value
+	)
 
 
 	var player_position_2d := Vector2(
@@ -1254,15 +1267,15 @@ func _process_pending_skill_cast(
 	)
 
 
-	var mob_position_2d := Vector2(
-		mob.position.x,
-		mob.position.z
+	var target_position_2d := Vector2(
+		target_position.x,
+		target_position.z
 	)
 
 
 	var distance := (
 		player_position_2d.distance_to(
-			mob_position_2d
+			target_position_2d
 		)
 	)
 
@@ -1347,7 +1360,7 @@ func _process_pending_skill_cast(
 
 
 	var last_target_position := (
-		mob.position
+		target_position
 	)
 
 
@@ -1371,7 +1384,7 @@ func _process_pending_skill_cast(
 			last_target_position.z
 		)
 		.distance_to(
-			mob_position_2d
+			target_position_2d
 		)
 	)
 
@@ -1414,11 +1427,112 @@ func _process_pending_skill_cast(
 	_retarget_skill_cast_approach(
 		peer_id,
 		session,
-		mob,
+		target_position,
 		cast_range,
 		now_msec
 	)
 
+# =========================================================
+# RESOLVER TARGET DE SKILL
+# =========================================================
+
+func _resolve_skill_cast_target(
+	session: PlayerWorldSession,
+	entity_id: String
+) -> Dictionary:
+	if session == null:
+		return {
+			"ok": false,
+			"reason": "runtime_failure",
+		}
+
+
+	if ServerCombatEntityRef.is_player_entity_id(
+		entity_id
+	):
+		var target_peer_id := (
+			ServerCombatEntityRef.get_player_peer_id(
+				entity_id
+			)
+		)
+
+
+		var target_session := (
+			world_session_registry.get_session(
+				target_peer_id
+			)
+		)
+
+
+		var pvp_reason := (
+			ServerPvpPolicy.validate_engagement(
+				session,
+				target_session
+			)
+		)
+
+
+		if not pvp_reason.is_empty():
+			return {
+				"ok": false,
+				"reason": pvp_reason,
+			}
+
+
+		if target_session == null:
+			return {
+				"ok": false,
+				"reason": "target_not_found",
+			}
+
+
+		return {
+			"ok": true,
+			"position": target_session.position,
+		}
+
+
+	if entity_id.begins_with(
+		ServerCombatEntityRef.PLAYER_PREFIX
+	):
+		return {
+			"ok": false,
+			"reason": "invalid_target",
+		}
+
+
+	var mob := (
+		world_mob_registry.get_mob(
+			entity_id
+		)
+	)
+
+
+	if mob == null:
+		return {
+			"ok": false,
+			"reason": "target_not_found",
+		}
+
+
+	if mob.map_id != session.map_id:
+		return {
+			"ok": false,
+			"reason": "target_wrong_map",
+		}
+
+
+	if not mob.is_alive():
+		return {
+			"ok": false,
+			"reason": "target_not_alive",
+		}
+
+
+	return {
+		"ok": true,
+		"position": mob.position,
+	}
 
 # =========================================================
 # RETARGET DE SKILL
@@ -1427,7 +1541,7 @@ func _process_pending_skill_cast(
 func _retarget_skill_cast_approach(
 	peer_id: int,
 	session: PlayerWorldSession,
-	mob: WorldMobRuntimeState,
+	target_position: Vector3,
 	cast_range: float,
 	now_msec: int
 ) -> void:
@@ -1440,7 +1554,7 @@ func _retarget_skill_cast_approach(
 	var approach_target := (
 		_build_approach_target(
 			session.position,
-			mob.position,
+			target_position,
 			cast_range
 		)
 	)
@@ -1495,22 +1609,22 @@ func _retarget_skill_cast_approach(
 	)
 
 
-	var resolved_distance_to_mob := (
+	var resolved_distance_to_target := (
 		Vector2(
 			resolved_target.x,
 			resolved_target.z
 		)
 		.distance_to(
 			Vector2(
-				mob.position.x,
-				mob.position.z
+				target_position.x,
+				target_position.z
 			)
 		)
 	)
 
 
 	if (
-		resolved_distance_to_mob
+		resolved_distance_to_target
 		>
 		cast_range
 		+
@@ -1535,7 +1649,7 @@ func _retarget_skill_cast_approach(
 
 	pending_state[
 		"last_target_position"
-	] = mob.position
+	] = target_position
 
 	pending_state[
 		"last_retarget_msec"

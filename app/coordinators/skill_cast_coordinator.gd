@@ -18,6 +18,12 @@ signal skill_cast_approach_requested(
 	cast_range: float
 )
 
+signal valid_offensive_skill_against_player(
+	attacker_peer_id: int,
+	target_peer_id: int,
+	skill_id: String
+)
+
 # =========================================================
 # DEPENDENCIAS
 # =========================================================
@@ -29,6 +35,8 @@ var world_session_registry: WorldSessionRegistry = null
 var world_mob_registry: WorldMobRegistry = null
 
 var world_navigation_registry: WorldNavigationRegistry = null
+
+var player_status_effect_coordinator: PlayerStatusEffectCoordinator = null
 
 # =========================================================
 # ESTADO
@@ -45,7 +53,8 @@ func setup(
 	p_game_server: GameServer,
 	p_world_session_registry: WorldSessionRegistry,
 	p_world_mob_registry: WorldMobRegistry,
-	p_world_navigation_registry: WorldNavigationRegistry
+	p_world_navigation_registry: WorldNavigationRegistry,
+	p_player_status_effect_coordinator: PlayerStatusEffectCoordinator
 ) -> bool:
 	if configured:
 		return true
@@ -65,6 +74,9 @@ func setup(
 	if p_world_navigation_registry == null:
 		return false
 
+	if p_player_status_effect_coordinator == null:
+		return false
+
 	game_server = p_game_server
 
 
@@ -79,6 +91,10 @@ func setup(
 
 	world_navigation_registry = (
 		p_world_navigation_registry
+	)
+
+	player_status_effect_coordinator = (
+		p_player_status_effect_coordinator
 	)
 
 	_bind_signals()
@@ -468,6 +484,10 @@ func _process_skill_cast_request(
 
 	var damage_target: WorldMobRuntimeState = null
 
+	var damage_player_target: PlayerWorldSession = null
+
+	var damage_target_entity_id: String = ""
+
 	var area_damage_center: Vector3 = Vector3.ZERO
 
 	var area_damage_entries: Array = []
@@ -696,7 +716,7 @@ func _process_skill_cast_request(
 		==
 		ServerSkillCatalog.POISON_ID
 	):
-		var target_entity_id := String(
+		damage_target_entity_id = String(
 			target.get(
 				"entity_id",
 				""
@@ -704,18 +724,7 @@ func _process_skill_cast_request(
 		).strip_edges().to_lower()
 
 
-		damage_target = (
-			world_mob_registry.get_mob(
-				target_entity_id
-			)
-		)
-
-
-		if (
-			damage_target == null
-			or
-			not damage_target.is_alive()
-		):
+		if damage_target_entity_id.is_empty():
 			_send_result(
 				peer_id,
 				request_id,
@@ -729,6 +738,72 @@ func _process_skill_cast_request(
 
 
 			return
+
+
+		if ServerCombatEntityRef.is_player_entity_id(
+			damage_target_entity_id
+		):
+			var target_peer_id := (
+				ServerCombatEntityRef.get_player_peer_id(
+					damage_target_entity_id
+				)
+			)
+
+
+			damage_player_target = (
+				world_session_registry.get_session(
+					target_peer_id
+				)
+			)
+
+
+			if (
+				damage_player_target == null
+				or
+				damage_player_target.vitals == null
+				or
+				damage_player_target.vitals.hp <= 0
+			):
+				_send_result(
+					peer_id,
+					request_id,
+					definition.skill_id,
+					false,
+					"runtime_failure",
+					session,
+					0.0,
+					{}
+				)
+
+
+				return
+
+		else:
+			damage_target = (
+				world_mob_registry.get_mob(
+					damage_target_entity_id
+				)
+			)
+
+
+			if (
+				damage_target == null
+				or
+				not damage_target.is_alive()
+			):
+				_send_result(
+					peer_id,
+					request_id,
+					definition.skill_id,
+					false,
+					"runtime_failure",
+					session,
+					0.0,
+					{}
+				)
+
+
+				return
 
 	# -----------------------------------------------------
 	# COOLDOWN
@@ -1280,7 +1355,11 @@ func _process_skill_cast_request(
 		ServerSkillCatalog.POISON_ID
 	):
 		if (
-			damage_target == null
+			(
+				damage_target == null
+				and
+				damage_player_target == null
+			)
 			or
 			definition.status_effect_profile == null
 			or
@@ -1365,13 +1444,26 @@ func _process_skill_cast_request(
 			return
 
 
-		var status_application := (
-			world_mob_registry
-			.apply_status_effect_to_mob(
-				damage_target.entity_id,
-				status_effect
+		var status_application: Dictionary = {}
+
+
+		if damage_player_target != null:
+			status_application = (
+				player_status_effect_coordinator
+				.apply_status_effect_to_player(
+					damage_player_target.peer_id,
+					status_effect
+				)
 			)
-		)
+
+		else:
+			status_application = (
+				world_mob_registry
+				.apply_status_effect_to_mob(
+					damage_target.entity_id,
+					status_effect
+				)
+			)
 
 
 		if (
@@ -1445,6 +1537,14 @@ func _process_skill_cast_request(
 
 
 			return
+
+
+		if damage_player_target != null:
+			valid_offensive_skill_against_player.emit(
+				peer_id,
+				damage_player_target.peer_id,
+				definition.skill_id
+			)
 
 
 		cooldown_remaining = (
@@ -1532,7 +1632,7 @@ func _process_skill_cast_request(
 				),
 
 				"entity_id": (
-					damage_target.entity_id
+					damage_target_entity_id
 				),
 			}
 		)
@@ -1547,7 +1647,13 @@ func _process_skill_cast_request(
 			" | Personaje: ",
 			session.character_name,
 			" | Entity: ",
-			damage_target.entity_id,
+			damage_target_entity_id,
+			" | Target Type: ",
+			(
+				"player"
+				if damage_player_target != null
+				else "mob"
+			),
 			" | Operation: ",
 			status_operation,
 			" | Stacks: ",
@@ -1778,6 +1884,158 @@ func _validate_entity_target(
 		return "invalid_target"
 
 
+	# =====================================================
+	# PLAYER PvP
+	# =====================================================
+
+	if entity_id.begins_with(
+		ServerCombatEntityRef.PLAYER_PREFIX
+	):
+		if not ServerCombatEntityRef.is_player_entity_id(
+			entity_id
+		):
+			return "invalid_target"
+
+
+		var target_peer_id := (
+			ServerCombatEntityRef.get_player_peer_id(
+				entity_id
+			)
+		)
+
+
+		var target_session := (
+			world_session_registry.get_session(
+				target_peer_id
+			)
+		)
+
+
+		var pvp_reason := (
+			ServerPvpPolicy.validate_engagement(
+				session,
+				target_session
+			)
+		)
+
+
+		if not pvp_reason.is_empty():
+			print(
+				"SkillCastCoordinator | PvP Skill rechazado",
+				" | Request: ",
+				request_id,
+				" | Skill: ",
+				definition.skill_id,
+				" | Target: ",
+				entity_id,
+				" | Reason: ",
+				pvp_reason
+			)
+
+
+			return pvp_reason
+
+
+		if (
+			target_session == null
+			or
+			not target_session.is_valid()
+		):
+			return "target_not_ready"
+
+
+		# -------------------------------------------------
+		# RANGE
+		# -------------------------------------------------
+
+		if definition.cast_range > 0.0:
+			var caster_position := Vector2(
+				session.position.x,
+				session.position.z
+			)
+
+
+			var player_position := Vector2(
+				target_session.position.x,
+				target_session.position.z
+			)
+
+
+			var distance := (
+				caster_position.distance_to(
+					player_position
+				)
+			)
+
+
+			if distance > definition.cast_range:
+				print(
+					"SkillCastCoordinator | PvP Skill fuera de rango",
+					" | Request: ",
+					request_id,
+					" | Skill: ",
+					definition.skill_id,
+					" | Target: ",
+					entity_id,
+					" | Distancia: ",
+					distance,
+					" | Rango: ",
+					definition.cast_range
+				)
+
+
+				return "out_of_range"
+
+
+		# -------------------------------------------------
+		# LOS
+		# -------------------------------------------------
+
+		if not ServerWorldLineOfSight.has_line_of_sight(
+			session.map_id,
+			session.position,
+			target_session.position
+		):
+			print(
+				"SkillCastCoordinator | PvP Skill LOS bloqueado",
+				" | Request: ",
+				request_id,
+				" | Skill: ",
+				definition.skill_id,
+				" | Target: ",
+				entity_id
+			)
+
+
+			return "line_of_sight_blocked"
+
+
+		print(
+			"SkillCastCoordinator | Target PvP autoritativo validado",
+			" | Request: ",
+			request_id,
+			" | Skill: ",
+			definition.skill_id,
+			" | Entity: ",
+			entity_id,
+			" | Target Peer: ",
+			target_session.peer_id,
+			" | Personaje: ",
+			target_session.character_name,
+			" | HP: ",
+			target_session.vitals.hp,
+			"/",
+			target_session.vitals.max_hp
+		)
+
+
+		return ""
+
+
+	# =====================================================
+	# MOB PvE
+	# =====================================================
+
 	var mob := (
 		world_mob_registry.get_mob(
 			entity_id
@@ -1797,15 +2055,12 @@ func _validate_entity_target(
 		return "target_not_alive"
 
 
-	# -----------------------------------------------------
-	# RANGE
-	# -----------------------------------------------------
-
 	if definition.cast_range > 0.0:
 		var caster_position := Vector2(
 			session.position.x,
 			session.position.z
 		)
+
 
 		var mob_position := Vector2(
 			mob.position.x,
@@ -1838,13 +2093,6 @@ func _validate_entity_target(
 
 			return "out_of_range"
 
-
-	# -----------------------------------------------------
-	# LOS
-	#
-	# F28-C:
-	# Entity Skills requieren LOS.
-	# -----------------------------------------------------
 
 	if not ServerWorldLineOfSight.has_line_of_sight(
 		session.map_id,
