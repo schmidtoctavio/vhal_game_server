@@ -21,15 +21,6 @@ signal player_damaged_by_mob(
 	applied_damage: int
 )
 
-signal player_died(
-	peer_id: int
-)
-
-signal player_respawned(
-	peer_id: int
-)
-
-
 # =========================================================
 # CONFIGURACIÓN
 # =========================================================
@@ -43,12 +34,6 @@ const WAYPOINT_REACHED_DISTANCE: float = 0.01
 const RETURN_REACHED_DISTANCE: float = 0.05
 
 const MIN_DIRECTION_LENGTH_SQUARED: float = 0.000001
-
-
-const PLAYER_RESPAWN_DELAY_SECONDS: float = 3.0
-
-const PLAYER_RESPAWN_DELAY_MSEC: int = 3000
-
 
 # =========================================================
 # DEPENDENCIAS
@@ -70,8 +55,6 @@ var world_mob_registry: WorldMobRegistry = null
 var configured: bool = false
 
 var mob_state_sample_accumulator: float = 0.0
-
-var pending_player_respawns: Dictionary = {}
 
 
 # =========================================================
@@ -155,11 +138,6 @@ func _physics_process(
 
 	var now_msec := (
 		Time.get_ticks_msec()
-	)
-
-
-	_process_player_respawns(
-		now_msec
 	)
 
 
@@ -1307,14 +1285,6 @@ func _try_mob_attack(
 	)
 
 
-	if session.vitals.hp <= 0:
-		_handle_player_death(
-			session,
-			mob,
-			now_msec
-		)
-
-
 # =========================================================
 # PLAYER VITALS
 # =========================================================
@@ -1342,179 +1312,26 @@ func _send_player_vitals(
 
 
 # =========================================================
-# PLAYER DEATH
-# =========================================================
-
-func _handle_player_death(
-	session: PlayerWorldSession,
-	mob: WorldMobRuntimeState,
-	now_msec: int
-) -> void:
-	if pending_player_respawns.has(
-		session.peer_id
-	):
-		return
-
-
-	session.clear_move_request()
-
-
-	pending_player_respawns[
-		session.peer_id
-	] = (
-		now_msec
-		+
-		PLAYER_RESPAWN_DELAY_MSEC
-	)
-
-	player_died.emit(
-		session.peer_id
-	)
-
-
-	_replicate_player_transform(
-		session
-	)
-
-
-	_release_mobs_targeting_peer(
-		session.peer_id
-	)
-
-
-	print(
-		"MobCombatCoordinator | Jugador derrotado",
-		" | Peer: ",
-		session.peer_id,
-		" | Personaje: ",
-		session.character_name,
-		" | Killer: ",
-		mob.entity_id,
-		" | Respawn: ",
-		PLAYER_RESPAWN_DELAY_SECONDS,
-		" s"
-	)
-
-
-# =========================================================
-# PLAYER RESPAWN
-# =========================================================
-
-func _process_player_respawns(
-	now_msec: int
-) -> void:
-	var due_peer_ids: Array[int] = []
-
-
-	for raw_peer_id: Variant in (
-		pending_player_respawns.keys()
-	):
-		var peer_id := int(
-			raw_peer_id
-		)
-
-
-		var deadline := int(
-			pending_player_respawns[
-				peer_id
-			]
-		)
-
-
-		if now_msec < deadline:
-			continue
-
-
-		due_peer_ids.append(
-			peer_id
-		)
-
-
-	for peer_id: int in due_peer_ids:
-		pending_player_respawns.erase(
-			peer_id
-		)
-
-
-		var session := (
-			world_session_registry.get_session(
-				peer_id
-			)
-		)
-
-
-		if session == null:
-			continue
-
-
-		if session.vitals.hp > 0:
-			continue
-
-
-		session.vitals.set_hp(
-			session.vitals.max_hp
-		)
-
-
-		session.vitals.set_mp(
-			session.vitals.max_mp
-		)
-
-
-		session.position = (
-			WorldSessionRegistry
-			.DEFAULT_SPAWN_POSITION
-		)
-
-
-		session.rotation_y = (
-			WorldSessionRegistry
-			.DEFAULT_SPAWN_ROTATION_Y
-		)
-
-
-		session.clear_move_request()
-
-		player_respawned.emit(
-			session.peer_id
-		)
-
-		_send_player_vitals(
-			session
-		)
-
-
-		_replicate_player_transform(
-			session
-		)
-
-
-		print(
-			"MobCombatCoordinator | Jugador respawneado",
-			" | Peer: ",
-			session.peer_id,
-			" | Personaje: ",
-			session.character_name,
-			" | Posición: ",
-			session.position,
-			" | HP: ",
-			session.vitals.hp,
-			"/",
-			session.vitals.max_hp,
-			" | MP: ",
-			session.vitals.mp,
-			"/",
-			session.vitals.max_mp
-		)
-
-
-# =========================================================
 # RELEASE MOBS TARGETING PLAYER
 # =========================================================
 
-func _release_mobs_targeting_peer(
-	peer_id: int
+func release_mobs_targeting_peer(
+	peer_id: int,
+	reason: String = "target_dead"
 ) -> void:
+	if peer_id <= 1:
+		return
+
+
+	var release_reason := (
+		reason.strip_edges()
+	)
+
+
+	if release_reason.is_empty():
+		release_reason = "target_dead"
+
+
 	for mob: WorldMobRuntimeState in (
 		world_mob_registry.get_all_mobs()
 	):
@@ -1536,57 +1353,8 @@ func _release_mobs_targeting_peer(
 
 		_release_target_and_return(
 			mob,
-			"target_dead"
+			release_reason
 		)
-
-
-# =========================================================
-# PLAYER TRANSFORM REPLICATION
-# =========================================================
-
-func _replicate_player_transform(
-	session: PlayerWorldSession
-) -> void:
-	var target_peer_ids: Array[int] = [
-		session.peer_id
-	]
-
-
-	for remote_session: PlayerWorldSession in (
-		world_session_registry.get_sessions_in_map(
-			session.map_id,
-			session.peer_id
-		)
-	):
-		if remote_session == null:
-			continue
-
-
-		target_peer_ids.append(
-			remote_session.peer_id
-		)
-
-
-	var result := (
-		game_server.send_movement_state_to_peers(
-			session.peer_id,
-			target_peer_ids,
-			session.position,
-			session.rotation_y,
-			false
-		)
-	)
-
-
-	if result != OK:
-		push_warning(
-			(
-				"MobCombatCoordinator | "
-				+
-				"No se pudo replicar Player Transform."
-			)
-		)
-
 
 # =========================================================
 # MOB NETWORK SAMPLE

@@ -27,6 +27,12 @@ signal valid_offensive_action_against_player(
 	target_peer_id: int
 )
 
+signal player_damaged_by_player(
+	attacker_peer_id: int,
+	target_peer_id: int,
+	applied_damage: int
+)
+
 var game_server: GameServer = null
 
 var world_session_registry: WorldSessionRegistry = null
@@ -1830,6 +1836,11 @@ func _process_player_basic_attack_request(
 		target_session
 	)
 
+	player_damaged_by_player.emit(
+		peer_id,
+		target_peer_id,
+		applied_damage
+	)
 
 	print(
 		"BasicAttackCoordinator | PvP Attack ejecutado",

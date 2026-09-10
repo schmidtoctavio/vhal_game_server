@@ -31,6 +31,8 @@ var player_status_effect_coordinator: PlayerStatusEffectCoordinator = null
 
 var mob_combat_coordinator: MobCombatCoordinator = null
 
+var player_death_coordinator: PlayerDeathCoordinator = null
+
 
 # =========================================================
 # RUNTIME
@@ -61,7 +63,8 @@ func setup(
 	p_basic_attack_coordinator: BasicAttackCoordinator,
 	p_skill_cast_coordinator: SkillCastCoordinator,
 	p_player_status_effect_coordinator: PlayerStatusEffectCoordinator,
-	p_mob_combat_coordinator: MobCombatCoordinator
+	p_mob_combat_coordinator: MobCombatCoordinator,
+	p_player_death_coordinator: PlayerDeathCoordinator
 ) -> bool:
 	if configured:
 		return true
@@ -92,6 +95,8 @@ func setup(
 	if p_mob_combat_coordinator == null:
 		return false
 
+	if p_player_death_coordinator == null:
+		return false
 
 	game_server = p_game_server
 
@@ -120,6 +125,9 @@ func setup(
 		p_mob_combat_coordinator
 	)
 
+	player_death_coordinator = (
+		p_player_death_coordinator
+	)
 
 	if not world_session_registry.session_removed.is_connected(
 		_on_session_removed
@@ -229,22 +237,20 @@ func setup(
 			_on_player_damaged_by_mob
 		)
 
-
-	if not mob_combat_coordinator.player_died.is_connected(
+	if not player_death_coordinator.player_died.is_connected(
 		_on_player_died
 	):
-		mob_combat_coordinator.player_died.connect(
+		player_death_coordinator.player_died.connect(
 			_on_player_died
 		)
 
 
-	if not mob_combat_coordinator.player_respawned.is_connected(
+	if not player_death_coordinator.player_respawned.is_connected(
 		_on_player_respawned
 	):
-		mob_combat_coordinator.player_respawned.connect(
+		player_death_coordinator.player_respawned.connect(
 			_on_player_respawned
 		)
-
 
 	configured = true
 
@@ -754,15 +760,15 @@ func _on_player_periodic_damage_applied(
 
 
 	_register_hostile_activity(
-		target_peer_id,
+		attacker_peer_id,
 		(
-			"pvp_periodic_received:"
+			"pvp_periodic:"
 			+
 			effect_id
 			+
 			":"
 			+
-			str(attacker_peer_id)
+			str(target_peer_id)
 		)
 	)
 
@@ -920,7 +926,8 @@ func _on_player_damaged_by_mob(
 
 
 func _on_player_died(
-	peer_id: int
+	peer_id: int,
+	_source: Dictionary
 ) -> void:
 	_clear_combat_state(
 		peer_id,

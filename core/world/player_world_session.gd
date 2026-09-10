@@ -642,6 +642,60 @@ func _reapply_persisted_vitals_after_equipment() -> void:
 		return
 
 
+	# -----------------------------------------------------
+	# RECUPERAR MUERTE PERSISTIDA
+	#
+	# Death es un estado runtime transitorio.
+	#
+	# Si el servidor cayó o el Player se desconectó durante
+	# la ventana de respawn y quedó durablemente con HP 0,
+	# al volver a entrar completamos el respawn pendiente.
+	# -----------------------------------------------------
+
+	if persisted_runtime_hp <= 0:
+		vitals.set_hp(
+			vitals.max_hp
+		)
+
+
+		vitals.set_mp(
+			vitals.max_mp
+		)
+
+
+		set_world_transform(
+			WorldSessionRegistry.DEFAULT_SPAWN_POSITION,
+			WorldSessionRegistry.DEFAULT_SPAWN_ROTATION_Y
+		)
+
+
+		clear_move_request()
+
+		clear_status_effects()
+
+
+		print(
+			"PlayerWorldSession | Muerte persistida recuperada",
+			" | Character ID: ",
+			character_id,
+			" | Personaje: ",
+			character_name,
+			" | HP: ",
+			vitals.hp,
+			"/",
+			vitals.max_hp,
+			" | MP: ",
+			vitals.mp,
+			"/",
+			vitals.max_mp,
+			" | Spawn: ",
+			position
+		)
+
+
+		return
+
+
 	vitals.set_hp(
 		persisted_runtime_hp
 	)

@@ -65,6 +65,10 @@ extends Node
 	$PlayerStatusEffectCoordinator
 )
 
+@onready var player_death_coordinator: PlayerDeathCoordinator = (
+	$PlayerDeathCoordinator
+)
+
 @onready var basic_attack_coordinator: BasicAttackCoordinator = (
 	$BasicAttackCoordinator
 )
@@ -1386,6 +1390,40 @@ func _ready() -> void:
 
 		return
 
+	if player_death_coordinator == null:
+		push_error(
+			"ServerMain | No existe PlayerDeathCoordinator."
+		)
+
+
+		get_tree().quit(
+			53
+		)
+
+
+		return
+
+
+	if not player_death_coordinator.setup(
+		game_server,
+		world_session_registry,
+		character_runtime_state_coordinator,
+		basic_attack_coordinator,
+		player_status_effect_coordinator,
+		mob_combat_coordinator
+	):
+		push_error(
+			"ServerMain | No se pudo inicializar PlayerDeathCoordinator."
+		)
+
+
+		get_tree().quit(
+			53
+		)
+
+
+		return
+
 	if character_regen_coordinator == null:
 		push_error(
 			"ServerMain | No existe CharacterRegenCoordinator."
@@ -1407,7 +1445,8 @@ func _ready() -> void:
 		basic_attack_coordinator,
 		skill_cast_coordinator,
 		player_status_effect_coordinator,
-		mob_combat_coordinator
+		mob_combat_coordinator,
+		player_death_coordinator
 	):
 		push_error(
 			"ServerMain | No se pudo inicializar CharacterRegenCoordinator."
@@ -1730,7 +1769,8 @@ func _ready() -> void:
 		world_session_registry,
 		world_presence_coordinator,
 		character_item_state_coordinator,
-		character_runtime_state_coordinator
+		character_runtime_state_coordinator,
+		player_death_coordinator
 	):
 		push_error(
 			"ServerMain | No se pudo inicializar AuthenticationCoordinator."

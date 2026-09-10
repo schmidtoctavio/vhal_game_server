@@ -18,6 +18,8 @@ var character_item_state_coordinator: CharacterItemStateCoordinator = null
 
 var character_runtime_state_coordinator: CharacterRuntimeStateCoordinator = null
 
+var player_death_coordinator: PlayerDeathCoordinator = null
+
 # =========================================================
 # ESTADO
 # =========================================================
@@ -35,7 +37,8 @@ func setup(
 	p_world_session_registry: WorldSessionRegistry,
 	p_world_presence_coordinator: WorldPresenceCoordinator,
 	p_character_item_state_coordinator: CharacterItemStateCoordinator,
-	p_character_runtime_state_coordinator: CharacterRuntimeStateCoordinator
+	p_character_runtime_state_coordinator: CharacterRuntimeStateCoordinator,
+	p_player_death_coordinator: PlayerDeathCoordinator
 ) -> bool:
 	if configured:
 		return true
@@ -67,6 +70,9 @@ func setup(
 	if p_character_runtime_state_coordinator == null:
 		return false
 
+	if p_player_death_coordinator == null:
+		return false
+
 	game_server = p_game_server
 
 	backend_ticket_validator = p_backend_ticket_validator
@@ -79,6 +85,10 @@ func setup(
 
 	character_runtime_state_coordinator = (
 		p_character_runtime_state_coordinator
+	)
+
+	player_death_coordinator = (
+		p_player_death_coordinator
 	)
 
 	_bind_signals()
@@ -382,6 +392,18 @@ func _on_client_disconnected(
 
 	if session == null:
 		return
+
+	# -----------------------------------------------------
+	# Un Player no puede persistirse en estado muerto.
+	#
+	# Si desconecta durante los 3 segundos de respawn,
+	# normalizamos primero su runtime al estado de respawn
+	# y recién después hacemos el checkpoint durable.
+	# -----------------------------------------------------
+
+	player_death_coordinator.prepare_session_for_disconnect(
+		session
+	)
 
 	var checkpoint_result := (
 		character_runtime_state_coordinator.checkpoint_session(
